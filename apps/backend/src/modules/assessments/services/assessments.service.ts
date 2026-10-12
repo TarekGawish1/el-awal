@@ -37,6 +37,7 @@ import {
   SessionForDeadline,
 } from '../utils/effective-due-date.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
+import { StorageService } from '../../../integrations/storage/storage.service';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
 @Injectable()
@@ -49,6 +50,7 @@ export class AssessmentsService {
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly storageService?: StorageService,
   ) {}
 
   /**
@@ -2092,11 +2094,43 @@ export class AssessmentsService {
       data: { lessonQuizId: null },
     });
 
-    // 2. Cascade delete submissions & answers if any
+    // 2. Query submissions & attachments to delete files from storage
     const submissions = await this.prisma.assessmentSubmission.findMany({
       where: { assessmentId },
-      select: { id: true },
+      select: { id: true, attachmentUrl: true, fileKey: true },
     });
+
+    // 3. Query questions to delete their images from storage
+    const questions = await this.prisma.assessmentQuestion.findMany({
+      where: { assessmentId },
+      select: { id: true, imageUrl: true, optionImages: true },
+    });
+
+    // Collect all storage files to delete from Cloudflare R2
+    const filesToDelete: string[] = [];
+    for (const q of questions) {
+      if (q.imageUrl) filesToDelete.push(q.imageUrl);
+      if (Array.isArray(q.optionImages)) {
+        for (const optImg of q.optionImages) {
+          if (typeof optImg === 'string' && optImg.trim()) {
+            filesToDelete.push(optImg.trim());
+          }
+        }
+      }
+    }
+    for (const s of submissions) {
+      if (s.attachmentUrl) filesToDelete.push(s.attachmentUrl);
+      if (s.fileKey) filesToDelete.push(s.fileKey);
+    }
+
+    if (filesToDelete.length > 0 && this.storageService) {
+      this.storageService.deleteObjects(filesToDelete).catch((err) => {
+        this.logger.warn(
+          `Failed to delete storage objects for assessment [${assessmentId}]: ${err?.message}`,
+        );
+      });
+    }
+
     if (submissions.length > 0) {
       const subIds = submissions.map((s) => s.id);
       await this.prisma.studentAnswer.deleteMany({
@@ -2107,7 +2141,7 @@ export class AssessmentsService {
       });
     }
 
-    // 3. Delete questions
+    // 4. Delete questions
     await this.prisma.assessmentQuestion.deleteMany({
       where: { assessmentId },
     });

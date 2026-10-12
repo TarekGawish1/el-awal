@@ -13,11 +13,13 @@ import {
   UploadedFile,
   BadRequestException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SECURE_FILE_UPLOAD_OPTIONS } from '../../../integrations/storage/upload-options';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { ContentService } from '../services/content.service';
+import { StorageCleanupService } from '../../../integrations/storage/storage-cleanup.service';
 import { PresignedUploadDto, PresignedVideoUploadDto } from '../dto/presigned-upload.dto';
 import { CreateContentDto } from '../dto/create-content.dto';
 import { UpdateContentDto } from '../dto/update-content.dto';
@@ -32,7 +34,11 @@ import { UserRole, ContentType } from '@prisma/client';
 @ApiBearerAuth()
 @Controller('content')
 export class ContentController {
-  constructor(private readonly contentService: ContentService) { }
+  constructor(
+    private readonly contentService: ContentService,
+    @Optional() private readonly storageCleanupService?: StorageCleanupService,
+  ) { }
+
 
   @Post('upload-file')
   @UseInterceptors(FileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
@@ -87,6 +93,22 @@ export class ContentController {
       }
     }
     return this.contentService.deleteFileFromStorage({ fileKey: key, fileUrl: url });
+  }
+
+  @Post('storage-cleanup/scan')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Scan or clean orphaned Cloudflare R2 files' })
+  async scanOrCleanStorage(
+    @Body('dryRun') dryRun = false,
+    @Body('gracePeriodHours') gracePeriodHours = 24,
+  ) {
+    if (!this.storageCleanupService) {
+      throw new BadRequestException('خدمة فحص وتنظيف التخزين غير متوفرة حالياً');
+    }
+    return this.storageCleanupService.scanAndCleanOrphans({
+      dryRun: Boolean(dryRun),
+      gracePeriodHours: Number(gracePeriodHours) || 24,
+    });
   }
 
   @Post('upload-raw')

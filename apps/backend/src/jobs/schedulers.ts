@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { PrismaService } from '../core/database/prisma.service';
 import { NotificationsService } from '../modules/notifications/services/notifications.service';
 import { NotificationSettingsService } from '../modules/notifications/services/notification-settings.service';
@@ -10,6 +10,7 @@ import * as cron from 'node-cron';
 import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
 import { WhatsAppDispatcherService } from '../modules/whatsapp/services/whatsapp-dispatcher.service';
 import { formatTeacherAgendaMessage } from '../utils/spintax';
+import { StorageCleanupService } from '../integrations/storage/storage-cleanup.service';
 
 /**
  * SchedulersService — automated cron jobs for the El-Awal notification engine.
@@ -22,6 +23,8 @@ import { formatTeacherAgendaMessage } from '../utils/spintax';
  * 2. Every 15 min  — ONLINE_EXAM_REMINDER (60 min window)
  * 3. Daily 07:00   — TEACHER_DAILY_SCHEDULE (morning agenda)
  * 4. Every 5 min   — TEACHER_SESSION_REMINDER (15 min window)
+ * 5. Every 14 min  — Heroku keep-alive ping
+ * 6. Daily 03:00   — CLOUDFLARE_R2_ORPHAN_CLEANUP (purges unlinked files)
  */
 // ─── Cairo Timezone Helpers ──────────────────────────────────────────────────
 
@@ -90,6 +93,7 @@ export class SchedulersService implements OnModuleInit {
     private readonly settingsService: NotificationSettingsService,
     private readonly whatsapp: WhatsAppService,
     private readonly whatsappDispatcher: WhatsAppDispatcherService,
+    @Optional() private readonly storageCleanup?: StorageCleanupService,
   ) {}
 
   onModuleInit() {
@@ -139,6 +143,15 @@ export class SchedulersService implements OnModuleInit {
       cron.schedule(
         '*/14 * * * *',
         () => this.runKeepAlivePing(),
+        { timezone: 'Africa/Cairo' },
+      ),
+    );
+
+    // 6. Daily Cloudflare R2 orphan cleanup (every day at 03:00 Africa/Cairo)
+    this.tasks.push(
+      cron.schedule(
+        '0 3 * * *',
+        () => this.runStorageOrphanCleanup(),
         { timezone: 'Africa/Cairo' },
       ),
     );
@@ -583,5 +596,30 @@ export class SchedulersService implements OnModuleInit {
       this.logger.error('[TeacherReminder] Error in cron job', error);
     }
   }
+
+  /**
+   * Daily Cloudflare R2 orphan storage reconciliation.
+   * Compares all files in the R2 bucket against database references and deletes unlinked files older than 24 hours.
+   */
+  async runStorageOrphanCleanup(): Promise<void> {
+    if (!this.storageCleanup) {
+      this.logger.warn('StorageCleanupService is not available; skipping orphan cleanup.');
+      return;
+    }
+    this.logger.log('🧹 [StorageCleanup] Running scheduled daily Cloudflare R2 orphan scan...');
+    try {
+      const report = await this.storageCleanup.scanAndCleanOrphans({
+        dryRun: false,
+        gracePeriodHours: 24,
+      });
+      const freedMb = (report.freedSizeBytes / (1024 * 1024)).toFixed(2);
+      this.logger.log(
+        `🧹 [StorageCleanup] Daily cleanup completed: ${report.deletedCount} orphans purged, ${freedMb} MB freed (total R2 objects: ${report.totalR2Objects}, protected recent: ${report.recentProtectedCount}) in ${report.durationMs}ms`,
+      );
+    } catch (err: any) {
+      this.logger.error(`❌ [StorageCleanup] Daily cleanup failed: ${err.message}`, err.stack);
+    }
+  }
 }
+
 
