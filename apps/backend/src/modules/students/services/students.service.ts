@@ -27,10 +27,13 @@ import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
 import { ResetParentPasswordDto } from '../dto/reset-parent-password.dto';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { formatStudentApprovalMessage } from '../../../utils/spintax';
+import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
 @Injectable()
 export class StudentsService {
   private readonly logger = new Logger(StudentsService.name);
+  private readonly groupSessionsCache = new MemoryCache<any>(30, 100);
+
 
   constructor(
     private readonly prisma: PrismaService,
@@ -792,6 +795,8 @@ export class StudentsService {
         },
       }),
     ]);
+
+
 
     const getDateKey = (value: Date | string | null | undefined) =>
       value ? new Date(value).toISOString().slice(0, 10) : null;

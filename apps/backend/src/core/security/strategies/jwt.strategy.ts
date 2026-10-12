@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { AuthenticatedUser } from '../decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
+import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
 export interface JwtPayload {
   sub: string;
@@ -16,6 +17,10 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+  // Ultra-lightweight in-memory cache for validated user profiles (45-second TTL, up to 5,000 active users)
+  // Drastically cuts down high-frequency database lookups during student bursts
+  private readonly userAuthCache = new MemoryCache<AuthenticatedUser>(45, 5000);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
@@ -31,6 +36,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (payload.typ && payload.typ !== 'access') {
       throw new UnauthorizedException('Invalid token type');
     }
+
+    const cacheKey = `auth:${payload.sub}:${payload.role || 'default'}`;
+    const cachedUser = this.userAuthCache.get(cacheKey);
+    if (cachedUser) {
+      return cachedUser;
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
@@ -42,6 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
 
     if (!user || !user.isActive || user.deletedAt) {
+      this.userAuthCache.delete(cacheKey);
       throw new UnauthorizedException('User account is deactivated, invalid, or deleted');
     }
 
@@ -58,7 +71,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       }
     }
 
-    return {
+    const authUser: AuthenticatedUser = {
       id: user.id,
       fullName: user.fullName,
       email: user.email || undefined,
@@ -69,5 +82,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       parentProfileId: user.parentProfile?.id,
       secretariatProfileId: user.secretariatProfile?.id,
     };
+
+    this.userAuthCache.set(cacheKey, authUser);
+    return authUser;
+  }
+
+  invalidateUser(userId: string): void {
+    this.userAuthCache.delete(`auth:${userId}:default`);
+    this.userAuthCache.delete(`auth:${userId}:STUDENT`);
+    this.userAuthCache.delete(`auth:${userId}:TEACHER`);
+    this.userAuthCache.delete(`auth:${userId}:PARENT`);
+    this.userAuthCache.delete(`auth:${userId}:SECRETARIAT`);
   }
 }
+

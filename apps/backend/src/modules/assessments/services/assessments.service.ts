@@ -45,6 +45,7 @@ export class AssessmentsService {
   private readonly logger = new Logger(AssessmentsService.name);
   private readonly assessmentsListCache = new MemoryCache(25, 200);
   private readonly groupSessionsCache = new MemoryCache(60, 50);
+  private readonly assessmentDetailsCache = new MemoryCache<any>(45, 200);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +53,72 @@ export class AssessmentsService {
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly storageService?: StorageService,
   ) {}
+
+  /**
+   * High-Performance Cached Assessment Definition:
+   * Caches question bank, course progression rules, and target groups in-memory for 45 seconds.
+   * Eliminates repetitive database hits during simultaneous exam sessions.
+   */
+  async getCachedAssessmentBase(assessmentId: string) {
+    const cacheKey = `assessment:base:${assessmentId}`;
+    return this.assessmentDetailsCache.getOrSet(
+      cacheKey,
+      async () => {
+        return this.prisma.assessment.findUnique({
+          where: { id: assessmentId },
+          include: {
+            teacher: {
+              include: { user: { select: { fullName: true } } },
+            },
+            group: {
+              include: {
+                enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+              },
+            },
+            targetGroups: {
+              include: {
+                enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+              },
+            },
+            course: {
+              include: {
+                enrollments: { where: { status: CourseEnrollmentStatus.ACTIVE } },
+              },
+            },
+            courseFinalQuizOf: {
+              select: {
+                id: true,
+                enforceSequentialLessons: true,
+                modules: {
+                  include: {
+                    unitQuiz: { select: { id: true, isOptional: true } },
+                    lessons: { select: { id: true } },
+                  },
+                },
+              },
+            },
+            unitQuizOf: {
+              select: {
+                id: true,
+                courseId: true,
+                course: {
+                  select: {
+                    enforceSequentialLessons: true,
+                  },
+                },
+                lessons: { select: { id: true } },
+              },
+            },
+            questions: {
+              orderBy: { questionNumber: 'asc' },
+            },
+          },
+        });
+      },
+      45,
+    );
+  }
+
 
   /**
    * Authoring Pipeline for Exam / Homework creation with embedded questions.
@@ -494,67 +561,30 @@ export class AssessmentsService {
   async getAssessmentById(assessmentId: string, user: AuthenticatedUser) {
     const studentId = user.studentProfileId || user.id;
 
-    const assessment = await this.prisma.assessment.findUnique({
-      where: { id: assessmentId },
-      include: {
-        teacher: {
-          include: { user: { select: { fullName: true } } },
-        },
-        group: {
-          include: {
-            enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
-          },
-        },
-        targetGroups: {
-          include: {
-            enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
-          },
-        },
-        course: {
-          include: {
-            enrollments: { where: { status: CourseEnrollmentStatus.ACTIVE } },
-          },
-        },
-        courseFinalQuizOf: {
-          select: {
-            id: true,
-            enforceSequentialLessons: true,
-            modules: {
-              include: {
-                unitQuiz: { select: { id: true, isOptional: true } },
-                lessons: { select: { id: true } },
-              },
-            },
-          },
-        },
-        unitQuizOf: {
-          select: {
-            id: true,
-            courseId: true,
-            course: {
-              select: {
-                enforceSequentialLessons: true,
-              },
-            },
-            lessons: { select: { id: true } },
-          },
-        },
-        questions: {
-          orderBy: { questionNumber: 'asc' },
-        },
-        submissions: {
-          where: { studentId },
-          orderBy: { attemptNumber: 'asc' },
-          include: {
-            answers: true,
-          },
-        },
-      },
-    });
-
-    if (!assessment) {
+    const baseAssessment = await this.getCachedAssessmentBase(assessmentId);
+    if (!baseAssessment) {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
     }
+
+    const submissions: any[] =
+      baseAssessment.submissions && Array.isArray(baseAssessment.submissions)
+        ? baseAssessment.submissions
+        : studentId && this.prisma.assessmentSubmission?.findMany
+          ? ((await this.prisma.assessmentSubmission.findMany({
+              where: { assessmentId, studentId },
+              orderBy: { attemptNumber: 'asc' },
+              include: {
+                answers: true,
+              },
+            })) || [])
+          : [];
+
+    const assessment: any = {
+      ...baseAssessment,
+      submissions: submissions || [],
+    };
+
+
 
     if (user.role === UserRole.STUDENT) {
       if (!assessment.isPublished) {
@@ -632,7 +662,8 @@ export class AssessmentsService {
       }
     }
 
-    const mySubmission = resolveOfficialSubmission(assessment.submissions);
+    const mySubmission: any = resolveOfficialSubmission(assessment.submissions);
+
     const isGraded = mySubmission?.status === SubmissionStatus.GRADED;
     const hasSubmitted = mySubmission?.status === SubmissionStatus.SUBMITTED || isGraded;
     const isPrivileged =
@@ -758,12 +789,12 @@ export class AssessmentsService {
       targetGroups: assessment.targetGroups,
       course: assessment.course,
       questions: sanitizedQuestions,
-      attemptCount: assessment.submissions.length,
+      attemptCount: (assessment.submissions || []).length,
       bestScore:
         mySubmission?.scoreObtained != null
           ? Number(mySubmission.scoreObtained)
           : null,
-      attempts: assessment.submissions.map((s) => ({
+      attempts: (assessment.submissions || []).map((s: any) => ({
         id: s.id,
         attemptNumber: s.attemptNumber,
         status: s.status,
@@ -771,6 +802,7 @@ export class AssessmentsService {
         submittedAt: s.submittedAt,
         gradedAt: s.gradedAt,
       })),
+
       mySubmission: mySubmission
         ? {
             id: mySubmission.id,
@@ -866,55 +898,12 @@ export class AssessmentsService {
   ) {
     const studentId = user.studentProfileId || (user.role === UserRole.STUDENT ? user.id : null);
 
-    const assessment = await this.prisma.assessment.findUnique({
-      where: { id: assessmentId },
-      include: {
-        questions: true,
-        group: {
-          include: {
-            enrollments: studentId ? { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } } : false,
-          },
-        },
-        targetGroups: {
-          include: {
-            enrollments: studentId ? { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } } : false,
-          },
-        },
-        course: {
-          include: {
-            enrollments: studentId ? { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } } : false,
-          },
-        },
-        courseFinalQuizOf: {
-          select: {
-            id: true,
-            enforceSequentialLessons: true,
-            modules: {
-              include: {
-                unitQuiz: { select: { id: true, isOptional: true } },
-                lessons: { select: { id: true } },
-              },
-            },
-          },
-        },
-        unitQuizOf: {
-          select: {
-            id: true,
-            courseId: true,
-            course: {
-              select: {
-                enforceSequentialLessons: true,
-              },
-            },
-            lessons: { select: { id: true } },
-          },
-        },
-      },
-    });
+    const assessment = await this.getCachedAssessmentBase(assessmentId);
 
     if (!assessment) {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
     }
+
 
     if (user.role === UserRole.STUDENT && studentId) {
       if (assessment.courseFinalQuizOf?.enforceSequentialLessons) {
@@ -979,14 +968,15 @@ export class AssessmentsService {
 
     // If teacher/secretariat previewing or student profile is absent, perform instant preview evaluation
     if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT || !studentId) {
-      const questionMap = new Map(assessment.questions.map((q) => [q.id, q]));
+      const questionMap = new Map((assessment.questions as any[]).map((q: any) => [q.id, q]));
       let totalScoreObtained = 0;
       let hasPendingEssay = false;
       const answersToCreate = [];
 
       for (const ans of dto.answers) {
-        const question = questionMap.get(ans.questionId);
+        const question: any = questionMap.get(ans.questionId);
         if (!question) continue;
+
 
         if (
           question.questionType === QuestionType.MULTIPLE_CHOICE ||
@@ -1081,15 +1071,16 @@ export class AssessmentsService {
     }
 
     // Verify enrollment entitlement
-    if (assessment.groupId && assessment.group && assessment.group.enrollments.length === 0) {
+    if (assessment.groupId && assessment.group && !assessment.group.enrollments.some((e: any) => e.studentId === studentId)) {
       throw new ForbiddenException('You are not enrolled in the academic group for this assessment');
     }
-    if (assessment.targetGroups?.length > 0 && !assessment.targetGroups.some(g => g.enrollments.length > 0)) {
+    if (assessment.targetGroups?.length > 0 && !assessment.targetGroups.some((g: any) => g.enrollments.some((e: any) => e.studentId === studentId))) {
       throw new ForbiddenException('You are not enrolled in any of the target groups for this assessment');
     }
-    if (assessment.courseId && assessment.course && assessment.course.enrollments.length === 0) {
+    if (assessment.courseId && assessment.course && !assessment.course.enrollments.some((e: any) => e.studentId === studentId)) {
       throw new ForbiddenException('You are not enrolled in the course for this assessment');
     }
+
 
     // 1. Enforce the attempt policy and compute the next attempt number.
     //    (The single-submission unique constraint was replaced by a per-attempt
@@ -1840,7 +1831,9 @@ export class AssessmentsService {
     this.logger.log(`Assessment [${assessmentId}] updated`);
 
     this.assessmentsListCache.clear();
+    this.assessmentDetailsCache.delete(`assessment:base:${assessmentId}`);
     return updated;
+
   }
 
   private async notifyAssessmentPublished(assessment: {
@@ -2148,7 +2141,9 @@ export class AssessmentsService {
 
     // 4. Delete assessment
     this.assessmentsListCache.clear();
+    this.assessmentDetailsCache.delete(`assessment:base:${assessmentId}`);
     await this.prisma.assessment.delete({
+
       where: { id: assessmentId },
     });
 
