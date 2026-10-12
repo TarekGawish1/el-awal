@@ -233,22 +233,24 @@ export async function uploadRawFile(
   folder = 'assessments',
   onProgress?: UploadProgressCallback,
 ): Promise<{ fileUrl: string; fileKey: string; fileSize: number; fileType: string; fileName: string }> {
-  const mimeType = file.type || 'application/octet-stream';
-  const presigned = await generatePresignedUrl({
-    fileName: file.name,
-    contentType: mimeType,
-    fileSizeBytes: file.size,
-    folder,
-  });
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
 
-  await uploadFileToR2(presigned.uploadUrl, file, mimeType, onProgress);
+  const res = await uploadWithProgress<any>(
+    '/content/upload-raw',
+    'POST',
+    formData,
+    undefined,
+    onProgress,
+  );
 
   return {
-    fileUrl: presigned.publicUrl,
-    fileKey: presigned.fileKey,
-    fileSize: file.size,
-    fileType: mimeType,
-    fileName: file.name,
+    fileUrl: res.fileUrl || res.url || res.publicUrl,
+    fileKey: res.fileKey || res.key,
+    fileSize: res.fileSize || file.size,
+    fileType: res.fileType || file.type,
+    fileName: res.fileName || file.name,
   };
 }
 

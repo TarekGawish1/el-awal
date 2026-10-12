@@ -32,7 +32,7 @@ export class StorageService {
     const publicUrlBase = String(this.configService.get<string>('R2_PUBLIC_URL', '') || '').trim();
     this.accountId = accountId;
     this.bucketName = bucketName || 'el-awal-assets';
-    this.publicUrlBase = publicUrlBase;
+    this.publicUrlBase = publicUrlBase.replace(/\/+$/, '');
 
     this.isConfigured = Boolean(accountId && accessKeyId && secretAccessKey && bucketName && publicUrlBase);
 
@@ -40,10 +40,13 @@ export class StorageService {
       this.s3Client = new S3Client({
         region: 'auto',
         endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        forcePathStyle: true,
         credentials: {
           accessKeyId,
           secretAccessKey,
         },
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+        responseChecksumValidation: 'WHEN_REQUIRED',
       });
       this.logger.log(`✅ Cloudflare R2 configured (bucket=${this.bucketName} public=${this.publicUrlBase})`);
     } else {
@@ -110,9 +113,10 @@ export class StorageService {
     this.assertConfigured();
 
     try {
+      const cleanKey = key.replace(/^\/+/, '');
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
-        Key: key,
+        Key: cleanKey,
         ContentType: contentType,
       });
 
@@ -122,8 +126,8 @@ export class StorageService {
 
       return {
         uploadUrl,
-        fileKey: key,
-        publicUrl: `${this.publicUrlBase}/${key}`,
+        fileKey: cleanKey,
+        publicUrl: `${this.publicUrlBase}/${cleanKey}`,
       };
     } catch (error) {
       this.logger.error(`Failed to generate presigned upload URL for key [${key}]:`, error);
@@ -138,17 +142,18 @@ export class StorageService {
   async uploadBuffer(key: string, buffer: Buffer, contentType: string): Promise<{ fileKey: string; publicUrl: string }> {
     this.assertConfigured();
     try {
+      const cleanKey = key.replace(/^\/+/, '');
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
-        Key: key,
+        Key: cleanKey,
         Body: buffer,
         ContentType: contentType,
       });
 
       await this.s3Client!.send(command);
       return {
-        fileKey: key,
-        publicUrl: `${this.publicUrlBase}/${key}`,
+        fileKey: cleanKey,
+        publicUrl: `${this.publicUrlBase}/${cleanKey}`,
       };
     } catch (error) {
       this.logger.error(`Failed to upload buffer for key [${key}] to R2:`, error);
