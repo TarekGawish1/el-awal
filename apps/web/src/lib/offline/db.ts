@@ -642,14 +642,30 @@ class OfflineDatabase {
 
   public async bulkPutGroups(groups: GroupEntity[]): Promise<void> {
     groups.forEach((g) => {
-      const existing = this.memoryGroups.get(g.id) || {};
-      this.memoryGroups.set(g.id, { ...existing, ...g, updatedAt: Date.now() });
+      const existing: Partial<GroupEntity> = this.memoryGroups.get(g.id) || {};
+      const mergedCount = g._count ?? existing._count;
+      this.memoryGroups.set(g.id, {
+        ...(existing as any),
+        ...g,
+        ...(mergedCount ? { _count: mergedCount } : {}),
+        updatedAt: Date.now(),
+      });
     });
     if (!this.isSupported() || groups.length === 0) return;
     try {
       const { store } = await this.getStore('groups', 'readwrite');
       for (const g of groups) {
-        store.put(g);
+        const existingRecord = await new Promise<GroupEntity | undefined>((resolve) => {
+          const req = store.get(g.id);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(undefined);
+        });
+        const merged: GroupEntity = {
+          ...(existingRecord || {}),
+          ...g,
+          _count: g._count ?? existingRecord?._count,
+        };
+        store.put(merged);
       }
     } catch {}
   }
@@ -1068,22 +1084,72 @@ class OfflineDatabase {
       }
     }
 
-    return list.filter((g) => {
-      // 1. Status and active check
-      if (g.status && g.status === 'ARCHIVED') return false;
-      if ((g as any).isArchived === true) return false;
-      if ((g as any).isActive === false) return false;
-      if (options?.status && g.status && g.status !== options.status) return false;
+    // Reconcile group student counts from local students store if _count is missing or 0
+    let studentRosterCounts: Map<string, number> | null = null;
+    const groupsNeedingCount = list.some(
+      (g) => !g._count || g._count.enrollments === undefined || g._count.enrollments === 0,
+    );
+    if (groupsNeedingCount) {
+      try {
+        let rawStudents: StudentEntity[] = [];
+        if (!this.isSupported()) {
+          rawStudents = Array.from(this.memoryStudents.values());
+        } else {
+          const { store } = await this.getStore('students', 'readonly');
+          rawStudents = await new Promise((resolve) => {
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result || Array.from(this.memoryStudents.values()));
+            req.onerror = () => resolve(Array.from(this.memoryStudents.values()));
+          });
+        }
+        studentRosterCounts = new Map<string, number>();
+        for (const s of rawStudents) {
+          if (s.isArchived === true || (s.user && s.user.isActive === false) || s.isActive === false) continue;
+          if (s.academicStatus && s.academicStatus !== 'ACTIVE') continue;
 
-      // 2. Grade level
-      if (options?.gradeLevel && g.gradeLevel && g.gradeLevel !== options.gradeLevel) return false;
+          const gid =
+            s.groupId ||
+            s.groupEnrollments?.[0]?.groupId ||
+            s.groupEnrollments?.[0]?.group?.id;
+          if (gid) {
+            studentRosterCounts.set(gid, (studentRosterCounts.get(gid) || 0) + 1);
+          }
+        }
+      } catch {}
+    }
 
-      // 3. Academic Year & Term
-      if (options?.academicYear && g.academicYear && g.academicYear !== options.academicYear) return false;
-      if (options?.academicTerm && g.academicTerm && g.academicTerm !== options.academicTerm) return false;
+    return list
+      .filter((g) => {
+        // 1. Status and active check
+        if (g.status && g.status === 'ARCHIVED') return false;
+        if ((g as any).isArchived === true) return false;
+        if ((g as any).isActive === false) return false;
+        if (options?.status && g.status && g.status !== options.status) return false;
 
-      return true;
-    });
+        // 2. Grade level
+        if (options?.gradeLevel && g.gradeLevel && g.gradeLevel !== options.gradeLevel) return false;
+
+        // 3. Academic Year & Term
+        if (options?.academicYear && g.academicYear && g.academicYear !== options.academicYear) return false;
+        if (options?.academicTerm && g.academicTerm && g.academicTerm !== options.academicTerm) return false;
+
+        return true;
+      })
+      .map((g) => {
+        if (studentRosterCounts && (!g._count || !g._count.enrollments)) {
+          const calculated = studentRosterCounts.get(g.id) || 0;
+          if (calculated > 0) {
+            return {
+              ...g,
+              _count: {
+                ...(g._count || {}),
+                enrollments: calculated,
+              },
+            };
+          }
+        }
+        return g;
+      });
   }
 
   /**

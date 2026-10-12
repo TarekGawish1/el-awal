@@ -15,6 +15,10 @@ import {
   validateVideoFile,
   VideoMetadata,
 } from '../utils/video-optimizer';
+import {
+  createBunnyTusUpload,
+  BunnyTusUploadInstance,
+} from '../utils/bunny-tus-uploader';
 
 export interface VideoUploadTask {
   id: string;
@@ -105,6 +109,7 @@ export function VideoUploadManagerProvider({
 }) {
   const [tasks, setTasks] = useState<Record<string, VideoUploadTask>>({});
   const activeXhrsRef = useRef<Record<string, XMLHttpRequest>>({});
+  const activeTusUploadsRef = useRef<Record<string, BunnyTusUploadInstance>>({});
   const tasksRef = useRef<Record<string, VideoUploadTask>>({});
   tasksRef.current = tasks;
   const taskOptionsRef = useRef<Record<string, StartUploadOptions>>({});
@@ -134,12 +139,18 @@ export function VideoUploadManagerProvider({
 
   const cancelUpload = useCallback(
     (taskId: string) => {
+      const tusUpload = activeTusUploadsRef.current[taskId];
       const xhr = activeXhrsRef.current[taskId];
       const task = tasksRef.current[taskId];
 
-      // If there is no active XHR and no tracked task (or task is already finished/aborted), ignore
-      if (!xhr && (!task || task.status === 'aborted' || task.status === 'completed')) {
+      // If there is no active TUS upload, no active XHR and no tracked task (or already finished/aborted), ignore
+      if (!tusUpload && !xhr && (!task || task.status === 'aborted' || task.status === 'completed')) {
         return;
+      }
+
+      if (tusUpload) {
+        tusUpload.abort();
+        delete activeTusUploadsRef.current[taskId];
       }
 
       if (xhr) {
@@ -378,11 +389,38 @@ export function VideoUploadManagerProvider({
           }
         };
 
-        let lastLoaded = 0;
-        let lastTime = Date.now();
+        // Fallback: upload directly to Bunny Stream via secure server proxy
+        const executeServerFallback = async (reason?: string) => {
+          if (activeXhrsRef.current[taskId]) {
+            try {
+              activeXhrsRef.current[taskId].abort();
+            } catch {}
+            delete activeXhrsRef.current[taskId];
+          }
 
-        try {
-          const result = await coursesApi.uploadVideoDirectToServer(
+          console.warn(
+            `Direct browser Bunny upload interrupted (${reason || 'network/cors'}). Switching to secure server upload to Bunny Stream for: ${lessonTitle || file.name}`,
+          );
+
+          updateTask(taskId, {
+            status: 'uploading',
+            progress: 20,
+            uploadedBytes: 0,
+            speedMbps: 0,
+            etaSeconds: 0,
+            provider: 'bunny',
+          });
+
+          toast(
+            `جاري استكمال رفع "${lessonTitle || file.name}" إلى سيرفر البث (Bunny Stream)...`,
+            { icon: '🔄', duration: 4000 },
+          );
+
+          let lastLoaded = 0;
+          let lastTime = Date.now();
+
+          const currentVideoId = tasksRef.current[taskId]?.videoId;
+          const fallbackResult = await coursesApi.uploadVideoDirectToServer(
             file,
             lessonTitle.trim() || file.name,
             (percent, loaded, total) => {
@@ -400,20 +438,15 @@ export function VideoUploadManagerProvider({
                 lastTime = now;
               }
 
-              const patch: Partial<VideoUploadTask> = {
+              updateTask(taskId, {
                 uploadedBytes: loaded,
                 totalBytes: total,
-                progress: Math.min(Math.round((percent / 100) * 88) + 10, 98),
-              };
-              if (currentSpeed > 0) {
-                patch.speedMbps = parseFloat(currentSpeed.toFixed(2));
-              }
-              if (eta > 0) {
-                patch.etaSeconds = Math.ceil(eta);
-              }
-              updateTask(taskId, patch);
+                progress: Math.min(Math.round((percent / 100) * 75) + 20, 98),
+                speedMbps: currentSpeed > 0 ? parseFloat(currentSpeed.toFixed(2)) : undefined,
+                etaSeconds: eta > 0 ? Math.ceil(eta) : undefined,
+              });
             },
-            undefined,
+            currentVideoId,
             (xhr) => {
               activeXhrsRef.current[taskId] = xhr;
             },
@@ -422,21 +455,85 @@ export function VideoUploadManagerProvider({
           delete activeXhrsRef.current[taskId];
 
           await finalizeSuccess({
-            videoId: result.videoId,
-            embedUrl: result.embedUrl,
+            videoId: fallbackResult.videoId,
+            embedUrl: fallbackResult.embedUrl,
             provider: 'bunny',
           });
-        } catch (err: any) {
-          delete activeXhrsRef.current[taskId];
-          const errorMsg =
-            err?.message || 'حدث خطأ أثناء رفع الفيديو إلى سيرفر البث السحابي';
-          updateTask(taskId, {
-            status: 'error',
-            error: errorMsg,
-          });
-          toast.error(
-            `فشل رفع الفيديو "${lessonTitle || file.name}": ${errorMsg}`,
+        };
+
+        try {
+          const creds = await coursesApi.getVideoUploadCredentials(
+            lessonTitle.trim() || file.name,
           );
+
+          updateTask(taskId, {
+            progress: 15,
+            provider: creds.provider,
+            videoId: creds.videoId,
+            embedUrl: creds.embedUrl,
+          });
+
+          // Upload directly to Bunny Stream using official TUS resumable protocol
+          const tusUpload = createBunnyTusUpload({
+            file,
+            videoId: creds.videoId,
+            libraryId: creds.libraryId,
+            authorizationSignature: creds.authorizationSignature,
+            authorizationExpire: creds.authorizationExpire,
+            title: lessonTitle.trim() || file.name,
+            onProgress: (percent, loaded, total, speed, eta) => {
+              updateTask(taskId, {
+                uploadedBytes: loaded,
+                totalBytes: total,
+                progress: percent,
+                speedMbps: speed > 0 ? speed : undefined,
+                etaSeconds: eta > 0 ? eta : undefined,
+              });
+            },
+            onSuccess: async () => {
+              delete activeTusUploadsRef.current[taskId];
+              await finalizeSuccess({
+                videoId: creds.videoId,
+                embedUrl: creds.embedUrl,
+                provider: creds.provider,
+              });
+            },
+            onError: async (error) => {
+              delete activeTusUploadsRef.current[taskId];
+              console.warn(
+                '[VideoUploadManager] Bunny TUS direct upload interrupted, falling back to server upload:',
+                error,
+              );
+              try {
+                await executeServerFallback(error?.message || 'tus_error');
+              } catch (fallbackErr: any) {
+                delete activeXhrsRef.current[taskId];
+                updateTask(taskId, {
+                  status: 'error',
+                  error: fallbackErr?.message || 'حدث خطأ في الاتصال أثناء رفع الفيديو',
+                });
+                toast.error(
+                  `حدث خطأ في الاتصال أثناء رفع فيديو "${lessonTitle || file.name}"`,
+                );
+              }
+            },
+          });
+
+          activeTusUploadsRef.current[taskId] = tusUpload;
+          tusUpload.start();
+        } catch (err: any) {
+          console.warn('[VideoUploadManager] Credential generation failed, falling back to server upload:', err);
+          try {
+            await executeServerFallback(err?.message || 'credential_generation_error');
+          } catch (fallbackErr: any) {
+            delete activeTusUploadsRef.current[taskId];
+            delete activeXhrsRef.current[taskId];
+            updateTask(taskId, {
+              status: 'error',
+              error: fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو',
+            });
+            toast.error(fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
+          }
         }
       })();
 

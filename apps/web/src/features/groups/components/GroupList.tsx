@@ -15,9 +15,11 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Group } from '../types/groups.types';
 import { STAGE_ORDER, STAGE_GRADES_MAP, getStageName } from '../utils/group-stages';
+import { useStudents } from '@/features/students/hooks/use-students';
 
 export function GroupList() {
   const { data: groups, isLoading, isError, error, refetch } = useGroups();
+  const { data: studentsResponse } = useStudents({ limit: 1000 });
   const {
     selectedYears,
     setSelectedYears,
@@ -32,6 +34,32 @@ export function GroupList() {
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+
+  const studentCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const list = studentsResponse?.data || [];
+    list.forEach((s) => {
+      const enrolledGroupIds = new Set<string>();
+      if ((s as any).groupId) {
+        enrolledGroupIds.add((s as any).groupId);
+      }
+      if (Array.isArray((s as any).groupIds)) {
+        (s as any).groupIds.forEach((gid: string) => enrolledGroupIds.add(gid));
+      }
+      if (Array.isArray(s.groupEnrollments)) {
+        s.groupEnrollments.forEach((e: any) => {
+          const gid = e?.group?.id || e?.groupId;
+          if (gid && (e.status === undefined || e.status === 'ACTIVE')) {
+            enrolledGroupIds.add(gid);
+          }
+        });
+      }
+      enrolledGroupIds.forEach((gid) => {
+        map.set(gid, (map.get(gid) || 0) + 1);
+      });
+    });
+    return map;
+  }, [studentsResponse]);
 
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
@@ -461,6 +489,7 @@ export function GroupList() {
                           <GroupCard
                             key={group.id}
                             group={group}
+                            enrollmentCountOverride={studentCountMap.get(group.id)}
                             onClick={() => setSelectedGroupId(group.id)}
                           />
                         ))}

@@ -358,6 +358,11 @@ export class TeachersService {
           monthlyFee: true,
           academicYear: true,
           academicTerm: true,
+          _count: {
+            select: {
+              enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+            },
+          },
         },
         orderBy: { name: 'asc' },
       }),

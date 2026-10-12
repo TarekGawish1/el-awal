@@ -1878,7 +1878,7 @@ export class CoursesService {
     }
     const videoTitle = title?.trim() || file.originalname || 'Course Video';
 
-    // Reuse the browser's video object when available (direct PUT failed midway).
+    // Reuse the browser's video object when available (direct TUS/PUT failed midway).
     if (videoId && videoId.trim() !== '') {
       const targetId = videoId.trim();
       try {

@@ -237,7 +237,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
             onChange={handleChange}
             options={[
               { label: '-- اختر الصف الدراسي --', value: '' },
-              ...(formData.educationalStage ? gradeOptions[formData.educationalStage] : []),
+              ...((formData.educationalStage && gradeOptions[formData.educationalStage]) || []),
             ]}
           />
           <Select
@@ -248,10 +248,10 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
             disabled={!formData.gradeLevel}
             options={[
               {
-                label: filteredGroups.length > 0 ? '-- اختر المجموعة (اختياري) --' : '-- لا توجد مجموعات مسجلة لهذا الترم --',
+                label: (filteredGroups?.length || 0) > 0 ? '-- اختر المجموعة (اختياري) --' : '-- لا توجد مجموعات مسجلة لهذا الترم --',
                 value: '',
               },
-              ...filteredGroups.map((g) => ({
+              ...(Array.isArray(filteredGroups) ? filteredGroups : []).map((g) => ({
                 label: g.name,
                 value: g.id,
               })),

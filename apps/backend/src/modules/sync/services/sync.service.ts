@@ -173,6 +173,11 @@ export class SyncService {
             academicYear: true,
             academicTerm: true,
             updatedAt: true,
+            _count: {
+              select: {
+                enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+              },
+            },
           },
           orderBy: { updatedAt: 'desc' },
           take: 50,
@@ -371,7 +376,11 @@ export class SyncService {
         where: groupsWhere,
         include: {
           schedules: true,
-          _count: { select: { enrollments: true } },
+          _count: {
+            select: {
+              enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+            },
+          },
         },
         orderBy: { name: 'asc' },
       });
