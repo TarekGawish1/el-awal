@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
-import { generatePresignedUrl, uploadFileToR2, uploadRawFile } from '@/features/content/api/content.api';
+import { generatePresignedUrl, uploadFileToR2, uploadRawFile, deleteFileFromStorage } from '@/features/content/api/content.api';
 import toast from 'react-hot-toast';
 
 interface AssessmentQuestionEditorProps {
@@ -36,6 +36,11 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
   };
 
   const removeOption = (optIndex: number) => {
+    const oldImg = optionImages[optIndex];
+    if (oldImg) {
+      deleteFileFromStorage(oldImg).catch(() => {});
+    }
+
     const newOptions = [...optionsData];
     newOptions.splice(optIndex, 1);
     setValue(`questions.${index}.optionsData`, newOptions);
@@ -125,9 +130,26 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
   };
 
   const removeOptionImage = (optIndex: number) => {
+    const oldImg = optionImages[optIndex];
+    if (oldImg) {
+      deleteFileFromStorage(oldImg).catch(() => {});
+    }
     const newImages = [...optionImages];
     newImages[optIndex] = '';
     setValue(`questions.${index}.optionImages`, newImages);
+  };
+
+  const handleRemoveQuestion = () => {
+    const qImg = watch(`questions.${index}.imageUrl`);
+    if (qImg) {
+      deleteFileFromStorage(qImg).catch(() => {});
+    }
+    for (const optImg of optionImages) {
+      if (optImg) {
+        deleteFileFromStorage(optImg).catch(() => {});
+      }
+    }
+    onRemove();
   };
 
   return (
@@ -141,7 +163,12 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
             {index + 1}
           </span>
         </div>
-        <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={onRemove} size="sm">
+        <Button
+          variant="ghost"
+          className="text-red-500 hover:bg-red-50 hover:text-red-600"
+          onClick={handleRemoveQuestion}
+          size="sm"
+        >
           <Trash2 className="w-4 h-4 ml-1" />
           حذف السؤال
         </Button>
@@ -187,7 +214,13 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
               />
               <button
                 type="button"
-                onClick={() => setValue(`questions.${index}.imageUrl`, '')}
+                onClick={() => {
+                  const oldImg = watch(`questions.${index}.imageUrl`);
+                  if (oldImg) {
+                    deleteFileFromStorage(oldImg).catch(() => {});
+                  }
+                  setValue(`questions.${index}.imageUrl`, '');
+                }}
                 className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Trash2 className="w-3 h-3" />

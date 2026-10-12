@@ -5,6 +5,8 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -190,25 +192,25 @@ export class StorageService {
   }
 
   /**
-   * Deletes an object from Cloudflare R2. No local-disk handling.
+   * Deletes an object from Cloudflare R2 by key or full URL.
    */
   async deleteObject(key: string): Promise<void> {
     if (!key) return;
     if (key.startsWith('data:')) return;
-    // Legacy local paths or full local URLs have nothing to delete in R2.
-    if (key.startsWith('/uploads/') || key.includes('/uploads/')) {
-      this.logger.warn(`Skipping R2 delete for legacy local key: ${key} (re-upload to R2)`);
-      return;
-    }
-    let objectKey = key;
-    try {
-      if (/^https?:\/\//i.test(key)) {
-        const parsed = new URL(key);
+
+    let objectKey = key.trim();
+    if (/^https?:\/\//i.test(objectKey)) {
+      try {
+        const parsed = new URL(objectKey);
         objectKey = parsed.pathname.replace(/^\/+/, '');
+      } catch {
+        // keep as-is
       }
-    } catch {
-      // keep as-is
+    } else {
+      objectKey = objectKey.replace(/^\/+/, '');
     }
+
+    if (!objectKey) return;
 
     this.assertConfigured();
     try {
@@ -220,6 +222,91 @@ export class StorageService {
       this.logger.error(`Failed to delete object [${objectKey}] from R2:`, error);
       throw new InternalServerErrorException('فشل حذف الملف من التخزين السحابي (R2).');
     }
+  }
+
+  /**
+   * Lists all objects in the Cloudflare R2 bucket with pagination support.
+   */
+  async listObjects(prefix = ''): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
+    this.assertConfigured();
+    const results: Array<{ key: string; size: number; lastModified: Date }> = [];
+    let continuationToken: string | undefined = undefined;
+
+    try {
+      do {
+        const command = new ListObjectsV2Command({
+          Bucket: this.bucketName,
+          Prefix: prefix || undefined,
+          ContinuationToken: continuationToken,
+          MaxKeys: 1000,
+        });
+
+        const response = await this.s3Client!.send(command);
+        if (response.Contents) {
+          for (const item of response.Contents) {
+            if (item.Key) {
+              results.push({
+                key: item.Key,
+                size: item.Size || 0,
+                lastModified: item.LastModified || new Date(),
+              });
+            }
+          }
+        }
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+
+      return results;
+    } catch (error) {
+      this.logger.error(`Failed to list objects in R2 bucket [${this.bucketName}]:`, error);
+      throw new InternalServerErrorException('فشل سرد الملفات من التخزين السحابي (R2).');
+    }
+  }
+
+  /**
+   * Deletes multiple objects from Cloudflare R2 in batches of up to 1000.
+   */
+  async deleteObjects(keys: string[]): Promise<number> {
+    if (!keys || keys.length === 0) return 0;
+    this.assertConfigured();
+
+    let deletedCount = 0;
+    const batchSize = 1000;
+
+    for (let i = 0; i < keys.length; i += batchSize) {
+      const batch = keys.slice(i, i + batchSize).map((k) => {
+        let objectKey = k.trim();
+        if (/^https?:\/\//i.test(objectKey)) {
+          try {
+            const parsed = new URL(objectKey);
+            objectKey = parsed.pathname.replace(/^\/+/, '');
+          } catch {}
+        } else {
+          objectKey = objectKey.replace(/^\/+/, '');
+        }
+        return objectKey;
+      }).filter(Boolean);
+
+      if (batch.length === 0) continue;
+
+      try {
+        await this.s3Client!.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucketName,
+            Delete: {
+              Objects: batch.map((Key) => ({ Key })),
+              Quiet: true,
+            },
+          }),
+        );
+        deletedCount += batch.length;
+        this.logger.log(`Deleted batch of ${batch.length} objects from R2 bucket [${this.bucketName}]`);
+      } catch (error) {
+        this.logger.error(`Failed to batch-delete ${batch.length} objects from R2:`, error);
+      }
+    }
+
+    return deletedCount;
   }
 
   /**
