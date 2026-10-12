@@ -135,7 +135,10 @@ export function CertificateBuilder() {
       setIsLoadingGroups(true);
       try {
         const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+          process.env.NEXT_PUBLIC_API_URL ||
+          (process.env.NODE_ENV === "production"
+            ? "https://api.al-awal.online/api/v1"
+            : "http://localhost:3000/api/v1");
         const token = getStoredAccessToken();
         const res = await fetch(`${baseUrl}/groups`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -179,7 +182,10 @@ export function CertificateBuilder() {
       setIsLoadingStudents(true);
       try {
         const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+          process.env.NEXT_PUBLIC_API_URL ||
+          (process.env.NODE_ENV === "production"
+            ? "https://api.al-awal.online/api/v1"
+            : "http://localhost:3000/api/v1");
         const token = getStoredAccessToken();
         const params = new URLSearchParams({ limit: hasGroup ? "50" : "20" });
         if (hasGroup) {
@@ -344,7 +350,10 @@ export function CertificateBuilder() {
 
         try {
           const baseUrl =
-            process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+            process.env.NEXT_PUBLIC_API_URL ||
+            (process.env.NODE_ENV === "production"
+              ? "https://api.al-awal.online/api/v1"
+              : "http://localhost:3000/api/v1");
           const token = getStoredAccessToken();
 
           // 1. Get presigned upload URL for Cloudflare R2

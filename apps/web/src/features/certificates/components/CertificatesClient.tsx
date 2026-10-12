@@ -111,7 +111,10 @@ export function CertificatesClient() {
       let apiCerts: any[] = [];
       try {
         const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+          process.env.NEXT_PUBLIC_API_URL ||
+          (process.env.NODE_ENV === "production"
+            ? "https://api.al-awal.online/api/v1"
+            : "http://localhost:3000/api/v1");
         const res = await fetch(`${baseUrl}/certificates/public`);
         if (res.ok) {
           const json = await res.json();
