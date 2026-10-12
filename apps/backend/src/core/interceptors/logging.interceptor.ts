@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { Request, Response } from 'express';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -86,10 +85,12 @@ export class LoggingInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const ctx = context.switchToHttp();
-    const req = ctx.getRequest<Request>();
-    const res = ctx.getResponse<Response>();
+    const req = ctx.getRequest<any>();
+    const res = ctx.getResponse<any>();
 
-    const { method, originalUrl, body } = req;
+    const method = req.method || 'GET';
+    const requestUrl = req.originalUrl || req.url || '';
+    const body = req.body;
 
     // Skip noisy OPTIONS preflight requests in application logs
     if (method === 'OPTIONS') {
@@ -97,7 +98,7 @@ export class LoggingInterceptor implements NestInterceptor {
     }
 
     const startTime = Date.now();
-    const user = (req as any).user;
+    const user = req.user;
     const userContext = this.formatUserContext(user);
     const bodySummary = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
       ? this.formatBodySummary(body)
@@ -107,7 +108,7 @@ export class LoggingInterceptor implements NestInterceptor {
       tap({
         next: (responseBody) => {
           const duration = Date.now() - startTime;
-          const statusCode = res.statusCode;
+          const statusCode = res.statusCode || res.raw?.statusCode || 200;
 
           let payloadHint = '';
           if (responseBody?.data && Array.isArray(responseBody.data)) {
@@ -115,7 +116,7 @@ export class LoggingInterceptor implements NestInterceptor {
           }
 
           this.logger.log(
-            `${method} ${originalUrl} ${statusCode} (${duration}ms)${payloadHint} ${userContext}${bodySummary}`,
+            `${method} ${requestUrl} ${statusCode} (${duration}ms)${payloadHint} ${userContext}${bodySummary}`,
           );
         },
         error: (err) => {
@@ -125,12 +126,12 @@ export class LoggingInterceptor implements NestInterceptor {
 
           if (status >= 500) {
             this.logger.error(
-              `${method} ${originalUrl} ${status} (${duration}ms) ${userContext} | 💥 Error: ${errMessage}`,
+              `${method} ${requestUrl} ${status} (${duration}ms) ${userContext} | 💥 Error: ${errMessage}`,
               err?.stack,
             );
           } else {
             this.logger.warn(
-              `${method} ${originalUrl} ${status} (${duration}ms) ${userContext} | ⚠️ Reason: ${errMessage}`,
+              `${method} ${requestUrl} ${status} (${duration}ms) ${userContext} | ⚠️ Reason: ${errMessage}`,
             );
           }
         },

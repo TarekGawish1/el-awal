@@ -15,7 +15,7 @@ import {
   ForbiddenException,
   Optional,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FastifyFileInterceptor } from '../../../core/interceptors/fastify-file.interceptor';
 import { SECURE_FILE_UPLOAD_OPTIONS } from '../../../integrations/storage/upload-options';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { ContentService } from '../services/content.service';
@@ -41,7 +41,7 @@ export class ContentController {
 
 
   @Post('upload-file')
-  @UseInterceptors(FileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
+  @UseInterceptors(FastifyFileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload binary file with automatic storage' })
@@ -112,7 +112,7 @@ export class ContentController {
   }
 
   @Post('upload-raw')
-  @UseInterceptors(FileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
+  @UseInterceptors(FastifyFileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Direct multipart raw file upload (image, pdf, cover, attachment)' })
@@ -138,7 +138,7 @@ export class ContentController {
   }
 
   @Post('upload-direct')
-  @UseInterceptors(FileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
+  @UseInterceptors(FastifyFileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Direct multipart file upload with automatic R2 storage and database persistence' })
@@ -243,7 +243,7 @@ export class ContentController {
   }
 
   @Put(':id')
-  @UseInterceptors(FileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
+  @UseInterceptors(FastifyFileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiConsumes('multipart/form-data', 'application/json')
   @ApiOperation({ summary: 'Update educational content metadata and optionally replace the file' })

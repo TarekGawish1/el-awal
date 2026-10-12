@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { Request } from 'express';
 import { AuditService } from '../services/audit.service';
 import { AuditAction, UserRole } from '@prisma/client';
 
@@ -205,15 +204,17 @@ export class AuditInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const ctx = context.switchToHttp();
-    const req = ctx.getRequest<Request>();
-    const { method, originalUrl, body, params, ip, headers } = req;
+    const req = ctx.getRequest<any>();
+    const method = req.method || 'GET';
+    const requestUrl = req.originalUrl || req.url || '';
+    const { body, params, ip, headers } = req;
 
     // Skip ignored paths
-    if (this.IGNORED_PATHS.some((p) => originalUrl.startsWith(p))) {
+    if (this.IGNORED_PATHS.some((p) => requestUrl.startsWith(p))) {
       return next.handle();
     }
 
-    const action = this.resolveAction(method, originalUrl);
+    const action = this.resolveAction(method, requestUrl);
     if (!action) {
       return next.handle();
     }
@@ -229,7 +230,7 @@ export class AuditInterceptor implements NestInterceptor {
             return;
           }
 
-          const entityType = this.resolveEntityType(originalUrl);
+          const entityType = this.resolveEntityType(requestUrl);
           const userName = user.fullName || user.email || 'مستخدم';
           const description = this.generateDescription(
             userName,
@@ -254,13 +255,13 @@ export class AuditInterceptor implements NestInterceptor {
             entityName: entityName ? String(entityName) : undefined,
             description,
             details: {
-              path: originalUrl,
+              path: requestUrl,
               method,
               params,
               payload: this.sanitize(body),
             },
-            ipAddress: ip || (headers['x-forwarded-for'] as string) || undefined,
-            userAgent: headers['user-agent'] || undefined,
+            ipAddress: ip || (headers?.['x-forwarded-for'] as string) || undefined,
+            userAgent: headers?.['user-agent'] || undefined,
           });
         },
         error: () => {},

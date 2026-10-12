@@ -1,11 +1,22 @@
 import { BadRequestException } from '@nestjs/common';
-import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
+import { FastifyFileOptions } from '../../core/interceptors/fastify-file.interceptor';
+
+export interface FileUploadConfig {
+  limits?: {
+    fileSize?: number;
+  };
+  fileFilter?: (
+    req: any,
+    file: any,
+    cb: (error: Error | null, acceptFile: boolean) => void,
+  ) => void;
+}
 
 /**
  * Secure upload configuration enforcing maximum 50MB limit and MIME validation
- * (images and PDF documents only).
+ * (images and PDF documents only). Compatible with both Fastify and Express.
  */
-export const SECURE_FILE_UPLOAD_OPTIONS: MulterOptions = {
+export const SECURE_FILE_UPLOAD_OPTIONS: FileUploadConfig & FastifyFileOptions = {
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
   },

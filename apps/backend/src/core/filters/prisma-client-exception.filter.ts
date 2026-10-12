@@ -1,6 +1,5 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Response, Request } from 'express';
 
 @Catch(Prisma.PrismaClientKnownRequestError)
 export class PrismaClientExceptionFilter implements ExceptionFilter {
@@ -8,9 +7,11 @@ export class PrismaClientExceptionFilter implements ExceptionFilter {
 
   catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-    const correlationId = request.headers['x-correlation-id'] || 'N/A';
+    const response = ctx.getResponse<any>();
+    const request = ctx.getRequest<any>();
+    const correlationId = request?.headers?.['x-correlation-id'] || 'N/A';
+    const requestUrl = request?.url || request?.originalUrl || '';
+    const requestMethod = request?.method || 'UNKNOWN';
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let errorCode = 'DATABASE_ERROR';
@@ -49,22 +50,33 @@ export class PrismaClientExceptionFilter implements ExceptionFilter {
       }
       default: {
         this.logger.error(
-          `Unhandled Prisma Error [${exception.code}] on ${request.method} ${request.url}: ${exception.message}`,
+          `Unhandled Prisma Error [${exception.code}] on ${requestMethod} ${requestUrl}: ${exception.message}`,
           exception.stack,
         );
         break;
       }
     }
 
-    response.status(status).json({
+    const payload = {
       success: false,
       statusCode: status,
       error: HttpStatus[status],
       code: errorCode,
       message: userMessage,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: requestUrl,
       correlationId,
-    });
+    };
+
+    if (typeof response.status === 'function' && typeof response.send === 'function') {
+      return response.status(status).send(payload);
+    }
+    if (typeof response.code === 'function' && typeof response.send === 'function') {
+      return response.code(status).send(payload);
+    }
+    if (typeof response.status === 'function' && typeof response.json === 'function') {
+      return response.status(status).json(payload);
+    }
+    return response.send ? response.send(payload) : response.end?.(JSON.stringify(payload));
   }
 }

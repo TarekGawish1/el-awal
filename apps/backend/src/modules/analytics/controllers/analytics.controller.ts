@@ -15,7 +15,6 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from "@nestjs/swagger";
-import { Request } from "express";
 import { AnalyticsService } from "../services/analytics.service";
 import {
   TrackPageViewDto,
@@ -42,14 +41,14 @@ import { UserRole } from "@prisma/client";
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
-  private extractClientIp(req: Request): string {
-    const forwarded = req.headers["x-forwarded-for"];
+  private extractClientIp(req: any): string {
+    const forwarded = req.headers?.["x-forwarded-for"];
     return (
       typeof forwarded === "string"
         ? forwarded.split(",")[0]
         : Array.isArray(forwarded)
           ? forwarded[0]
-          : req.socket?.remoteAddress || req.ip || ""
+          : req.ip || req.socket?.remoteAddress || req.raw?.socket?.remoteAddress || ""
     ).trim();
   }
 
@@ -64,7 +63,7 @@ export class AnalyticsController {
     status: 202,
     description: "Event queued for telemetry ingestion",
   })
-  async trackPageView(@Body() dto: TrackPageViewDto, @Req() req: Request) {
+  async trackPageView(@Body() dto: TrackPageViewDto, @Req() req: any) {
     const ipAddress = this.extractClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
     const authenticatedUser = (req as any).user as
@@ -108,7 +107,7 @@ export class AnalyticsController {
   async startSession(
     @Body() dto: StartSessionDto,
     @CurrentUser() user: AuthenticatedUser,
-    @Req() req: Request,
+    @Req() req: any,
   ) {
     if (!user)
       throw new UnauthorizedException("Session requires authenticated user");
@@ -158,7 +157,7 @@ export class AnalyticsController {
   })
   async pingPageEngagement(
     @Body() dto: PageEngagementPingDto,
-    @Req() req: Request,
+    @Req() req: any,
   ) {
     const ipAddress = this.extractClientIp(req);
     const userAgent = req.headers["user-agent"] || "";

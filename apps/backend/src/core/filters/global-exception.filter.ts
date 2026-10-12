@@ -6,7 +6,6 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -14,9 +13,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-    const correlationId = request.headers['x-correlation-id'] || 'N/A';
+    const response = ctx.getResponse<any>();
+    const request = ctx.getRequest<any>();
+    const correlationId = request?.headers?.['x-correlation-id'] || 'N/A';
+    const requestUrl = request?.url || request?.originalUrl || '';
+    const requestMethod = request?.method || 'UNKNOWN';
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let errorName = 'Internal Server Error';
@@ -38,7 +39,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       this.logger.error(
-        `💥 Unhandled System Exception on ${request.method} ${request.url} [CID: ${correlationId}]: ${exception.message}`,
+        `💥 Unhandled System Exception on ${requestMethod} ${requestUrl} [CID: ${correlationId}]: ${exception.message}`,
         exception.stack,
       );
       if (process.env.NODE_ENV === 'development') {
@@ -46,15 +47,26 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
-    response.status(status).json({
+    const payload = {
       success: false,
       statusCode: status,
       error: errorName,
       code: errorCode,
       message,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: requestUrl,
       correlationId,
-    });
+    };
+
+    if (typeof response.status === 'function' && typeof response.send === 'function') {
+      return response.status(status).send(payload);
+    }
+    if (typeof response.code === 'function' && typeof response.send === 'function') {
+      return response.code(status).send(payload);
+    }
+    if (typeof response.status === 'function' && typeof response.json === 'function') {
+      return response.status(status).json(payload);
+    }
+    return response.send ? response.send(payload) : response.end?.(JSON.stringify(payload));
   }
 }

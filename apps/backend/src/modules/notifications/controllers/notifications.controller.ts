@@ -18,7 +18,6 @@ import {
   ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger';
-import { Request } from 'express';
 import { NotificationsService } from '../services/notifications.service';
 import { WebPushService, PushSubscriptionDto } from '../../../services/webpush.service';
 import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
@@ -112,12 +111,12 @@ export class NotificationsController {
   async subscribeToPush(
     @CurrentUser() user: AuthenticatedUser,
     @Body() subscription: PushSubscriptionDto,
-    @Req() req: Request,
+    @Req() req: any,
   ) {
     await this.webPushService.subscribe(
       user.id,
       subscription,
-      req.headers['user-agent'],
+      req.headers?.['user-agent'],
     );
     return { success: true, message: 'Push subscription saved' };
   }

@@ -1,71 +1,69 @@
 import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppLogger } from './core/logger/app-logger.service';
-import helmet from 'helmet';
+import fastifyCookie from '@fastify/cookie';
+import fastifyCompress from '@fastify/compress';
+import fastifyHelmet from '@fastify/helmet';
+import fastifyMultipart from '@fastify/multipart';
 
 import { shouldRedirectToCanonicalPlatform } from './core/middleware/canonical-redirect.util';
 
 async function bootstrap() {
   const appLogger = new AppLogger();
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule, {
-    logger: appLogger,
+
+  const fastifyAdapter = new FastifyAdapter({
+    trustProxy: true,
   });
+
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    fastifyAdapter,
+    {
+      logger: appLogger,
+    },
+  );
   const configService = app.get(ConfigService);
 
-  // Cookie parser for secure HttpOnly session refresh tokens
-  try {
-    const cookieParser = require('cookie-parser');
-    const cookieParserFn = typeof cookieParser === 'function' ? cookieParser : cookieParser.default;
-    if (typeof cookieParserFn === 'function') {
-      app.use(cookieParserFn());
-    }
-  } catch (cookieErr) {
-    logger.warn('Cookie parser middleware skipped:', cookieErr);
-  }
+  // Register high-performance Fastify plugins
+  await app.register(fastifyCookie);
+  await app.register(fastifyCompress);
+  await app.register(fastifyHelmet, {
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  });
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: 500 * 1024 * 1024, // 500MB max upload (allows lecture videos and document uploads)
+    },
+  });
 
-// High-performance gzip/deflate response compression to shrink JSON payloads
-  try {
-    const compression = require('compression');
-    const compressFn = typeof compression === 'function' ? compression : compression.default;
-    if (typeof compressFn === 'function') {
-      app.use(compressFn());
-    }
-  } catch (compErr) {
-    logger.warn('Compression middleware skipped:', compErr);
-  }
-
-  // Security Headers via Helmet (allow cross-origin asset loading)
-  app.use(
-    helmet({
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-    }),
-  );
-
-  // Image storage is R2-only: no local ./uploads directory is created or served.
-  // Any legacy /uploads/* URL means an old local file that must be re-uploaded to R2.
-
-  // Trust upstream reverse proxy (e.g. Nginx, Cloudflare, Heroku router)
-  const expressApp = app.getHttpAdapter().getInstance();
-  if (configService.get<boolean>('TRUST_PROXY', true)) {
-    expressApp.set('trust proxy', 1);
-  }
-
-  // Canonical Platform Redirection:
+  // Canonical Platform Redirection via Fastify hook:
   // If an external user or browser accesses the raw Heroku backend URL directly
   // (e.g. '*.herokuapp.com'), redirect them to the canonical frontend platform.
   // API subdomain requests (e.g. 'api.al-awal.online') must never be redirected.
-  const canonicalAppUrl = configService.get<string>('NEXT_PUBLIC_APP_URL', 'https://al-awal.online').replace(/\/+$/, '');
-  expressApp.use((req: any, res: any, next: any) => {
-    const rawHost = (req.headers['x-forwarded-host'] || (typeof req.get === 'function' ? req.get('host') : req.headers?.host) || req.hostname || '').toString();
-    if (shouldRedirectToCanonicalPlatform(rawHost, req.method, req.path)) {
-      const targetPath = (req.originalUrl || '/').startsWith('/') ? (req.originalUrl || '/') : `/${req.originalUrl}`;
-      return res.redirect(301, `${canonicalAppUrl}${targetPath}`);
+  const fastifyInstance = app.getHttpAdapter().getInstance();
+  const canonicalAppUrl = configService
+    .get<string>('NEXT_PUBLIC_APP_URL', 'https://al-awal.online')
+    .replace(/\/+$/, '');
+
+  fastifyInstance.addHook('onRequest', (request: any, reply: any, done: any) => {
+    const rawHost = (
+      request.headers['x-forwarded-host'] ||
+      request.headers.host ||
+      request.hostname ||
+      ''
+    ).toString();
+    const url = request.url || '/';
+    if (shouldRedirectToCanonicalPlatform(rawHost, request.method, url)) {
+      const targetPath = url.startsWith('/') ? url : `/${url}`;
+      reply.redirect(`${canonicalAppUrl}${targetPath}`, 301);
+      return;
     }
-    next();
+    done();
   });
 
   // Global REST API prefix
@@ -133,7 +131,7 @@ async function bootstrap() {
       }
 
       logger.warn(`⚠️ CORS blocked request from unauthorized origin: ${origin}`);
-      callback(new Error(`Origin ${origin} not allowed by CORS`));
+      callback(new Error(`Origin ${origin} not allowed by CORS`), false);
     },
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
@@ -198,4 +196,7 @@ async function bootstrap() {
   logger.log(`🚀 NestJS Backend Server running on port ${port} (Environment: ${configService.get<string>('NODE_ENV', 'development')}) - Onsite Homework Delivery & Attendance Sync v1.0.1 ready`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('BOOTSTRAP ERROR FULL:', err);
+  process.exit(1);
+});
