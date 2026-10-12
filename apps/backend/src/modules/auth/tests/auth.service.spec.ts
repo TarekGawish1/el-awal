@@ -8,6 +8,15 @@ import * as bcrypt from 'bcryptjs';
 import { UserRole } from '@prisma/client';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 
+vi.mock('bcryptjs', async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    compare: vi.fn((...args: any[]) => actual.compare(...args)),
+    hash: vi.fn((...args: any[]) => actual.hash(...args)),
+  };
+});
+
 describe('AuthService', () => {
   let service: AuthService;
   let prisma: PrismaService;
@@ -296,7 +305,7 @@ describe('AuthService', () => {
         .mockResolvedValueOnce('parent-access-token')
         .mockResolvedValueOnce('parent-refresh-token');
 
-      (bcrypt.compare as jest.Mock) = jest.fn().mockResolvedValue(true);
+      (bcrypt.compare as any).mockResolvedValue(true);
 
       const result = await service.parentAccess({ studentPhone: '01011111111', password: 'secretpassword' });
 
@@ -366,7 +375,7 @@ describe('AuthService', () => {
         .mockResolvedValueOnce('parent-access-token')
         .mockResolvedValueOnce('parent-refresh-token');
 
-      (bcrypt.compare as jest.Mock) = jest.fn().mockResolvedValue(false);
+      (bcrypt.compare as any).mockResolvedValue(false);
 
       const result = await service.parentAccess({ studentPhone: '01067789574', password: '9sgiiY' });
 

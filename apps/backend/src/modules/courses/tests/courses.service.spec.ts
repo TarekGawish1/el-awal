@@ -7,6 +7,7 @@ import { BunnyVideoService } from '../../../integrations/video/bunny-video.servi
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { AiModerationService } from '../../../integrations/ai/ai-moderation.service';
 import { CourseStatus, CourseAccessStatus, CourseEnrollmentStatus, UserRole } from '@prisma/client';
+import { containsProfanity } from '../../../common/utils/content-moderation.util';
 
 describe('CoursesService', () => {
   let service: CoursesService;
@@ -139,7 +140,6 @@ describe('CoursesService', () => {
           provide: AiModerationService,
           useValue: {
             assertValidContent: jest.fn(async (text: string) => {
-              const { containsProfanity } = require('../../../common/utils/content-moderation.util');
               if (containsProfanity(text)) {
                 throw new BadRequestException('عذراً، يحتوي النص على كلمات أو عبارات غير لائقة');
               }

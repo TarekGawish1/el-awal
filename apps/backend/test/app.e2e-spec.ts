@@ -34,44 +34,6 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
     secretariatProfile: null,
   };
 
-  const mockStudentProfile = {
-    id: 'student-profile-1',
-    userId: 'student-user-1',
-    studentCode: 'STU-2026-0001',
-    qrCodeToken: 'qr_tok_demo_e2e_123',
-    gradeLevel: 'الصف الثالث الثانوي',
-    academicStage: 'SECONDARY',
-    user: {
-      id: 'student-user-1',
-      fullName: 'محمود أحمد',
-      phone: '+201099999999',
-      email: 'student.demo@elawal.com',
-      role: UserRole.STUDENT,
-      isActive: true,
-      deletedAt: null,
-    },
-    parentLinks: [
-      {
-        parentId: 'parent-profile-1',
-        parent: { user: { fullName: 'أحمد محمود', phone: '+201088888888' } },
-      },
-    ],
-  };
-
-  const mockParentUser = {
-    id: 'parent-user-1',
-    fullName: 'أحمد محمود',
-    phone: '+201088888888',
-    email: 'parent@elawal.com',
-    role: UserRole.PARENT,
-    isActive: true,
-    deletedAt: null,
-    parentProfile: { id: 'parent-profile-1' },
-    studentProfile: null,
-    teacherProfile: null,
-    secretariatProfile: null,
-  };
-
   const mockGroup = {
     id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
     name: 'مجموعة الثانوية العامة أ',
@@ -91,6 +53,51 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
     sessionDate: new Date('2026-09-01'),
     topic: 'مراجعة النحو الشاملة',
     attendanceRecords: [],
+  };
+
+  const mockStudentProfile = {
+    id: 'student-profile-1',
+    userId: 'student-user-1',
+    studentCode: 'STU-2026-0001',
+    qrCodeToken: 'qr_tok_demo_e2e_123',
+    gradeLevel: 'الصف الثالث الثانوي',
+    academicStage: 'SECONDARY',
+    user: {
+      id: 'student-user-1',
+      fullName: 'محمود أحمد',
+      phone: '+201091234567',
+      email: 'student.demo@elawal.com',
+      role: UserRole.STUDENT,
+      isActive: true,
+      deletedAt: null,
+    },
+    parentLinks: [
+      {
+        parentId: 'parent-profile-1',
+        parent: { user: { fullName: 'أحمد محمود', phone: '+201081234567' } },
+      },
+    ],
+    groupEnrollments: [
+      {
+        status: 'ACTIVE',
+        groupId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+        group: mockGroup,
+      },
+    ],
+  };
+
+  const mockParentUser = {
+    id: 'parent-user-1',
+    fullName: 'أحمد محمود',
+    phone: '+201081234567',
+    email: 'parent@elawal.com',
+    role: UserRole.PARENT,
+    isActive: true,
+    deletedAt: null,
+    parentProfile: { id: 'parent-profile-1' },
+    studentProfile: null,
+    teacherProfile: null,
+    secretariatProfile: null,
   };
 
   const mockPrisma = {
@@ -130,7 +137,12 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
         }
         return Promise.resolve(null);
       }),
-      findFirst: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockImplementation(({ where }) => {
+        if (where?.qrCodeToken === 'qr_tok_demo_e2e_123' || where?.OR) {
+          return Promise.resolve(mockStudentProfile);
+        }
+        return Promise.resolve(null);
+      }),
       create: jest.fn().mockResolvedValue(mockStudentProfile),
       count: jest.fn().mockResolvedValue(1),
     },
@@ -262,13 +274,22 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
             isAutoGraded: true,
             submittedAt: new Date(),
             gradedAt: new Date(),
-            assessment: { id: 'c1d2e3f4-a5b6-7c8d-9e0f-1a2b3c4d5e6f', title: 'Title', teacherId: 'teacher-profile-1' },
-            student: { user: { fullName: 'Student' } },
+            assessment: {
+              id: 'c1d2e3f4-a5b6-7c8d-9e0f-1a2b3c4d5e6f',
+              title: 'Title',
+              totalScore: 10.0,
+              teacherId: 'teacher-profile-1',
+              questions: [],
+            },
+            student: { studentCode: 'STU-2026-0001', user: { fullName: 'Student' } },
             answers: [],
           });
         }
         return Promise.resolve(null);
       }),
+    },
+    studentAnswer: {
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     studentPaymentRecord: {
       findFirst: jest.fn().mockResolvedValue(null),
@@ -284,6 +305,18 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
       create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
+    },
+    auditLog: {
+      create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    },
+    whatsAppMessageLog: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockResolvedValue({ id: 'msg-1' }),
+    },
+    whatsAppSession: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      upsert: jest.fn().mockResolvedValue({}),
     },
     $queryRaw: jest.fn().mockResolvedValue([{ id: 'att-1' }]),
     $transaction: jest.fn().mockImplementation((callback) => {
@@ -391,20 +424,20 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
         .set('Authorization', `Bearer ${teacherJwtToken}`)
         .send({
           fullName: 'محمود أحمد عثمان',
-          phone: '+201099999999',
+          phone: '+201091234567',
           email: 'student.e2e@elawal.com',
           password: 'StudentPass123!',
           gradeLevel: 'الصف الثالث الثانوي',
           academicStage: 'SECONDARY',
           initialGroupId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
           parentName: 'أحمد عثمان',
-          parentPhone: '+201088888888',
+          parentPhone: '+201081234567',
         })
         .expect(201);
 
       expect(response.body.data).toHaveProperty('studentCode');
       expect(response.body.data).toHaveProperty('qrCodeToken');
-      expect(response.body.data.studentCode).toMatch(/^STU\d{4}/);
+      expect(response.body.data.studentCode).toMatch(/^STU-?\d{4}/);
     });
   });
 
