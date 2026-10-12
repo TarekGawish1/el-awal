@@ -1,0 +1,100 @@
+{
+  "baseUrl": "https://al-awal-cbe2188d9efa.herokuapp.com/api/v1",
+  "teacher": {
+    "id": "0c6fc7be-c582-4dc5-9eb5-f37cccd9631a",
+    "email": "teacher@elawal.com",
+    "phone": "+201021902000",
+    "name": "أ. أحمد غريب",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODM1Nzg4LCJleHAiOjE3OTE4MzY2ODh9.cqk8aozE41F_5__DxjDM4p8pfICWN52xeS9_IPycgBw"
+  },
+  "students": [
+    {
+      "id": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
+      "studentProfileId": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
+      "name": "طالب فحص تجريبي",
+      "studentCode": "STU202600062",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYWMxNzI1OC03ZTY5LTQ4MGItYWMwYy02MmY5OThlZDU2Y2UiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTgzNTc5MCwiZXhwIjoxNzkxODM2NjkwfQ.m68oxx18ObLqKkLY9IvNxGtCpDGeKZc10ms537PtXEM"
+    }
+  ],
+  "parents": [
+    {
+      "id": "507d290d-9c26-4e6d-b020-acb3bc22de0a",
+      "parentProfileId": "507d290d-9c26-4e6d-b020-acb3bc22de0a",
+      "name": "ولي أمر طالب فحص تجريبي",
+      "phone": "+201099998811",
+      "linkedStudentId": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MDdkMjkwZC05YzI2LTRlNmQtYjAyMC1hY2IzYmMyMmRlMGEiLCJwaG9uZSI6IisyMDEwOTk5OTg4MTEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODM1NzkyLCJleHAiOjE3OTE4MzY2OTJ9.Udrjt5PUkaYXmmhTEnvpRHN77pKw6VTCzAjoIWgJ5Jk"
+    }
+  ],
+  "groups": [
+    {
+      "id": "e30928ad-b759-4b3a-b5cc-d9722ac1775f",
+      "name": "مجموعة السبت و الثلاثاء (الساعة 4:00 م) - الصف الثاني الإعدادي",
+      "gradeLevel": "الصف الثاني الإعدادي"
+    },
+    {
+      "id": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "name": "مجموعة الثلاثاء و السبت (الساعة 3:00 م) - الصف الأول الإعدادي - سنتر العدلية",
+      "gradeLevel": "الصف الأول الإعدادي"
+    },
+    {
+      "id": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "name": "مجموعة الأحد و الخميس (الساعة 3:00 م) - الصف الأول الإعدادي - سنتر العدلية",
+      "gradeLevel": "الصف الأول الإعدادي"
+    },
+    {
+      "id": "756c512d-7d95-4eaf-86eb-931953edec9b",
+      "name": "مجموعة الإثنين و الخميس (الساعة 2:30 م) - الصف الثالث الإعدادي",
+      "gradeLevel": "الصف الثالث الإعدادي"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "b889e4d5-881b-4f09-a7cd-fa734db14672",
+      "topic": "حصة - 2026-10-03",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "10a7a43a-c30b-4587-86d9-0829ea817950",
+      "topic": "حصة - 2026-10-06",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "aa574609-0215-4243-ab1f-90f87ff3dc11",
+      "topic": "حصة - 2026-10-10",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "bccf4529-49cd-4d05-94c4-d348434d03e6",
+      "topic": "حصة - 2026-10-13",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "944a89e6-b4a0-41c4-8121-ad1c03f13e06",
+      "topic": "حصة - 2026-10-17",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "fe1d9062-884f-489d-8fba-7a1805a989f2",
+      "topic": "حصة - 2026-10-20",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "401c3e97-5cfa-46bd-9a75-cebba9ab3da3",
+      "topic": "حصة - 2026-10-24",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "f0eb1af1-ad9e-4c5f-800d-614a033b5897",
+      "topic": "حصة - 2026-10-27",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    },
+    {
+      "id": "a6edbcda-4431-4974-9b72-d69351c3558b",
+      "topic": "حصة - 2026-10-31",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
+    }
+  ],
+  "courses": [],
+  "updatedAt": "2026-10-12T20:09:55.803Z"
+}
