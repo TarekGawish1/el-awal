@@ -23,8 +23,8 @@ export class AuthController {
   ) {}
 
   /**
-   * Sets the long-lived refresh token in an HttpOnly, Secure, SameSite=Lax cookie.
-   * This protects against XSS token exfiltration (OWASP / OAuth 2.0 Best Practice).
+   * Sets the long-lived refresh token in an HttpOnly, Secure cookie.
+   * Uses sameSite: 'none' in production to allow cross-site requests (al-awal.online -> herokuapp.com).
    */
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
     if (!res || typeof res.cookie !== 'function') return;
@@ -33,7 +33,7 @@ export class AuthController {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'lax',
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
       maxAge,
     });
@@ -48,7 +48,7 @@ export class AuthController {
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'lax',
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
     });
   }

@@ -5,7 +5,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppLogger } from './core/logger/app-logger.service';
 import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const appLogger = new AppLogger();
@@ -16,7 +15,15 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Cookie parser for secure HttpOnly session refresh tokens
-  app.use(cookieParser());
+  try {
+    const cookieParser = require('cookie-parser');
+    const cookieParserFn = typeof cookieParser === 'function' ? cookieParser : cookieParser.default;
+    if (typeof cookieParserFn === 'function') {
+      app.use(cookieParserFn());
+    }
+  } catch (cookieErr) {
+    logger.warn('Cookie parser middleware skipped:', cookieErr);
+  }
 
 // High-performance gzip/deflate response compression to shrink JSON payloads
   try {
