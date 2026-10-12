@@ -6,6 +6,8 @@ import { ConfigService } from '@nestjs/config';
 import { AppLogger } from './core/logger/app-logger.service';
 import helmet from 'helmet';
 
+import { shouldRedirectToCanonicalPlatform } from './core/middleware/canonical-redirect.util';
+
 async function bootstrap() {
   const appLogger = new AppLogger();
   const logger = new Logger('Bootstrap');
@@ -54,14 +56,14 @@ async function bootstrap() {
 
   // Canonical Platform Redirection:
   // If an external user or browser accesses the raw Heroku backend URL directly
-  // (e.g. '/', '/login', '/courses'), immediately redirect them to the official platform.
+  // (e.g. '*.herokuapp.com'), redirect them to the canonical frontend platform.
+  // API subdomain requests (e.g. 'api.al-awal.online') must never be redirected.
+  const canonicalAppUrl = configService.get<string>('NEXT_PUBLIC_APP_URL', 'https://al-awal.online').replace(/\/+$/, '');
   expressApp.use((req: any, res: any, next: any) => {
-    if (
-      req.method === 'GET' &&
-      !req.path.startsWith('/api') &&
-      !req.path.startsWith('/socket.io')
-    ) {
-      return res.redirect(301, `https://al-awal.online${req.originalUrl || '/'}`);
+    const rawHost = (req.headers['x-forwarded-host'] || (typeof req.get === 'function' ? req.get('host') : req.headers?.host) || req.hostname || '').toString();
+    if (shouldRedirectToCanonicalPlatform(rawHost, req.method, req.path)) {
+      const targetPath = (req.originalUrl || '/').startsWith('/') ? (req.originalUrl || '/') : `/${req.originalUrl}`;
+      return res.redirect(301, `${canonicalAppUrl}${targetPath}`);
     }
     next();
   });
