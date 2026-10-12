@@ -38,10 +38,10 @@ const nextConfig = {
     const rawBackendUrl =
       process.env.BACKEND_INTERNAL_URL ||
       process.env.NEXT_PUBLIC_API_URL ||
-      'https://al-awal-cbe2188d9efa.herokuapp.com/api/v1';
+      'https://api.al-awal.online/api/v1';
 
     const backendUrl = rawBackendUrl.includes('localhost:3000')
-      ? 'https://al-awal-cbe2188d9efa.herokuapp.com/api/v1'
+      ? 'https://api.al-awal.online/api/v1'
       : rawBackendUrl.replace(/\/$/, '');
 
     return [
