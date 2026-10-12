@@ -22,11 +22,11 @@ export class PrismaService
       }
       if (!databaseUrl.includes('connection_limit=')) {
         const separator = databaseUrl.includes('?') ? '&' : '?';
-        databaseUrl = `${databaseUrl}${separator}connection_limit=15`;
+        databaseUrl = `${databaseUrl}${separator}connection_limit=35`;
       }
       if (!databaseUrl.includes('pool_timeout=')) {
         const separator = databaseUrl.includes('?') ? '&' : '?';
-        databaseUrl = `${databaseUrl}${separator}pool_timeout=20`;
+        databaseUrl = `${databaseUrl}${separator}pool_timeout=10`;
       }
     }
 
