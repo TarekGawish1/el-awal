@@ -90,14 +90,14 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
   });
 
   const formatNumber = (num: number = 0) => {
-    return new Intl.NumberFormat('ar-EG').format(num);
+    return new Intl.NumberFormat('en-US').format(num);
   };
 
   const formatDateTime = (isoStr?: string) => {
     if (!isoStr) return 'غير محدد';
     try {
       const date = new Date(isoStr);
-      return date.toLocaleDateString('ar-EG', {
+      return date.toLocaleDateString('ar-EG-u-nu-latn', {
         timeZone: 'Africa/Cairo',
         year: 'numeric',
         month: 'short',
@@ -114,7 +114,7 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
     if (!isoStr) return '';
     try {
       const date = new Date(isoStr);
-      return date.toLocaleTimeString('ar-EG', {
+      return date.toLocaleTimeString('ar-EG-u-nu-latn', {
         timeZone: 'Africa/Cairo',
         hour: '2-digit',
         minute: '2-digit',

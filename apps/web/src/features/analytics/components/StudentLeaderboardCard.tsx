@@ -25,7 +25,7 @@ export function StudentLeaderboardCard({ range, from, to }: StudentLeaderboardCa
   const students = data?.students || [];
 
   const formatNumber = (num: number = 0) => {
-    return new Intl.NumberFormat('ar-EG').format(num);
+    return new Intl.NumberFormat('en-US').format(num);
   };
 
   return (

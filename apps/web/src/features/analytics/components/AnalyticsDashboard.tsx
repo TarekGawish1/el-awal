@@ -84,7 +84,7 @@ export function AnalyticsDashboard() {
   };
 
   const formatNumber = (num: number = 0) => {
-    return new Intl.NumberFormat('ar-EG').format(num);
+    return new Intl.NumberFormat('en-US').format(num);
   };
 
   const summary = data?.summary || {

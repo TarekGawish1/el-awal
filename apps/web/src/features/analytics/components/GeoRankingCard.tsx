@@ -24,7 +24,7 @@ export function GeoRankingCard({ range, from, to, scope = 'all' }: GeoRankingCar
   });
 
   const formatNumber = (num: number = 0) => {
-    return new Intl.NumberFormat('ar-EG').format(num);
+    return new Intl.NumberFormat('en-US').format(num);
   };
 
   const items = data?.items || [];

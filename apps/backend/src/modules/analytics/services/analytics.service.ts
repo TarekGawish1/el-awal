@@ -1421,7 +1421,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         const monthKey = `${yr}-${mo.toString().padStart(2, "0")}`;
 
         if (!bucketsMap.has(monthKey)) {
-          const monthLabel = current.toLocaleDateString("ar-EG", {
+          const monthLabel = current.toLocaleDateString("ar-EG-u-nu-latn", {
             timeZone: "Africa/Cairo",
             month: "long",
             year: "numeric",
@@ -1461,7 +1461,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         const cairoDate = new Intl.DateTimeFormat("en-CA", {
           timeZone: "Africa/Cairo",
         }).format(current);
-        const dayLabel = current.toLocaleDateString("ar-EG", {
+        const dayLabel = current.toLocaleDateString("ar-EG-u-nu-latn", {
           timeZone: "Africa/Cairo",
           weekday: "short",
           month: "short",
