@@ -78,6 +78,12 @@ export class GroupsController {
       user.teacherProfileId || user.id,
       user.role,
     );
+    if (typeof res.header === 'function' && typeof res.send === 'function') {
+      res.header('Content-Type', 'application/pdf');
+      res.header('Content-Disposition', `inline; filename="group-${id}-qrcodes.pdf"`);
+      res.header('Content-Length', pdfBuffer.length.toString());
+      return res.send(pdfBuffer);
+    }
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="group-${id}-qrcodes.pdf"`,

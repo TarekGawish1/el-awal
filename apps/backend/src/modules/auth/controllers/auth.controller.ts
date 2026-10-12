@@ -26,31 +26,41 @@ export class AuthController {
    * Sets the long-lived refresh token in an HttpOnly, Secure cookie.
    * Uses sameSite: 'none' in production to allow cross-site requests (al-awal.online -> herokuapp.com).
    */
-  private setRefreshTokenCookie(res: Response, refreshToken: string) {
-    if (!res || typeof res.cookie !== 'function') return;
+  private setRefreshTokenCookie(res: any, refreshToken: string) {
+    if (!res) return;
     const isProd = process.env.NODE_ENV === 'production';
     const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-    res.cookie('refreshToken', refreshToken, {
+    const cookieOptions = {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      sameSite: isProd ? ('none' as const) : ('lax' as const),
       path: '/',
       maxAge,
-    });
+    };
+    if (typeof res.setCookie === 'function') {
+      // Fastify reply
+      res.setCookie('refreshToken', refreshToken, cookieOptions);
+    } else if (typeof res.cookie === 'function') {
+      // Express response
+      res.cookie('refreshToken', refreshToken, cookieOptions);
+    }
   }
 
   /**
    * Clears the HttpOnly refresh token cookie on user logout.
    */
-  private clearRefreshTokenCookie(res: Response) {
-    if (!res || typeof res.clearCookie !== 'function') return;
+  private clearRefreshTokenCookie(res: any) {
+    if (!res) return;
     const isProd = process.env.NODE_ENV === 'production';
-    res.clearCookie('refreshToken', {
+    const clearOptions = {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      sameSite: isProd ? ('none' as const) : ('lax' as const),
       path: '/',
-    });
+    };
+    if (typeof res.clearCookie === 'function') {
+      res.clearCookie('refreshToken', clearOptions);
+    }
   }
 
   @Public()
