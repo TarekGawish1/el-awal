@@ -3,11 +3,18 @@
  * Aligned with docs/03-Architecture/api-design.md
  */
 
-export const API_BASE_URL =
+const configuredUrl =
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === "production"
     ? "https://api.al-awal.online/api/v1"
     : "http://localhost:3000/api/v1");
+
+// Guard against missing 'api.' subdomain prefix in production environment
+export const API_BASE_URL =
+  configuredUrl.replace(/\/$/, "") === "https://al-awal.online/api/v1" ||
+  configuredUrl.replace(/\/$/, "") === "https://al-awal.online"
+    ? "https://api.al-awal.online/api/v1"
+    : configuredUrl;
 
 export const API_ENDPOINTS = {
   AUTH: {

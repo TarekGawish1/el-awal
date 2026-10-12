@@ -40,9 +40,16 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_API_URL ||
       'https://api.al-awal.online/api/v1';
 
-    const backendUrl = rawBackendUrl.includes('localhost:3000')
-      ? 'https://api.al-awal.online/api/v1'
-      : rawBackendUrl.replace(/\/$/, '');
+    let backendUrl = rawBackendUrl.replace(/\/$/, '');
+    // Guard against localhost and self-referential rewrites (missing 'api.' subdomain prefix)
+    if (
+      backendUrl.includes('localhost:3000') ||
+      backendUrl === 'https://al-awal.online/api/v1' ||
+      backendUrl === 'https://al-awal.online' ||
+      !backendUrl.startsWith('http')
+    ) {
+      backendUrl = 'https://api.al-awal.online/api/v1';
+    }
 
     return [
       {

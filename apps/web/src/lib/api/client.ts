@@ -48,7 +48,11 @@ async function executeRefreshToken(): Promise<string | null> {
     });
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+      // Only treat 401/403 as explicit auth rejections if it came from the API (JSON response),
+      // preventing network-level HTML errors (Cloudflare/CDN challenges or HTML 403s) from wiping sessions.
+      if (response.status === 401 || (response.status === 403 && isJson)) {
         handleAuthFailure(true);
       }
       return null;
@@ -241,10 +245,12 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
       }
     }
 
-    const json = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+    const json = isJson ? await response.json().catch(() => null) : null;
 
     if (!response.ok) {
-      const problem = json as ProblemDetailsError;
+      const problem = (json || {}) as ProblemDetailsError;
       throw new ApiError({
         statusCode: response.status,
         message: problem.message || `Request failed with status ${response.status}`,
