@@ -1,18 +1,28 @@
-import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
 import { AttendanceStatus, GroupEnrollmentStatus, SubmissionStatus, CourseEnrollmentStatus } from '@prisma/client';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class TeachersService {
   private readonly logger = new Logger(TeachersService.name);
   private readonly academicPeriodCache = new MemoryCache(120, 10);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redisCache?: RedisCacheService,
+  ) {}
 
   async getDashboardOverview(teacherId: string, query: DashboardOverviewQueryDto) {
+    const cacheKey = `teacher:dashboard:overview:${teacherId}:${JSON.stringify(query)}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const isSpecificGroup = query.groupId && query.groupId !== 'ALL';
 
     // Resolve teacher ID (if user is secretariat, fallback to primary teacher profile)
@@ -311,7 +321,7 @@ export class TeachersService {
       );
     }
 
-    return {
+    const result = {
       kpis: {
         todaySessionsCount,
         activeSessionsCount,
@@ -329,9 +339,21 @@ export class TeachersService {
       groupPerformance,
       lastUpdatedTimestamp: new Date().toISOString(),
     };
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 60);
+    }
+
+    return result;
   }
 
   async getDashboardInit(teacherId: string, query: DashboardOverviewQueryDto) {
+    const cacheKey = `teacher:dashboard:init:${teacherId}:${JSON.stringify(query)}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const [overview, academicPeriod] = await Promise.all([
       this.getDashboardOverview(teacherId, query),
       this.getAcademicPeriod(teacherId),
@@ -425,7 +447,7 @@ export class TeachersService {
       },
     }));
 
-    return {
+    const result = {
       ...overview,
       pendingReservations,
       menus: {
@@ -433,6 +455,12 @@ export class TeachersService {
         academicPeriod,
       },
     };
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 60);
+    }
+
+    return result;
   }
 
   async getAcademicPeriod(teacherId?: string) {

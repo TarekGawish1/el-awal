@@ -9,6 +9,8 @@ import { UserRole } from '@prisma/client';
 import { CreateCertificateDto } from '../dto/create-certificate.dto';
 import { UpdateVisibilityDto } from '../dto/update-visibility.dto';
 
+import { Throttle } from '@nestjs/throttler';
+
 @ApiTags('Certificates')
 @Controller('certificates')
 export class CertificatesController {
@@ -16,6 +18,7 @@ export class CertificatesController {
 
   @Get('public')
   @Public()
+  @Throttle({ default: { limit: 3000, ttl: 60000 } })
   @ApiOperation({ summary: 'Get list of certificates for the public landing page' })
   async getPublicCertificates() {
     return this.certificatesService.getPublicCertificates();

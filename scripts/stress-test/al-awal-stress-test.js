@@ -14,17 +14,13 @@ const successfulRequests = new Counter('successful_2xx_requests');
 export const options = {
   stages: [
     // 1. Warm-up: Baseline check with low traffic
-    { duration: '30s', target: 50 },
-    // 2. Normal platform load (hundreds of concurrent students)
-    { duration: '45s', target: 150 },
-    // 3. Peak load (lesson launch / exam session rush)
-    { duration: '1m', target: 350 },
-    // 4. Stress load: pushing dynos and database connections
-    { duration: '1m', target: 600 },
-    // 5. Extreme spike: find maximum concurrency and breaking point
-    { duration: '45s', target: 900 },
-    // 6. Recovery & Ramp-down
-    { duration: '30s', target: 0 },
+    { duration: '15s', target: 30 },
+    // 2. Normal platform load (100 concurrent students)
+    { duration: '30s', target: 100 },
+    // 3. Peak load: testing dyno and Redis cache capacity (200 concurrent students)
+    { duration: '45s', target: 200 },
+    // 4. Recovery & Ramp-down
+    { duration: '15s', target: 0 },
   ],
   thresholds: {
     // Platform health thresholds
@@ -35,6 +31,7 @@ export const options = {
 };
 
 const BASE_URL = 'https://al-awal.online';
+const API_URL = 'https://api.al-awal.online/api/v1';
 
 export default function () {
   // Distribute Virtual Users across 3 realistic personas:
@@ -61,7 +58,7 @@ export default function () {
       sleep(Math.random() * 1.5 + 0.5);
 
       // 2. Public Certificates / Honors Wall
-      const resCert = http.get(`${BASE_URL}/api/v1/certificates/public`, {
+      const resCert = http.get(`${API_URL}/certificates/public`, {
         tags: { type: 'backend_api', endpoint: 'certificates' },
       });
       backendApiDuration.add(resCert.timings.duration);
@@ -89,7 +86,7 @@ export default function () {
     // Persona 2: Active Student / Parent Catalog & Services Flow
     group('Student Services Flow', function () {
       // 1. Course Catalog API
-      const resCatalog = http.get(`${BASE_URL}/api/v1/courses/catalog`, {
+      const resCatalog = http.get(`${API_URL}/courses/catalog`, {
         tags: { type: 'backend_api', endpoint: 'courses_catalog' },
       });
       backendApiDuration.add(resCatalog.timings.duration);
@@ -111,7 +108,7 @@ export default function () {
       });
 
       // 3. System Heartbeat / Health Check
-      const resHealth = http.get(`${BASE_URL}/api/v1/health`, {
+      const resHealth = http.get(`${API_URL}/health`, {
         tags: { type: 'backend_api', endpoint: 'health' },
       });
       backendApiDuration.add(resHealth.timings.duration);

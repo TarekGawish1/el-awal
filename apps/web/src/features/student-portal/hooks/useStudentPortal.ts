@@ -84,6 +84,9 @@ export function useStudentQrCode() {
       }
     },
     enabled: !!studentId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -359,6 +362,9 @@ export function useStudentPayments() {
       }
     },
     enabled: !!studentId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -380,6 +386,9 @@ export function useStudentAttendance() {
       }
     },
     enabled: !!studentId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }
 

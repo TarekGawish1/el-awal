@@ -570,7 +570,13 @@ export class AttendanceService {
       }
     }
 
-    return this.attendanceRepository.getStudentAttendanceHistory(
+    const cacheKey = `attendance:student:${studentId}:${pagination.cursor || 'first'}:${pagination.limit || 20}:${status || 'all'}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
+    const result = await this.attendanceRepository.getStudentAttendanceHistory(
       studentId,
       {
         cursor: pagination.cursor,
@@ -579,6 +585,12 @@ export class AttendanceService {
       },
       status,
     );
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 300);
+    }
+
+    return result;
   }
 
   /**

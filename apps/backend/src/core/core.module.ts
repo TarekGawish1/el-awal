@@ -29,7 +29,7 @@ import { RedisCacheService } from './cache/redis-cache.service';
       {
         name: 'default',
         ttl: 60000,
-        limit: 300,
+        limit: 1200,
       },
     ]),
     DatabaseModule,
