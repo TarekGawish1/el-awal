@@ -5,6 +5,9 @@ import { NotificationSettingsService } from '../modules/notifications/services/n
 import {
   NotificationChannel,
   NotificationType,
+  AttendanceStatus,
+  RecordingMethod,
+  GroupEnrollmentStatus,
 } from '@prisma/client';
 import * as cron from 'node-cron';
 import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
@@ -18,13 +21,22 @@ import { StorageCleanupService } from '../integrations/storage/storage-cleanup.s
  * All crons run inside the same NestJS process (no separate worker dyno needed on Heroku).
  * Timezone: Africa/Cairo (UTC+2 / UTC+3 DST)
  *
+ * ─── لماذا تعمل الجوبات كل 5/15 دقيقة وليس مرة واحدة؟ ──────────────────────
+ * الجوبات المتعلقة بالتذكيرات (session reminders, exam reminders) تعمل بشكل متكرر
+ * لأنها تبحث عن "نافذة زمنية" (time window) — مثلاً: "حصص تبدأ خلال 45-60 دقيقة".
+ * لو اشتغلت مرة واحدة في اليوم، كانت هتفوّت حصص الساعة 3 عصراً أو 7 مساءً.
+ * بالتكرار كل 15 دقيقة → تضمن إنها تغطي الحصص في أي وقت طول اليوم.
+ * التكرار لا يسبب رسائل مضاعفة بفضل الـ deduplication check (findFirst by sessionId+userId).
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
  * Active schedules:
- * 1. Every 15 min  — SESSION_REMINDER_STUDENT (45–60 min window)
- * 2. Every 15 min  — ONLINE_EXAM_REMINDER (60 min window)
- * 3. Daily 07:00   — TEACHER_DAILY_SCHEDULE (morning agenda)
- * 4. Every 5 min   — TEACHER_SESSION_REMINDER (15 min window)
- * 5. Every 14 min  — Heroku keep-alive ping
- * 6. Daily 03:00   — CLOUDFLARE_R2_ORPHAN_CLEANUP (purges unlinked files)
+ * 1. Every 15 min      — SESSION_REMINDER_STUDENT (45–60 min window)
+ * 2. Every 15 min      — ONLINE_EXAM_REMINDER (60 min window)
+ * 3. Daily 07:00       — TEACHER_DAILY_SCHEDULE (morning agenda)
+ * 4. Every 5 min       — TEACHER_SESSION_REMINDER (15 min window)
+ * 5. Every 14 min      — Heroku keep-alive ping
+ * 6. Daily 03:00       — CLOUDFLARE_R2_ORPHAN_CLEANUP (purges unlinked files)
+ * 7. Daily 23:00       — AUTO_ATTENDANCE_PRESENT (marks unrecorded students as PRESENT)
  */
 // ─── Cairo Timezone Helpers ──────────────────────────────────────────────────
 
@@ -152,6 +164,16 @@ export class SchedulersService implements OnModuleInit {
       cron.schedule(
         '0 3 * * *',
         () => this.runStorageOrphanCleanup(),
+        { timezone: 'Africa/Cairo' },
+      ),
+    );
+
+    // 7. Auto-attendance: mark unrecorded students as PRESENT (daily at 23:00 Africa/Cairo)
+    //    Covers any session that ended > 1 hour ago and still has students with no record.
+    this.tasks.push(
+      cron.schedule(
+        '0 23 * * *',
+        () => this.runAutoAttendancePresent(),
         { timezone: 'Africa/Cairo' },
       ),
     );
@@ -618,6 +640,100 @@ export class SchedulersService implements OnModuleInit {
       );
     } catch (err: any) {
       this.logger.error(`❌ [StorageCleanup] Daily cleanup failed: ${err.message}`, err.stack);
+    }
+  }
+
+  /**
+   * Auto-Attendance: يشتغل كل يوم الساعة 11 مساءً (Africa/Cairo).
+   *
+   * المنطق:
+   * - يجيب كل الحصص الماضية (حتى اللحظة الحالية) في آخر 7 أيام.
+   * - لكل حصة، يجيب الطلاب المقيدين (ACTIVE) في المجموعة.
+   * - أي طالب مالوش سجل نهائياً (لم يُسجّل لا حاضر ولا غائب) → يتسجل تلقائياً كـ PRESENT.
+   * - المعلم يقدر في أي وقت (سواء قبل الجوب أو بعده أو في أي يوم) يسجل الطالب غياب أو يعدله يدوياً.
+   * - يستخدم teacher user ID كـ recordedById (معلم المجموعة).
+   * - يطبع تقرير بعدد السجلات التي تم إنشاؤها.
+   */
+  async runAutoAttendancePresent(): Promise<void> {
+    this.logger.log('📋 [AutoAttendance] Starting auto-present marking job...');
+
+    try {
+      const now = new Date();
+      // تغطية الحصص الماضية حتى الآن في آخر 7 أيام
+      const cutoffStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      // جيب كل الجلسات الماضية حتى اللحظة الحالية
+      const sessions = await this.prisma.lessonSession.findMany({
+        where: {
+          isCancelled: false,
+          sessionDate: {
+            gte: cutoffStart,
+            lte: now,
+          },
+        },
+        include: {
+          group: {
+            include: {
+              teacher: {
+                include: {
+                  user: { select: { id: true } },
+                },
+              },
+              enrollments: {
+                where: { status: GroupEnrollmentStatus.ACTIVE },
+                select: { studentId: true },
+              },
+            },
+          },
+          attendanceRecords: {
+            select: { studentId: true },
+          },
+        },
+      });
+
+      let totalMarked = 0;
+
+      for (const session of sessions) {
+        const teacherUserId = session.group.teacher?.user?.id;
+        if (!teacherUserId) continue;
+
+        // الطلاب اللي عندهم سجل حضور بالفعل
+        const alreadyRecordedIds = new Set(
+          session.attendanceRecords.map((r) => r.studentId),
+        );
+
+        // الطلاب اللي مسجلين في المجموعة وملهومش سجل
+        const studentsToMark = session.group.enrollments
+          .map((e) => e.studentId)
+          .filter((id) => !alreadyRecordedIds.has(id));
+
+        if (studentsToMark.length === 0) continue;
+
+        // إنشاء سجلات حضور تلقائية
+        await this.prisma.attendanceRecord.createMany({
+          data: studentsToMark.map((studentId) => ({
+            sessionId: session.id,
+            studentId,
+            status: AttendanceStatus.PRESENT,
+            recordingMethod: RecordingMethod.MANUAL,
+            recordedById: teacherUserId,
+            notes: 'تسجيل تلقائي — لم يُسجَّل غياب',
+            recordedAt: new Date(),
+          })),
+          skipDuplicates: true, // أمان إضافي ضد التكرار
+        });
+
+        totalMarked += studentsToMark.length;
+        this.logger.debug(
+          `[AutoAttendance] Session ${session.id} → marked ${studentsToMark.length} student(s) as PRESENT`,
+        );
+      }
+
+      this.logger.log(
+        `✅ [AutoAttendance] Done. Processed ${sessions.length} session(s), auto-marked ${totalMarked} student attendance record(s) as PRESENT.`,
+      );
+    } catch (err: any) {
+      this.logger.error(`❌ [AutoAttendance] Job failed: ${err.message}`, err.stack);
     }
   }
 }

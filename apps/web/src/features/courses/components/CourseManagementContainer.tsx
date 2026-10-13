@@ -570,6 +570,7 @@ function CourseEnrollmentsView() {
       toast.error(err?.message || 'تعذر إلغاء الاشتراك');
     },
   });
+  
 
   return (
     <div className="space-y-6">
