@@ -52,10 +52,12 @@ export class TransformResponseInterceptor<T>
 
         // If response already matches standard paginated result structure { data, meta }
         if (sanitized && typeof sanitized === 'object' && 'data' in sanitized && 'meta' in sanitized) {
+          const { data, meta, ...rest } = sanitized;
           return {
             success: true,
-            data: sanitized.data,
-            meta: sanitized.meta,
+            data,
+            meta,
+            ...rest,
             timestamp: new Date().toISOString(),
           };
         }

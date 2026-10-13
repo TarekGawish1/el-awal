@@ -341,7 +341,7 @@ export class TeachersService {
     };
 
     if (this.redisCache) {
-      await this.redisCache.set(cacheKey, result, 60);
+      await this.redisCache.set(cacheKey, result, 300);
     }
 
     return result;
@@ -457,7 +457,7 @@ export class TeachersService {
     };
 
     if (this.redisCache) {
-      await this.redisCache.set(cacheKey, result, 60);
+      await this.redisCache.set(cacheKey, result, 300);
     }
 
     return result;
