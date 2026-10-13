@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateScheduleDto } from '../dto/create-schedule.dto';
@@ -13,6 +14,7 @@ import { UpdateSessionDto } from '../dto/update-session.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole, GroupEnrollmentStatus } from '@prisma/client';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class SchedulesService {
@@ -20,7 +22,27 @@ export class SchedulesService {
   private readonly publicSchedulesCache = new MemoryCache(120, 10);
   private readonly autoEnsureCache = new MemoryCache<boolean>(300, 50);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redisCache?: RedisCacheService,
+  ) {}
+
+  private async invalidateScheduleCaches() {
+    this.publicSchedulesCache.clear();
+    this.autoEnsureCache.clear();
+    if (this.redisCache) {
+      try {
+        await Promise.all([
+          this.redisCache.delPattern('schedules:*'),
+          this.redisCache.delPattern('groups:*'),
+          this.redisCache.delPattern('student:dashboard:*'),
+          this.redisCache.delPattern('parent:overview:*'),
+        ]);
+      } catch (err) {
+        this.logger.warn(`Failed to invalidate schedule caches: ${err}`);
+      }
+    }
+  }
 
   private async assertGroupAccess(
     groupId: string,
@@ -172,8 +194,7 @@ export class SchedulesService {
       }
     }
 
-    this.publicSchedulesCache.clear();
-    this.autoEnsureCache.clear();
+    await this.invalidateScheduleCaches();
     return this.prisma.lessonSchedule.create({
       data: {
         groupId: dto.groupId,
@@ -190,6 +211,20 @@ export class SchedulesService {
    */
   async getGroupSchedules(groupId: string, user: AuthenticatedUser) {
     await this.assertGroupAccess(groupId, user, false);
+
+    const cacheKey = `schedules:group:${groupId}`;
+    if (this.redisCache) {
+      return this.redisCache.getOrSet(
+        cacheKey,
+        async () => {
+          return this.prisma.lessonSchedule.findMany({
+            where: { groupId },
+            orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+          });
+        },
+        600,
+      );
+    }
 
     return this.prisma.lessonSchedule.findMany({
       where: { groupId },
@@ -211,8 +246,7 @@ export class SchedulesService {
 
     await this.assertGroupAccess(schedule.groupId, user, true);
 
-    this.publicSchedulesCache.clear();
-    this.autoEnsureCache.clear();
+    await this.invalidateScheduleCaches();
     return this.prisma.lessonSchedule.delete({
       where: { id: scheduleId },
     });
@@ -314,6 +348,7 @@ export class SchedulesService {
     });
 
     this.logger.log(`Generated ${createdSessions.length} sessions for group [${groupId}]`);
+    await this.invalidateScheduleCaches();
 
     return {
       groupId,
@@ -784,7 +819,7 @@ export class SchedulesService {
       });
     }
 
-    return this.prisma.lessonSession.create({
+    const created = await this.prisma.lessonSession.create({
       data: {
         id: dto.id || undefined,
         groupId: dto.groupId,
@@ -801,6 +836,9 @@ export class SchedulesService {
         _count: { select: { attendanceRecords: true, educationalContents: true } },
       },
     });
+
+    await this.invalidateScheduleCaches();
+    return created;
   }
 
   /**
@@ -889,7 +927,7 @@ export class SchedulesService {
       }
     }
 
-    return this.prisma.lessonSession.update({
+    const updated = await this.prisma.lessonSession.update({
       where: { id: sessionId },
       data: {
         topic: dto.topic !== undefined ? dto.topic : session.topic,
@@ -910,6 +948,9 @@ export class SchedulesService {
         _count: { select: { attendanceRecords: true, educationalContents: true } },
       },
     });
+
+    await this.invalidateScheduleCaches();
+    return updated;
   }
 
   /**
@@ -936,6 +977,7 @@ export class SchedulesService {
       );
     }
 
+    await this.invalidateScheduleCaches();
     return this.prisma.lessonSession.delete({
       where: { id: sessionId },
     });
@@ -993,6 +1035,12 @@ export class SchedulesService {
     academicYear?: string,
     academicTerm?: string,
   ) {
+    const cacheKey = `schedules:today:${user.id}:${academicYear || 'all'}:${academicTerm || 'all'}:${gradeLevel || 'all'}:${academicStage || 'all'}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const today = new Date();
     // Normalize to UTC midnight for consistent date matching
     const sessionDateOnly = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
@@ -1101,6 +1149,10 @@ export class SchedulesService {
       orderBy: { startTime: 'asc' },
     });
 
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, todaySessions, 120);
+    }
+
     return todaySessions;
   }
 
@@ -1108,7 +1160,13 @@ export class SchedulesService {
    * Retrieves public center schedules across all active groups
    */
   async getPublicCenterSchedules() {
-    return this.publicSchedulesCache.getOrSet('public_center_schedules', async () => {
+    const cacheKey = 'schedules:public_center';
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
+    const result = await this.publicSchedulesCache.getOrSet('public_center_schedules', async () => {
       const groups = await this.prisma.academicGroup.findMany({
         where: {
           isActive: true,
@@ -1157,5 +1215,11 @@ export class SchedulesService {
           };
         });
     });
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 600);
+    }
+
+    return result;
   }
 }

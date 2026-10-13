@@ -15,11 +15,14 @@ import { filterUpcomingGroupExams } from '../utils/assessments';
  * are hidden. Mirrors the backend `getAssessments` scope for the STUDENT role.
  */
 export function StudentRecentAssessments({ exams }: { exams?: any[] } = {}) {
-  const { data: assessments, isLoading: isHookLoading } = useStudentAssessments();
+  const isProvided = exams !== undefined;
+  const { data: assessments, isLoading: isHookLoading } = useStudentAssessments({
+    enabled: !isProvided,
+  });
   const assessmentList = Array.isArray(assessments) ? assessments : (assessments?.data || []);
 
-  const groupAssessments = exams !== undefined ? exams : filterUpcomingGroupExams(assessmentList);
-  const isLoading = exams !== undefined ? false : isHookLoading;
+  const groupAssessments = isProvided ? exams : filterUpcomingGroupExams(assessmentList);
+  const isLoading = isProvided ? false : isHookLoading;
 
   return (
     <Card className="border-slate-100 shadow-sm">

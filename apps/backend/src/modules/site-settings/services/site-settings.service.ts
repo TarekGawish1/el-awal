@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, Optional } from "@nestjs/common";
 import { PrismaService } from "../../../core/database/prisma.service";
 import { MemoryCache } from "../../../common/utils/memory-cache.util";
+import { RedisCacheService } from "../../../core/cache/redis-cache.service";
 
 const VISIBLE_YEARS_KEY = "certificates.visibleYears";
 const VISIBLE_STAGES_KEY = "certificates.visibleStages";
@@ -21,7 +22,10 @@ export class SiteSettingsService {
   private readonly logger = new Logger(SiteSettingsService.name);
   private readonly publicCache = new MemoryCache(120, 10);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redisCache?: RedisCacheService,
+  ) {}
 
   private parseYears(raw: string | null | undefined): string[] | null {
     if (!raw) return null;
@@ -37,7 +41,13 @@ export class SiteSettingsService {
 
   /** Public landing-page settings (fail-open: null means "show all"). */
   async getPublicSettings() {
-    return this.publicCache.getOrSet("public_settings", async () => {
+    const cacheKey = "site_settings:public";
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
+    const result = await this.publicCache.getOrSet("public_settings", async () => {
       const rows = await this.prisma.siteSetting.findMany({
         where: { key: { in: MANAGEABLE_KEYS } },
       });
@@ -50,6 +60,12 @@ export class SiteSettingsService {
         certificatesVisibleGroups: valueFor(VISIBLE_GROUPS_KEY),
       };
     });
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 600);
+    }
+
+    return result;
   }
 
   /** All manageable settings with parsed values (dashboard). */
@@ -68,6 +84,17 @@ export class SiteSettingsService {
 
   async updateSetting(key: string, value: string[]) {
     this.publicCache.clear();
+    if (this.redisCache) {
+      try {
+        await Promise.all([
+          this.redisCache.delPattern("site_settings:*"),
+          this.redisCache.delPattern("certificates:*"),
+        ]);
+      } catch (err) {
+        this.logger.warn(`Failed to invalidate site settings cache: ${err}`);
+      }
+    }
+
     if (!MANAGEABLE_KEYS.includes(key)) {
       throw new BadRequestException("إعداد غير مدعوم");
     }

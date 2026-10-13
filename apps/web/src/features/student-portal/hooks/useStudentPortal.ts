@@ -9,13 +9,13 @@ import { StudentDetail } from '@/features/students/types/students.types';
 import { translateErrorMessage } from '@/lib/api/errors';
 import toast from 'react-hot-toast';
 
-export function useStudentProfile() {
+export function useStudentProfile(options?: { enabled?: boolean }) {
   const { user } = useAuth();
   const studentId = user?.studentProfileId || user?.id;
 
   return useQuery<StudentDetail | null>({
     queryKey: ['student-profile', studentId],
-    enabled: !!studentId && user?.role === 'STUDENT',
+    enabled: (options?.enabled ?? true) && !!studentId && user?.role === 'STUDENT',
     queryFn: async (): Promise<StudentDetail | null> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline && studentId) {
@@ -111,10 +111,11 @@ export function useStudentCourses() {
   });
 }
 
-export function useStudentGroup() {
+export function useStudentGroup(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['student-group'],
     queryFn: () => studentApi.getMyGroup(),
+    enabled: options?.enabled ?? true,
     retry: false,
   });
 }
@@ -137,10 +138,11 @@ export function useReserveGroup() {
   });
 }
 
-export function useStudentGroupSessions(query: StudentGroupQuery) {
+export function useStudentGroupSessions(query: StudentGroupQuery, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['student-group-sessions', query.year, query.month],
     queryFn: () => studentApi.getMyGroupSessions(query),
+    enabled: options?.enabled ?? true,
     staleTime: 30_000,
   });
 }
@@ -320,9 +322,10 @@ export function useCourseSubscriptionStatus(courseId: string) {
   });
 }
 
-export function useStudentAssessments() {
+export function useStudentAssessments(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['student-assessments'],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {

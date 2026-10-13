@@ -22,7 +22,9 @@ import { API_BASE_URL } from '@/lib/api/endpoints';
 
 export function StudentDashboard() {
   const { data: overview, isLoading: isOverviewLoading } = useStudentDashboardOverview();
-  const { data: fallbackProfile, isLoading: isFallbackProfileLoading } = useStudentProfile();
+  const { data: fallbackProfile } = useStudentProfile({
+    enabled: !overview && !isOverviewLoading,
+  });
 
   // Certificate modal state
   const [certCourse, setCertCourse] = useState<{ title: string; teacherName?: string } | null>(null);

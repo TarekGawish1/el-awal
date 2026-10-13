@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import { PrismaService } from "../../../core/database/prisma.service";
 import { StorageService } from "../../../integrations/storage/storage.service";
 import { CreateCertificateDto } from "../dto/create-certificate.dto";
+import { RedisCacheService } from "../../../core/cache/redis-cache.service";
 
 @Injectable()
 export class CertificatesService {
@@ -10,7 +11,18 @@ export class CertificatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
+
+  private async invalidateCertificatesCache() {
+    if (this.redisCache) {
+      try {
+        await this.redisCache.delPattern("certificates:*");
+      } catch (err) {
+        this.logger.warn(`Failed to invalidate certificates cache: ${err}`);
+      }
+    }
+  }
 
   async createCertificate(
     data: CreateCertificateDto,
@@ -34,7 +46,7 @@ export class CertificatesService {
       }
     }
 
-    return this.prisma.certificate.create({
+    const created = await this.prisma.certificate.create({
       data: {
         studentName: data.studentName,
         gender: data.gender || "MALE",
@@ -49,14 +61,29 @@ export class CertificatesService {
         fileUrl: fileUrl,
       },
     });
+
+    await this.invalidateCertificatesCache();
+    return created;
   }
 
   async getPublicCertificates() {
-    return this.prisma.certificate.findMany({
+    const cacheKey = "certificates:public";
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
+    const certificates = await this.prisma.certificate.findMany({
       where: { isPublic: true },
       orderBy: { createdAt: "desc" },
       take: 100, // Fetch up to 100 recent certificates
     });
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, certificates, 600);
+    }
+
+    return certificates;
   }
 
   async getAllCertificates() {
@@ -74,10 +101,13 @@ export class CertificatesService {
       throw new NotFoundException("الشهادة غير موجودة أو تم حذفها مسبقاً");
     }
 
-    return this.prisma.certificate.update({
+    const updated = await this.prisma.certificate.update({
       where: { id },
       data: { isPublic },
     });
+
+    await this.invalidateCertificatesCache();
+    return updated;
   }
 
   async deleteCertificate(id: string) {
@@ -107,6 +137,7 @@ export class CertificatesService {
       const deleted = await this.prisma.certificate.delete({
         where: { id },
       });
+      await this.invalidateCertificatesCache();
       return { success: true, message: "تم حذف الشهادة بنجاح", data: deleted };
     } catch (error) {
       this.logger.error(`Failed to delete certificate ${id}`, error);

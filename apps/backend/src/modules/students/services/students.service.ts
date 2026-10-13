@@ -903,7 +903,6 @@ export class StudentsService {
                 id: true,
                 name: true,
                 gradeLevel: true,
-                academicStage: true,
                 monthlyFee: true,
                 schedules: {
                   orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
@@ -1143,7 +1142,7 @@ export class StudentsService {
             id: ge.group.id,
             name: ge.group.name,
             gradeLevel: ge.group.gradeLevel,
-            academicStage: ge.group.academicStage,
+            academicStage: student.academicStage,
             monthlyFee: Number(ge.group.monthlyFee || 0),
             schedules: ge.group.schedules,
           },

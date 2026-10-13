@@ -3,6 +3,20 @@ import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { LinkedStudentRecord } from '../types/parent-portal.types';
 
+export interface ParentDashboardResponse {
+  linkedStudents: LinkedStudentRecord[];
+  activeChildOverview: any;
+  selectedStudentId: string | null;
+}
+
+export function useParentDashboard(studentId?: string | null) {
+  return useQuery({
+    queryKey: ['parent-portal', 'dashboard', studentId || 'default'],
+    queryFn: () => apiClient<ParentDashboardResponse>(API_ENDPOINTS.PARENT_PORTAL.DASHBOARD(studentId || undefined)),
+    staleTime: 60_000,
+  });
+}
+
 export function useLinkedStudents() {
   return useQuery({
     queryKey: ['parent-portal', 'linked-students'],

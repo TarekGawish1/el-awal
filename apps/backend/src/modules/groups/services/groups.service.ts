@@ -501,6 +501,13 @@ export class GroupsService {
       });
 
       this.logger.log(`Student [${studentId}] enrolled in group [${groupId}]`);
+
+      if (this.redisCache) {
+        await this.redisCache.delPattern('groups:*');
+        await this.redisCache.delPattern(`student:dashboard:${studentId}`);
+        await this.redisCache.delPattern(`parent:overview:${studentId}`);
+      }
+
       return enrollment;
     });
   }
@@ -532,7 +539,7 @@ export class GroupsService {
       throw new NotFoundException(`Student [${studentId}] is not enrolled in group [${groupId}]`);
     }
 
-    return this.prisma.groupEnrollment.update({
+    const dropped = await this.prisma.groupEnrollment.update({
       where: {
         groupId_studentId: {
           groupId,
@@ -543,6 +550,14 @@ export class GroupsService {
         status: GroupEnrollmentStatus.DROPPED,
       },
     });
+
+    if (this.redisCache) {
+      await this.redisCache.delPattern('groups:*');
+      await this.redisCache.delPattern(`student:dashboard:${studentId}`);
+      await this.redisCache.delPattern(`parent:overview:${studentId}`);
+    }
+
+    return dropped;
   }
 
   /**
@@ -877,6 +892,12 @@ export class GroupsService {
 
     this.realtimeGateway.notifyReservationsChanged([user.id]);
 
+    if (this.redisCache) {
+      await this.redisCache.delPattern('groups:*');
+      await this.redisCache.delPattern(`student:dashboard:${enrollment.studentId}`);
+      await this.redisCache.delPattern(`parent:overview:${enrollment.studentId}`);
+    }
+
     return updatedEnrollment;
   }
 
@@ -897,9 +918,17 @@ export class GroupsService {
 
     this.realtimeGateway.notifyReservationsChanged([user.id]);
 
-    return this.prisma.groupEnrollment.delete({
+    const deleted = await this.prisma.groupEnrollment.delete({
       where: { id: enrollmentId },
     });
+
+    if (this.redisCache) {
+      await this.redisCache.delPattern('groups:*');
+      await this.redisCache.delPattern(`student:dashboard:${enrollment.studentId}`);
+      await this.redisCache.delPattern(`parent:overview:${enrollment.studentId}`);
+    }
+
+    return deleted;
   }
 
   /**
@@ -927,9 +956,17 @@ export class GroupsService {
 
     await this.checkTeacherOwnership(newGroup, user);
 
-    return this.prisma.groupEnrollment.update({
+    const updated = await this.prisma.groupEnrollment.update({
       where: { id: enrollmentId },
       data: { groupId: newGroupId },
     });
+
+    if (this.redisCache) {
+      await this.redisCache.delPattern('groups:*');
+      await this.redisCache.delPattern(`student:dashboard:${enrollment.studentId}`);
+      await this.redisCache.delPattern(`parent:overview:${enrollment.studentId}`);
+    }
+
+    return updated;
   }
 }

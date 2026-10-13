@@ -15,6 +15,20 @@ import { UserRole } from '@prisma/client';
 export class ParentPortalController {
   constructor(private readonly parentPortalService: ParentPortalService) {}
 
+  @Get('dashboard')
+  @Roles(UserRole.PARENT, UserRole.SECRETARIAT, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Single unified dashboard endpoint for parent portal (linked students + primary child overview)' })
+  async getParentDashboard(
+    @Query('studentId') studentIdQuery: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.parentPortalService.getParentDashboard(
+      user.parentProfileId || user.id,
+      studentIdQuery,
+      user.role,
+    );
+  }
+
   @Get('students')
   @Roles(UserRole.PARENT, UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'List all children/students linked to the authenticated parent' })
@@ -36,6 +50,7 @@ export class ParentPortalController {
     return this.parentPortalService.getStudentOverview(
       user.parentProfileId || user.id,
       studentId,
+      user.role,
     );
   }
 

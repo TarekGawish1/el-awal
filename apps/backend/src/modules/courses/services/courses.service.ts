@@ -60,6 +60,7 @@ import { createHash, randomUUID } from 'crypto';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 export function generateBunnyEmbedTicket(
   libraryId: string,
@@ -89,7 +90,23 @@ export class CoursesService {
     private readonly aiModeration: AiModerationService,
     @Optional() private readonly notificationsService?: NotificationsService,
     @Optional() private readonly realtimeGateway?: RealtimeGateway,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
+
+  private async clearCatalogCache() {
+    this.catalogCache.clear();
+    if (this.redisCache) {
+      try {
+        await Promise.all([
+          this.redisCache.delPattern('courses:*'),
+          this.redisCache.delPattern('student:dashboard:*'),
+          this.redisCache.delPattern('parent:overview:*'),
+        ]);
+      } catch (err) {
+        this.logger.warn(`Failed to clear courses cache: ${err}`);
+      }
+    }
+  }
 
   /**
    * Helper to safely extract Bunny Stream Video GUID from a string, URL, or URI.
@@ -235,7 +252,7 @@ export class CoursesService {
           status: CourseStatus.DRAFT,
         },
       });
-      this.catalogCache.clear();
+      await this.clearCatalogCache();
       return created;
     } catch (error) {
       if (dto.coverImageUrl) {
@@ -308,153 +325,172 @@ export class CoursesService {
    * Keyset cursor-paginated catalog of published courses with multi-criteria filtering.
    */
   async getPublishedCatalog(query: CourseQueryDto) {
-    const cacheKey = `catalog:${JSON.stringify(query)}`;
-    return this.catalogCache.getOrSet(cacheKey, async () => {
-      const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
-    const decodedCursor = query.cursor ? CursorPaginationHelper.decodeCursor(query.cursor) : null;
-    const cursorFilter = CursorPaginationHelper.buildPrismaWhereClause(decodedCursor, 'DESC');
-
-    let stageFilter: any = undefined;
-    if (query.academicStage && query.academicStage !== 'ALL') {
-      const stageUpper = query.academicStage.toUpperCase();
-      if (stageUpper.includes('SEC') || query.academicStage.includes('ثانوي')) {
-        stageFilter = { in: ['SECONDARY', 'المرحلة الثانوية', 'ثانوي'] };
-      } else if (stageUpper.includes('MID') || stageUpper.includes('PREP') || query.academicStage.includes('إعدادي') || query.academicStage.includes('اعدادي')) {
-        stageFilter = { in: ['MIDDLE', 'PREPARATORY', 'المرحلة الإعدادية', 'إعدادي'] };
-      } else if (stageUpper.includes('PRIM') || query.academicStage.includes('ابتدائي')) {
-        stageFilter = { in: ['PRIMARY', 'المرحلة الابتدائية', 'ابتدائي'] };
-      } else {
-        stageFilter = query.academicStage;
-      }
+    const queryHash = createHash('md5').update(JSON.stringify(query || {})).digest('hex');
+    const redisKey = `courses:catalog:${queryHash}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(redisKey);
+      if (cached) return cached;
     }
 
-    const where: any = {
-      status: CourseStatus.PUBLISHED,
-      ...(query.gradeLevel && query.gradeLevel !== 'ALL' ? { gradeLevel: query.gradeLevel } : {}),
-      ...(stageFilter ? { academicStage: stageFilter } : {}),
-      ...(query.subject ? { subject: query.subject } : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { title: { contains: query.search, mode: 'insensitive' } },
-              { description: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-      ...(cursorFilter || {}),
-    };
+    const cacheKey = `catalog:${queryHash}`;
+    const result = await this.catalogCache.getOrSet(cacheKey, async () => {
+      const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
+      const decodedCursor = query.cursor ? CursorPaginationHelper.decodeCursor(query.cursor) : null;
+      const cursorFilter = CursorPaginationHelper.buildPrismaWhereClause(decodedCursor, 'DESC');
 
-    const courses = await this.prisma.course.findMany({
-      where,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
-      include: {
-        teacher: {
-          include: { user: { select: { fullName: true } } },
-        },
-        modules: {
-          orderBy: { orderIndex: 'asc' },
-          include: {
-            lessons: {
-              orderBy: { orderIndex: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                summary: true,
-                orderIndex: true,
-                videoDurationSeconds: true,
-                lessonType: true,
-                isPreview: true,
-                bunnyVideoId: true,
-                contentUrl: true,
+      let stageFilter: any = undefined;
+      if (query.academicStage && query.academicStage !== 'ALL') {
+        const stageUpper = query.academicStage.toUpperCase();
+        if (stageUpper.includes('SEC') || query.academicStage.includes('ثانوي')) {
+          stageFilter = { in: ['SECONDARY', 'المرحلة الثانوية', 'ثانوي'] };
+        } else if (stageUpper.includes('MID') || stageUpper.includes('PREP') || query.academicStage.includes('إعدادي') || query.academicStage.includes('اعدادي')) {
+          stageFilter = { in: ['MIDDLE', 'PREPARATORY', 'المرحلة الإعدادية', 'إعدادي'] };
+        } else if (stageUpper.includes('PRIM') || query.academicStage.includes('ابتدائي')) {
+          stageFilter = { in: ['PRIMARY', 'المرحلة الابتدائية', 'ابتدائي'] };
+        } else {
+          stageFilter = query.academicStage;
+        }
+      }
+
+      const where: any = {
+        status: CourseStatus.PUBLISHED,
+        ...(query.gradeLevel && query.gradeLevel !== 'ALL' ? { gradeLevel: query.gradeLevel } : {}),
+        ...(stageFilter ? { academicStage: stageFilter } : {}),
+        ...(query.subject ? { subject: query.subject } : {}),
+        ...(query.search
+          ? {
+              OR: [
+                { title: { contains: query.search, mode: 'insensitive' } },
+                { description: { contains: query.search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+        ...(cursorFilter || {}),
+      };
+
+      const courses = await this.prisma.course.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+        include: {
+          teacher: {
+            include: { user: { select: { fullName: true } } },
+          },
+          modules: {
+            orderBy: { orderIndex: 'asc' },
+            include: {
+              lessons: {
+                orderBy: { orderIndex: 'asc' },
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  summary: true,
+                  orderIndex: true,
+                  videoDurationSeconds: true,
+                  lessonType: true,
+                  isPreview: true,
+                  bunnyVideoId: true,
+                  contentUrl: true,
+                },
               },
             },
           },
+          _count: { select: { modules: true, enrollments: true } },
         },
-        _count: { select: { modules: true, enrollments: true } },
-      },
-    });
+      });
 
-    const mappedCourses = courses.map((c) => {
-      let totalLessons = 0;
-      let firstFreeLesson: any = null;
-      let firstAnyLessonWithVideo: any = null;
+      const mappedCourses = courses.map((c) => {
+        let totalLessons = 0;
+        let firstFreeLesson: any = null;
+        let firstAnyLessonWithVideo: any = null;
 
-      const formattedModules = c.modules.map((m) => {
-        const formattedLessons = m.lessons.map((l) => {
-          totalLessons++;
+        const formattedModules = c.modules.map((m) => {
+          const formattedLessons = m.lessons.map((l) => {
+            totalLessons++;
 
-          const embedUrl = this.resolveFreshLessonEmbed(l);
+            const embedUrl = this.resolveFreshLessonEmbed(l);
 
-          if (embedUrl && !firstAnyLessonWithVideo) {
-            firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
-          }
+            if (embedUrl && !firstAnyLessonWithVideo) {
+              firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
+            }
 
-          if (l.isPreview && embedUrl && !firstFreeLesson) {
-            firstFreeLesson = { ...l, freeVideoUrl: embedUrl };
-          }
+            if (l.isPreview && embedUrl && !firstFreeLesson) {
+              firstFreeLesson = { ...l, freeVideoUrl: embedUrl };
+            }
+
+            return {
+              id: l.id,
+              title: l.title,
+              description: l.description,
+              summary: l.summary,
+              orderIndex: l.orderIndex,
+              videoDurationSeconds: l.videoDurationSeconds,
+              lessonType: l.lessonType,
+              isPreview: l.isPreview,
+              freeVideoUrl: l.isPreview ? embedUrl : null,
+            };
+          });
 
           return {
-            id: l.id,
-            title: l.title,
-            description: l.description,
-            summary: l.summary,
-            orderIndex: l.orderIndex,
-            videoDurationSeconds: l.videoDurationSeconds,
-            lessonType: l.lessonType,
-            isPreview: l.isPreview,
-            freeVideoUrl: l.isPreview ? embedUrl : null,
+            id: m.id,
+            title: m.title,
+            description: m.description,
+            orderIndex: m.orderIndex,
+            lessonsCount: formattedLessons.length,
+            lessons: formattedLessons,
           };
         });
 
+        const previewLesson = firstFreeLesson || firstAnyLessonWithVideo;
+        const hasFreeVideo = Boolean(previewLesson?.freeVideoUrl);
+
         return {
-          id: m.id,
-          title: m.title,
-          description: m.description,
-          orderIndex: m.orderIndex,
-          lessonsCount: formattedLessons.length,
-          lessons: formattedLessons,
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          subject: c.subject,
+          gradeLevel: c.gradeLevel,
+          academicStage: c.academicStage,
+          academicYear: c.academicYear,
+          academicTerm: c.academicTerm,
+          price: c.price,
+          coverImageUrl: c.coverImageUrl,
+          previewVideoUrl: this.signPreviewVideoUrl(c.previewVideoUrl),
+          hasCertificate: c.hasCertificate,
+          createdAt: c.createdAt,
+          teacher: c.teacher,
+          modules: formattedModules,
+          totalModules: formattedModules.length,
+          totalLessons,
+          hasFreeVideo,
+          freeVideoLessonId: previewLesson?.id || null,
+          freeVideoUrl: previewLesson?.freeVideoUrl || null,
         };
       });
 
-      const previewLesson = firstFreeLesson || firstAnyLessonWithVideo;
-      const hasFreeVideo = Boolean(previewLesson?.freeVideoUrl);
-
-      return {
-        id: c.id,
-        title: c.title,
-        description: c.description,
-        subject: c.subject,
-        gradeLevel: c.gradeLevel,
-        academicStage: c.academicStage,
-        academicYear: c.academicYear,
-        academicTerm: c.academicTerm,
-        price: c.price,
-        coverImageUrl: c.coverImageUrl,
-        previewVideoUrl: this.signPreviewVideoUrl(c.previewVideoUrl),
-        hasCertificate: c.hasCertificate,
-        createdAt: c.createdAt,
-        teacher: c.teacher,
-        modules: formattedModules,
-        totalModules: formattedModules.length,
-        totalLessons,
-        hasFreeVideo,
-        freeVideoLessonId: previewLesson?.id || null,
-        freeVideoUrl: previewLesson?.freeVideoUrl || null,
-      };
+      return CursorPaginationHelper.formatResponse(mappedCourses, limit);
     });
 
-    return CursorPaginationHelper.formatResponse(mappedCourses, limit);
-    });
+    if (this.redisCache && result) {
+      await this.redisCache.set(redisKey, result, 600);
+    }
+
+    return result;
   }
 
   /**
    * Retrieves public course details and syllabus for unauthenticated guests.
    */
   async getPublicCourseDetails(courseId: string) {
+    const redisKey = `courses:public:${courseId}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(redisKey);
+      if (cached) return cached;
+    }
+
     const cacheKey = `course_public:${courseId}`;
-    return this.catalogCache.getOrSet(cacheKey, async () => {
+    const result = await this.catalogCache.getOrSet(cacheKey, async () => {
       const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: {
@@ -553,6 +589,12 @@ export class CoursesService {
       freeVideoUrl: previewLesson?.freeVideoUrl || null,
     };
     });
+
+    if (this.redisCache && result) {
+      await this.redisCache.set(redisKey, result, 600);
+    }
+
+    return result;
   }
 
   /**
@@ -788,8 +830,7 @@ export class CoursesService {
       if (pid) previewVideoUrl = `bunny:${pid}` as any;
     }
 
-    this.catalogCache.clear();
-    return this.prisma.course.update({
+    const updated = await this.prisma.course.update({
       where: { id: courseId },
       data: {
         ...(dto.title ? { title: dto.title } : {}),
@@ -809,6 +850,8 @@ export class CoursesService {
         ...(dto.hasCertificate !== undefined ? { hasCertificate: dto.hasCertificate } : {}),
       },
     });
+    await this.clearCatalogCache();
+    return updated;
   }
 
   /**
@@ -862,8 +905,9 @@ export class CoursesService {
       await this.storageService.deleteObject(course.coverImageUrl).catch(() => {});
     }
 
-    this.catalogCache.clear();
-    return this.prisma.course.delete({ where: { id: courseId } });
+    const deleted = await this.prisma.course.delete({ where: { id: courseId } });
+    await this.clearCatalogCache();
+    return deleted;
   }
 
   /**
@@ -890,8 +934,7 @@ export class CoursesService {
       orderIndex = moduleCount + 1;
     }
 
-    this.catalogCache.clear();
-    return this.prisma.courseModule.create({
+    const created = await this.prisma.courseModule.create({
       data: {
         courseId,
         title: dto.title,
@@ -903,6 +946,8 @@ export class CoursesService {
         unitQuiz: { select: { id: true, title: true, type: true } },
       },
     });
+    await this.clearCatalogCache();
+    return created;
   }
 
   /**
@@ -925,8 +970,7 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to modify this module');
     }
 
-    this.catalogCache.clear();
-    return this.prisma.courseModule.update({
+    const updated = await this.prisma.courseModule.update({
       where: { id: moduleId },
       data: {
         ...(dto.title ? { title: dto.title } : {}),
@@ -938,6 +982,8 @@ export class CoursesService {
         unitQuiz: { select: { id: true, title: true, type: true } },
       },
     });
+    await this.clearCatalogCache();
+    return updated;
   }
 
   /**
@@ -989,8 +1035,9 @@ export class CoursesService {
       }
     }
 
-    this.catalogCache.clear();
-    return this.prisma.courseModule.delete({ where: { id: moduleId } });
+    const deleted = await this.prisma.courseModule.delete({ where: { id: moduleId } });
+    await this.clearCatalogCache();
+    return deleted;
   }
 
   /**
@@ -1017,8 +1064,7 @@ export class CoursesService {
     // parks every module at a distinct negative index — never used at rest, so it
     // can't collide — then phase 2 assigns the final positive indexes into the
     // now-free slots.
-    this.catalogCache.clear();
-    return this.prisma.$transaction([
+    const result = await this.prisma.$transaction([
       ...dto.moduleOrders.map((item, i) =>
         this.prisma.courseModule.update({
           where: { id: item.moduleId },
@@ -1032,6 +1078,8 @@ export class CoursesService {
         }),
       ),
     ]);
+    await this.clearCatalogCache();
+    return result;
   }
 
   /**
@@ -1088,8 +1136,7 @@ export class CoursesService {
     // every lesson at a distinct negative index AND moves it to its target module,
     // so the destination unit's final slots are freed before we fill them. Phase 2
     // then assigns the final positive order indexes with no collision.
-    this.catalogCache.clear();
-    return this.prisma.$transaction([
+    const result = await this.prisma.$transaction([
       ...dto.lessonOrders.map((item, i) =>
         this.prisma.courseLesson.update({
           where: { id: item.lessonId },
@@ -1106,6 +1153,8 @@ export class CoursesService {
         }),
       ),
     ]);
+    await this.clearCatalogCache();
+    return result;
   }
 
   /**
@@ -1197,7 +1246,7 @@ export class CoursesService {
           lessonQuiz: { select: { id: true, title: true, type: true } },
         },
       });
-      this.catalogCache.clear();
+      await this.clearCatalogCache();
       return lesson;
     } catch (error) {
       // ⚠️ ROLLBACK CLEANUP: Purge newly created Bunny video(s) and attachments if database creation failed
@@ -1333,7 +1382,7 @@ export class CoursesService {
       }
     }
 
-    this.catalogCache.clear();
+    await this.clearCatalogCache();
     return updatedLesson;
   }
 
@@ -1379,8 +1428,9 @@ export class CoursesService {
       }
     }
 
-    this.catalogCache.clear();
-    return this.prisma.courseLesson.delete({ where: { id: lessonId } });
+    const deleted = await this.prisma.courseLesson.delete({ where: { id: lessonId } });
+    await this.clearCatalogCache();
+    return deleted;
   }
 
   /**
@@ -1403,7 +1453,7 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to manage attachments for this lesson');
     }
 
-    return this.prisma.lessonAttachment.create({
+    const created = await this.prisma.lessonAttachment.create({
       data: {
         lessonId,
         title: dto.title,
@@ -1413,6 +1463,8 @@ export class CoursesService {
         fileType: dto.fileType || 'application/pdf',
       },
     });
+    await this.clearCatalogCache();
+    return created;
   }
 
   /**
@@ -1433,7 +1485,9 @@ export class CoursesService {
     if (!isSecretariat && attachment.lesson.module.course.teacherId !== teacherId) {
       throw new ForbiddenException('You do not have permission to delete this attachment');
     }
-    return this.prisma.lessonAttachment.delete({ where: { id: attachmentId } });
+    const deleted = await this.prisma.lessonAttachment.delete({ where: { id: attachmentId } });
+    await this.clearCatalogCache();
+    return deleted;
   }
 
   /**
@@ -1791,7 +1845,7 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to grant access to this course');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const addedGroupAccess = [];
 
       for (const groupId of dto.groupIds) {
@@ -1850,6 +1904,8 @@ export class CoursesService {
         groupsGranted: dto.groupIds.length,
       };
     });
+    await this.clearCatalogCache();
+    return result;
   }
 
   /**
@@ -2280,7 +2336,7 @@ export class CoursesService {
    * Approves a student's subscription request, activating the enrollment and CourseAccess.
    */
   async approveSubscriptionRequest(enrollmentId: string, user: AuthenticatedUser) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const enrollment = await tx.courseEnrollment.findUnique({
         where: { id: enrollmentId },
         include: { course: true, student: { include: { user: true } } },
@@ -2364,6 +2420,8 @@ export class CoursesService {
         message: 'تم قبول وتفعيل اشتراك الطالب بنجاح',
       };
     });
+    await this.clearCatalogCache();
+    return result;
   }
 
   /**
@@ -2435,6 +2493,7 @@ export class CoursesService {
       enrollment.student?.user?.id,
     ]);
 
+    await this.clearCatalogCache();
     return {
       enrollmentId: updated.id,
       status: updated.status,
@@ -2550,6 +2609,7 @@ export class CoursesService {
       enrollment.student?.user?.id,
     ]);
 
+    await this.clearCatalogCache();
     return {
       enrollmentId: updated.id,
       status: updated.status,
@@ -3464,6 +3524,7 @@ export class CoursesService {
       return createdEnrollments;
     });
 
+    await this.clearCatalogCache();
     return {
       success: true,
       enrolledCount: results.length,
@@ -3592,6 +3653,7 @@ export class CoursesService {
       };
     });
 
+    await this.clearCatalogCache();
     return {
       success: true,
       student: result,
@@ -3685,6 +3747,7 @@ export class CoursesService {
       },
     });
 
+    await this.clearCatalogCache();
     return {
       success: true,
       student: {
@@ -3726,6 +3789,7 @@ export class CoursesService {
       },
     });
 
+    await this.clearCatalogCache();
     return {
       success: true,
       message: 'تم إلغاء اشتراك الطالب في هذا الكورس بنجاح',

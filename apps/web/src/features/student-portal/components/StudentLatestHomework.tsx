@@ -29,9 +29,10 @@ function formatDateTime(value: string) {
 export function StudentLatestHomework({ homework }: { homework?: any } = {}) {
   const isProvided = homework !== undefined;
   const now = new Date();
-  const { data: groupData } = useStudentGroup();
+  const { data: groupData } = useStudentGroup({ enabled: !isProvided });
   const { data: sessions = [], isLoading: isSessionsLoading } = useStudentGroupSessions(
-    { month: now.getMonth() + 1, year: now.getFullYear() }
+    { month: now.getMonth() + 1, year: now.getFullYear() },
+    { enabled: !isProvided }
   );
 
   const latestHomeworkSession = useMemo(() => {
@@ -111,7 +112,7 @@ export function StudentLatestHomework({ homework }: { homework?: any } = {}) {
               <h3 className="text-base font-extrabold text-slate-800 group-hover/title:text-primary-700 transition-colors">{latestHomeworkSession.topic || assessment.title}</h3>
               <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
                 <CalendarDays className="w-3.5 h-3.5" />
-                {formatDate(latestHomeworkSession.sessionDate)} • {groupData?.group?.name || 'المجموعة الدراسية'}
+                {formatDate(latestHomeworkSession.sessionDate)} • {(latestHomeworkSession as any)?.groupName || groupData?.group?.name || 'المجموعة الدراسية'}
               </p>
             </Link>
           </div>

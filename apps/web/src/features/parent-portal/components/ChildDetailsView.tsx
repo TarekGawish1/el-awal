@@ -23,10 +23,15 @@ import {
 
 interface ChildDetailsViewProps {
   studentId: string;
+  initialData?: any;
 }
 
-export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
-  const { data: overview, isLoading, isError } = useChildOverview(studentId);
+export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewProps) {
+  const shouldFetch = !initialData && !!studentId;
+  const { data: fetchedOverview, isLoading: isQueryLoading, isError: isQueryError } = useChildOverview(shouldFetch ? studentId : '');
+  const overview = initialData || fetchedOverview;
+  const isLoading = shouldFetch && isQueryLoading;
+  const isError = shouldFetch && isQueryError;
 
   const student = overview?.student;
   const primaryGroup = overview?.primaryGroup;

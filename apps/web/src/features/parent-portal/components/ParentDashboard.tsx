@@ -3,7 +3,7 @@
 import { AlertCircle, BookOpen, GraduationCap, RefreshCw, Users, WifiOff, ArrowLeftRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, Button, Card, CardContent } from '@/components/ui';
 import { useAuth } from '@/features/auth';
-import { useLinkedStudents } from '../hooks/useParentPortal';
+import { useParentDashboard } from '../hooks/useParentPortal';
 import { ChildDetailsModal } from './ChildDetailsModal';
 import { ChildDetailsView } from './ChildDetailsView';
 import { useState } from 'react';
@@ -22,7 +22,9 @@ export function ParentDashboard() {
   const { setSession } = useAuthStore();
   const [isSwitching, setIsSwitching] = useState(false);
   const isOnline = useOnlineStatus();
-  const { data: linkedStudents, isLoading, isError, refetch } = useLinkedStudents();
+  const { data: dashboardData, isLoading, isError, refetch } = useParentDashboard();
+  const linkedStudents = dashboardData?.linkedStudents;
+  const activeChildOverview = dashboardData?.activeChildOverview;
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
 
   const availableRoles = getAvailableRoles(user);
@@ -111,7 +113,10 @@ export function ParentDashboard() {
         </Card>
       ) : linkedStudents.length === 1 ? (
         <div className="bg-white rounded-3xl p-2 sm:p-4 shadow-sm border border-slate-100">
-          <ChildDetailsView studentId={linkedStudents[0].student.id} />
+          <ChildDetailsView
+            studentId={linkedStudents[0].student.id}
+            initialData={activeChildOverview}
+          />
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">

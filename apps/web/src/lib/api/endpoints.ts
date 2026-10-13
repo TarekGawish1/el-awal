@@ -181,6 +181,7 @@ export const API_ENDPOINTS = {
     BATCH: "/sync/batch",
   },
   PARENT_PORTAL: {
+    DASHBOARD: (studentId?: string) => studentId ? `/parent-portal/dashboard?studentId=${studentId}` : '/parent-portal/dashboard',
     LINKED_STUDENTS: "/parent-portal/students",
     CHILD_OVERVIEW: (id: string) => `/parent-portal/students/${id}/overview`,
   },

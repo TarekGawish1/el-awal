@@ -8,6 +8,7 @@ import {
   SubmissionStatus,
   PaymentStatus,
   HomeworkSubmissionStatus,
+  UserRole,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import {
@@ -28,13 +29,15 @@ export class ParentPortalService {
   /**
    * Helper: Enforces that the authenticated parent is legally linked to the student.
    */
-  async verifyGuardianLink(parentId: string, studentId: string) {
-    const link = await this.prisma.parentStudentLink.findUnique({
+  async verifyGuardianLink(parentId: string, studentId: string, userRole?: string) {
+    if (userRole === UserRole.TEACHER || userRole === UserRole.SECRETARIAT) {
+      return;
+    }
+
+    const link = await this.prisma.parentStudentLink.findFirst({
       where: {
-        parentId_studentId: {
-          parentId,
-          studentId,
-        },
+        parentId,
+        studentId,
       },
     });
 
@@ -50,7 +53,12 @@ export class ParentPortalService {
    */
   async getLinkedStudents(parentId: string) {
     const links = await this.prisma.parentStudentLink.findMany({
-      where: { parentId },
+      where: {
+        OR: [
+          { parentId },
+          { parent: { id: parentId } },
+        ],
+      },
       include: {
         parent: true,
         student: {
@@ -84,8 +92,8 @@ export class ParentPortalService {
   /**
    * Real-time KPI Card Dashboard Overview for a linked child.
    */
-  async getStudentOverview(parentId: string, studentId: string) {
-    await this.verifyGuardianLink(parentId, studentId);
+  async getStudentOverview(parentId: string, studentId: string, userRole?: string) {
+    await this.verifyGuardianLink(parentId, studentId, userRole);
 
     const cacheKey = `parent:overview:${studentId}`;
     if (this.redisCache) {
@@ -107,7 +115,6 @@ export class ParentPortalService {
                 id: true,
                 name: true,
                 gradeLevel: true,
-                academicStage: true,
                 monthlyFee: true,
                 schedules: {
                   orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
@@ -365,7 +372,7 @@ export class ParentPortalService {
             id: ge.group.id,
             name: ge.group.name,
             gradeLevel: ge.group.gradeLevel,
-            academicStage: ge.group.academicStage,
+            academicStage: student.academicStage,
             monthlyFee: Number(ge.group.monthlyFee || 0),
             schedules: ge.group.schedules,
           },
@@ -376,7 +383,7 @@ export class ParentPortalService {
             id: primaryGroup.id,
             name: primaryGroup.name,
             gradeLevel: primaryGroup.gradeLevel,
-            academicStage: primaryGroup.academicStage,
+            academicStage: student.academicStage,
             monthlyFee: Number(primaryGroup.monthlyFee || 0),
             schedules: primaryGroup.schedules,
           }
@@ -472,6 +479,57 @@ export class ParentPortalService {
         totalScore: Number(sub.assessment?.totalScore || 0),
         submittedAt: sub.submittedAt,
       })),
+    };
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, payload, 300);
+    }
+
+    return payload;
+  }
+
+  /**
+   * Unified Single Endpoint for Parent Portal Dashboard.
+   * Fetches linked children and the first/selected child's consolidated overview in one single roundtrip.
+   */
+  async getParentDashboard(parentId: string, studentIdQuery?: string, userRole?: string) {
+    const cacheKey = `parent:dashboard:${parentId}:${studentIdQuery || 'default'}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const linkedStudents = await this.getLinkedStudents(parentId);
+    if (!linkedStudents || linkedStudents.length === 0) {
+      const emptyResult = {
+        linkedStudents: [],
+        activeChildOverview: null,
+        selectedStudentId: null,
+      };
+      if (this.redisCache) {
+        await this.redisCache.set(cacheKey, emptyResult, 300);
+      }
+      return emptyResult;
+    }
+
+    const targetStudentId =
+      studentIdQuery && linkedStudents.some((l) => l.student.id === studentIdQuery)
+        ? studentIdQuery
+        : linkedStudents[0].student.id;
+
+    let activeChildOverview = null;
+    try {
+      activeChildOverview = await this.getStudentOverview(parentId, targetStudentId, userRole);
+    } catch (err) {
+      this.logger.warn(`Could not load child overview [${targetStudentId}] in parent dashboard: ${err}`);
+    }
+
+    const payload = {
+      linkedStudents,
+      activeChildOverview,
+      selectedStudentId: targetStudentId,
     };
 
     if (this.redisCache) {
