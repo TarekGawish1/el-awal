@@ -481,6 +481,26 @@ export class GroupsService {
         });
       }
 
+      // Also clean up any pending reservation requests in other groups if present
+      const otherPendingEnrollments = await tx.groupEnrollment.findMany({
+        where: {
+          studentId,
+          status: GroupEnrollmentStatus.PENDING,
+          groupId: { not: groupId },
+        },
+      });
+
+      if (otherPendingEnrollments.length > 0) {
+        await tx.groupEnrollment.updateMany({
+          where: {
+            studentId,
+            status: GroupEnrollmentStatus.PENDING,
+            groupId: { not: groupId },
+          },
+          data: { status: GroupEnrollmentStatus.DROPPED },
+        });
+      }
+
       const enrollment = await tx.groupEnrollment.upsert({
         where: {
           groupId_studentId: {
@@ -738,6 +758,16 @@ export class GroupsService {
       const updated = await tx.groupEnrollment.update({
         where: { id: enrollmentId },
         data: { status: GroupEnrollmentStatus.ACTIVE },
+      });
+
+      // Automatically drop any other pending reservations across other groups for this student
+      await tx.groupEnrollment.updateMany({
+        where: {
+          studentId: enrollment.studentId,
+          status: GroupEnrollmentStatus.PENDING,
+          id: { not: enrollmentId },
+        },
+        data: { status: GroupEnrollmentStatus.DROPPED },
       });
 
       const amount = enrollment.group.monthlyFee || 0;

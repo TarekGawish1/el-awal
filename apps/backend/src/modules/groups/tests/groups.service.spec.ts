@@ -169,6 +169,7 @@ describe('GroupsService', () => {
         callback({
           groupEnrollment: {
             update: jest.fn().mockResolvedValue({ ...enrollment, status: GroupEnrollmentStatus.ACTIVE }),
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
           },
           studentPaymentRecord: {
             create: jest.fn().mockResolvedValue(undefined),
@@ -285,6 +286,26 @@ describe('GroupsService', () => {
       await service.enrollStudent(groupId, studentId, undefined, false);
 
       expect(tx.groupEnrollment.updateMany).not.toHaveBeenCalled();
+      expect(tx.groupEnrollment.upsert).toHaveBeenCalled();
+    });
+
+    it('automatically drops other pending reservations when enrolling a student', async () => {
+      const tx = buildTx();
+      tx.groupEnrollment.findMany
+        .mockResolvedValueOnce([]) // otherActiveEnrollments
+        .mockResolvedValueOnce([{ id: 'enr-pending', status: GroupEnrollmentStatus.PENDING, groupId: 'group-pending' }]); // otherPendingEnrollments
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<unknown>) => cb(tx));
+
+      await service.enrollStudent(groupId, studentId, undefined, false);
+
+      expect(tx.groupEnrollment.updateMany).toHaveBeenCalledWith({
+        where: {
+          studentId,
+          status: GroupEnrollmentStatus.PENDING,
+          groupId: { not: groupId },
+        },
+        data: { status: GroupEnrollmentStatus.DROPPED },
+      });
       expect(tx.groupEnrollment.upsert).toHaveBeenCalled();
     });
   });

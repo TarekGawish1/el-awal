@@ -13,12 +13,14 @@ import { StudentPasswordModal } from './StudentPasswordModal';
 import { StudentEditForm } from './StudentEditForm';
 import { 
   X, Phone, User, Users, AlertCircle, ExternalLink, Trash2, 
-  UserX, CheckCircle, KeyRound, Check, ClipboardList, Edit2, 
+  UserX, UserMinus, CheckCircle, KeyRound, Check, ClipboardList, Edit2, 
   ChevronDown, ChevronUp, Wallet, Receipt
 } from 'lucide-react';
 import { formatWhatsAppNumber, formatNumber } from '@/lib/utils/formatters';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { CreatorBadge } from '@/components/ui/CreatorBadge';
+import { useRemoveStudent } from '@/features/groups/hooks/useGroups';
+import toast from 'react-hot-toast';
 
 const ARABIC_MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -43,6 +45,8 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
   const [passwordModalTab, setPasswordModalTab] = useState<'student' | 'parent'>('student');
   const [isEditing, setIsEditing] = useState(false);
   const [isQrExpanded, setIsQrExpanded] = useState(false);
+  const [groupToRemove, setGroupToRemove] = useState<{ id: string; name: string } | null>(null);
+  const removeStudentMutation = useRemoveStudent();
 
   if (!isOpen || !studentId) return null;
 
@@ -72,6 +76,37 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
       default:
         return <Badge variant="outline" className="text-[10px] py-0 px-2 h-5">{status}</Badge>;
     }
+  };
+
+  const getEnrollmentStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return <Badge variant="success" className="text-[10px] py-0 px-2 h-5">نشط</Badge>;
+      case 'PENDING':
+        return <Badge variant="warning" className="text-[10px] py-0 px-2 h-5">حجز معلّق</Badge>;
+      case 'TRANSFERRED':
+        return <Badge variant="outline" className="text-[10px] py-0 px-2 h-5">منقول</Badge>;
+      case 'DROPPED':
+        return <Badge variant="error" className="text-[10px] py-0 px-2 h-5">منسحب</Badge>;
+      default:
+        return <Badge variant="success" className="text-[10px] py-0 px-2 h-5">نشط</Badge>;
+    }
+  };
+
+  const handleConfirmRemoveGroup = () => {
+    if (!groupToRemove || !studentId) return;
+    removeStudentMutation.mutate(
+      { groupId: groupToRemove.id, studentId },
+      {
+        onSuccess: () => {
+          toast.success(`تمت إزالة الطالب من "${groupToRemove.name}" بنجاح`);
+          setGroupToRemove(null);
+        },
+        onError: (err: any) => {
+          toast.error(err?.message || 'تعذر إزالة الطالب من المجموعة');
+        },
+      }
+    );
   };
 
   const getStageLabel = (stage?: string) => {
@@ -442,15 +477,57 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {enrollments.map((en: any, i: number) => (
-                      <div key={en.group?.id || i} className="flex flex-col bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-bold text-slate-800">{en.group?.name || 'المجموعة الدراسية'}</span>
-                          <Badge variant="outline" className="text-[10px] bg-slate-50">نشط</Badge>
+                    {enrollments.map((en: any, i: number) => {
+                      const groupId = en.group?.id || en.groupId;
+                      const groupName = en.group?.name || 'المجموعة الدراسية';
+                      const status = en.status || 'ACTIVE';
+
+                      return (
+                        <div
+                          key={groupId || i}
+                          className="flex flex-col justify-between bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-colors"
+                        >
+                          <div>
+                            <div className="flex justify-between items-start gap-2 mb-1.5">
+                              <span className="font-bold text-slate-800 text-sm line-clamp-1" title={groupName}>
+                                {groupName}
+                              </span>
+                              {getEnrollmentStatusBadge(status)}
+                            </div>
+                            <span className="text-xs text-slate-500 block mb-2.5">
+                              {en.group?.gradeLevel || student.gradeLevel || '—'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                            {groupId ? (
+                              <Link
+                                href={`/teacher/groups/${groupId}`}
+                                onClick={onClose}
+                                className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
+                              >
+                                <span>عرض المجموعة</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </Link>
+                            ) : (
+                              <span />
+                            )}
+
+                            {groupId && (
+                              <button
+                                type="button"
+                                onClick={() => setGroupToRemove({ id: groupId, name: groupName })}
+                                className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors"
+                                title="إزالة من المجموعة"
+                              >
+                                <UserMinus className="w-3.5 h-3.5" />
+                                <span>إزالة</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-xs text-slate-500">{en.group?.gradeLevel || student.gradeLevel || '—'}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -613,6 +690,18 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
           }
         }}
         onClose={() => setIsConfirmingDelete(false)}
+      />
+
+      <ConfirmModal
+        isOpen={!!groupToRemove}
+        title="تأكيد إزالة الطالب من المجموعة"
+        message={`هل أنت متأكد من إزالة الطالب "${studentName}" من "${groupToRemove?.name}"؟`}
+        confirmLabel={removeStudentMutation.isPending ? "جاري الإزالة..." : "نعم، إزالة الطالب"}
+        cancelLabel="إلغاء"
+        variant="danger"
+        isLoading={removeStudentMutation.isPending}
+        onConfirm={handleConfirmRemoveGroup}
+        onClose={() => setGroupToRemove(null)}
       />
     </div>
   );

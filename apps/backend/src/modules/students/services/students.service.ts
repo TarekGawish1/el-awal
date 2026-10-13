@@ -1322,6 +1322,38 @@ export class StudentsService {
       include: { user: { select: { id: true, fullName: true } } },
     });
 
+    // Enforce single active enrollment: prevent student from reserving another group if already ACTIVE elsewhere
+    const activeEnrollment = await this.prisma.groupEnrollment.findFirst({
+      where: {
+        studentId,
+        status: GroupEnrollmentStatus.ACTIVE,
+        groupId: { not: groupId },
+      },
+      include: { group: { select: { name: true } } },
+    });
+
+    if (activeEnrollment) {
+      throw new BadRequestException(
+        `أنت مسجل بالفعل في مجموعة نشطة (${activeEnrollment.group?.name || 'أخرى'}). لتغيير المجموعة يرجى التواصل مع المعلم لنقلك.`,
+      );
+    }
+
+    // Enforce single pending reservation: prevent student from holding multiple pending spots
+    const otherPendingEnrollment = await this.prisma.groupEnrollment.findFirst({
+      where: {
+        studentId,
+        status: GroupEnrollmentStatus.PENDING,
+        groupId: { not: groupId },
+      },
+      include: { group: { select: { name: true } } },
+    });
+
+    if (otherPendingEnrollment) {
+      throw new BadRequestException(
+        `لديك طلب حجز قيد الانتظار بالفعل في مجموعة (${otherPendingEnrollment.group?.name || 'أخرى'}). لا يمكن حجز أكثر من مجموعة في نفس الوقت.`,
+      );
+    }
+
     const existingEnrollment = await this.prisma.groupEnrollment.findUnique({
       where: { groupId_studentId: { groupId, studentId } }
     });

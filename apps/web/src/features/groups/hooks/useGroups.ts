@@ -489,6 +489,9 @@ export function useRemoveStudent() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['groups', variables.groupId, 'students'] });
       queryClient.invalidateQueries({ queryKey: ['groups', variables.groupId] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['students', variables.studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
     },
   });
 }
