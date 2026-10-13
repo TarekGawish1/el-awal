@@ -575,11 +575,11 @@ function CourseEnrollmentsView() {
     <div className="space-y-6">
       {/* Sub-tabs and realtime indicator */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex gap-3">
+        <div className="flex gap-3 overflow-x-auto pb-1 -mb-1 no-scrollbar">
           <button
             type="button"
             onClick={() => setFilter('PENDING')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm shrink-0 ${
               filter === 'PENDING'
                 ? 'bg-amber-500 text-white border border-amber-600'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -598,7 +598,7 @@ function CourseEnrollmentsView() {
           <button
             type="button"
             onClick={() => setFilter('ACTIVE')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm shrink-0 ${
               filter === 'ACTIVE'
                 ? 'bg-emerald-600 text-white border border-emerald-700'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -617,7 +617,7 @@ function CourseEnrollmentsView() {
           <button
             type="button"
             onClick={() => setFilter('UNSUBSCRIBED')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm shrink-0 ${
               filter === 'UNSUBSCRIBED'
                 ? 'bg-sky-600 text-white border border-sky-700'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
