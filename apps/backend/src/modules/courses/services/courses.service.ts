@@ -3259,9 +3259,9 @@ export class CoursesService {
     }
 
     const watermark = {
-      studentName: studentProfile?.user?.fullName || user.email || 'طالب مسجل',
+      studentName: studentProfile?.user?.fullName || user.fullName || user.email || 'طالب مسجل',
       studentPhone: studentProfile?.user?.phone || user.phone || '',
-      studentCode: studentProfile?.studentCode || user.id.slice(0, 8),
+      studentCode: studentProfile?.studentCode || '',
     };
 
     return {

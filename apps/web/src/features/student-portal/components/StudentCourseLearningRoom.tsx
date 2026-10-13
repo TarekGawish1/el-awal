@@ -1495,7 +1495,14 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                     className="text-xs font-mono font-bold text-white/30 tracking-wider p-2.5 select-none transition-all duration-700 ease-in-out backdrop-blur-[1px] bg-black/15 rounded-lg"
                     style={{ top: `${watermarkPos.top}%`, left: `${watermarkPos.left}%`, position: 'absolute' }}
                   >
-                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
+                    {[
+                      streamAuth.watermark.studentName,
+                      streamAuth.watermark.studentPhone,
+                      streamAuth.watermark.studentCode,
+                    ]
+                      .filter(Boolean)
+                      .filter((val) => !/^[0-9a-f]{8}$/i.test(val) && !/^[0-9a-f-]{36}$/i.test(val))
+                      .join(' • ')}
                   </div>
                 </div>
               )}

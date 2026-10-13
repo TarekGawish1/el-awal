@@ -37,7 +37,9 @@ export function LessonVideoPlayer({
   };
 
   // Full student attribution string
-  const attributionParts = [user.fullName, user.studentCode, user.phone].filter(Boolean);
+  const attributionParts = [user.fullName, user.studentCode, user.phone]
+    .filter(Boolean)
+    .filter((val) => !/^[0-9a-f]{8}$/i.test(val) && !/^[0-9a-f-]{36}$/i.test(val));
   const watermarkText = attributionParts.length > 0 ? attributionParts.join(' • ') : 'طالب مسجل';
 
   // 1. Fetch the ticket on mount using TanStack Query
