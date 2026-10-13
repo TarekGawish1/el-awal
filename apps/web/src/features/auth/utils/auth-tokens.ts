@@ -16,9 +16,8 @@ let inMemoryAccessToken: string | null = null;
 let inMemoryRefreshToken: string | null = null;
 
 /**
- * Persists user session: stores access token in in-memory RAM only,
- * keeps non-sensitive user profile in localStorage for layout/UI hydration,
- * and strips any legacy tokens from localStorage.
+ * Persists user session: stores access token, refresh token, and user profile
+ * in localStorage so the session survives page reloads, browser restarts, and server updates.
  */
 export function setStoredTokens(session: AuthTokensResponse): void {
   inMemoryAccessToken = session.accessToken;
@@ -27,9 +26,12 @@ export function setStoredTokens(session: AuthTokensResponse): void {
   if (typeof window === 'undefined') return;
 
   try {
-    // Purge tokens from localStorage to prevent XSS exfiltration
-    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    if (session.accessToken) {
+      localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, session.accessToken);
+    }
+    if (session.refreshToken) {
+      localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, session.refreshToken);
+    }
 
     // Save non-sensitive user profile for fast optimistic UI rendering
     localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(session.user));
@@ -40,7 +42,7 @@ export function setStoredTokens(session: AuthTokensResponse): void {
 }
 
 /**
- * Updates in-memory access and fallback refresh tokens without modifying the stored user profile
+ * Updates in-memory and persistent access and fallback refresh tokens
  */
 export function updateStoredTokens(tokens: { accessToken: string; refreshToken?: string }): void {
   inMemoryAccessToken = tokens.accessToken;
@@ -51,10 +53,14 @@ export function updateStoredTokens(tokens: { accessToken: string; refreshToken?:
   if (typeof window === 'undefined') return;
 
   try {
-    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    if (tokens.accessToken) {
+      localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken);
+    }
+    if (tokens.refreshToken) {
+      localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+    }
   } catch (error) {
-    console.error('Failed to purge tokens from storage:', error);
+    console.error('Failed to persist updated tokens to storage:', error);
   }
 }
 
@@ -72,48 +78,32 @@ export function hasStoredSession(): boolean {
 }
 
 /**
- * Retrieves the in-memory JWT access token from RAM.
- * Falls back to legacy localStorage (and immediately migrates it to RAM while wiping storage).
+ * Retrieves the JWT access token (from RAM if cached, or from localStorage)
  */
 export function getStoredAccessToken(): string | null {
-  if (typeof window !== 'undefined' && !hasStoredSession()) {
-    inMemoryAccessToken = null;
-    return null;
-  }
   if (inMemoryAccessToken) return inMemoryAccessToken;
   if (typeof window === 'undefined') return null;
 
-  // Migration guard: If legacy token exists in localStorage, migrate to RAM and purge from disk
-  const legacyToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-  if (legacyToken) {
-    inMemoryAccessToken = legacyToken;
-    try {
-      localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-    } catch {}
-    return inMemoryAccessToken;
+  const storedToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  if (storedToken) {
+    inMemoryAccessToken = storedToken;
+    return storedToken;
   }
 
   return null;
 }
 
 /**
- * Retrieves the in-memory JWT refresh token if present (or legacy localStorage fallback)
+ * Retrieves the JWT refresh token (from RAM if cached, or from localStorage)
  */
 export function getStoredRefreshToken(): string | null {
-  if (typeof window !== 'undefined' && !hasStoredSession()) {
-    inMemoryRefreshToken = null;
-    return null;
-  }
   if (inMemoryRefreshToken) return inMemoryRefreshToken;
   if (typeof window === 'undefined') return null;
 
-  const legacyRefreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-  if (legacyRefreshToken) {
-    inMemoryRefreshToken = legacyRefreshToken;
-    try {
-      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-    } catch {}
-    return inMemoryRefreshToken;
+  const storedRefreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+  if (storedRefreshToken) {
+    inMemoryRefreshToken = storedRefreshToken;
+    return storedRefreshToken;
   }
 
   return null;

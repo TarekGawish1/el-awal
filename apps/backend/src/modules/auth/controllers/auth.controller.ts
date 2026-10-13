@@ -24,18 +24,27 @@ export class AuthController {
   /**
    * Sets the long-lived refresh token in an HttpOnly, Secure cookie.
    * Uses sameSite: 'none' in production to allow cross-site requests (al-awal.online -> herokuapp.com).
+   * Sets domain: '.al-awal.online' when accessed via the platform domain to ensure session sharing across subdomains.
    */
-  private setRefreshTokenCookie(res: any, refreshToken: string) {
+  private setRefreshTokenCookie(res: any, refreshToken: string, req?: any) {
     if (!res) return;
     const isProd = process.env.NODE_ENV === 'production';
     const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-    const cookieOptions = {
+    const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host || '';
+    const isAlAwalHost = typeof host === 'string' && host.includes('al-awal.online');
+
+    const cookieOptions: any = {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? ('none' as const) : ('lax' as const),
       path: '/',
       maxAge,
     };
+
+    if (isProd && isAlAwalHost) {
+      cookieOptions.domain = '.al-awal.online';
+    }
+
     if (typeof res.setCookie === 'function') {
       // Fastify reply
       res.setCookie('refreshToken', refreshToken, cookieOptions);
@@ -48,15 +57,23 @@ export class AuthController {
   /**
    * Clears the HttpOnly refresh token cookie on user logout.
    */
-  private clearRefreshTokenCookie(res: any) {
+  private clearRefreshTokenCookie(res: any, req?: any) {
     if (!res) return;
     const isProd = process.env.NODE_ENV === 'production';
-    const clearOptions = {
+    const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host || '';
+    const isAlAwalHost = typeof host === 'string' && host.includes('al-awal.online');
+
+    const clearOptions: any = {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? ('none' as const) : ('lax' as const),
       path: '/',
     };
+
+    if (isProd && isAlAwalHost) {
+      clearOptions.domain = '.al-awal.online';
+    }
+
     if (typeof res.clearCookie === 'function') {
       res.clearCookie('refreshToken', clearOptions);
     }
@@ -72,10 +89,11 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: any,
+    @Req() req: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.login(dto);
     if (result?.refreshToken) {
-      this.setRefreshTokenCookie(res, result.refreshToken);
+      this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
     return result;
   }
@@ -90,10 +108,11 @@ export class AuthController {
   async parentAccess(
     @Body() dto: ParentAccessDto,
     @Res({ passthrough: true }) res: any,
+    @Req() req: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.parentAccess(dto);
     if (result?.refreshToken) {
-      this.setRefreshTokenCookie(res, result.refreshToken);
+      this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
     return result;
   }
@@ -108,10 +127,11 @@ export class AuthController {
   async registerStudent(
     @Body() dto: RegisterStudentDto,
     @Res({ passthrough: true }) res: any,
+    @Req() req: any,
   ) {
     const result = await this.studentRegistrationService.registerStudent(dto);
     if (result?.refreshToken) {
-      this.setRefreshTokenCookie(res, result.refreshToken);
+      this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
     return result;
   }
@@ -136,10 +156,11 @@ export class AuthController {
   async registerByGroup(
     @Body() dto: RegisterByGroupDto,
     @Res({ passthrough: true }) res: any,
+    @Req() req: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.registerByGroup(dto);
     if (result?.refreshToken) {
-      this.setRefreshTokenCookie(res, result.refreshToken);
+      this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
     return result;
   }
@@ -156,10 +177,11 @@ export class AuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SwitchRoleDto,
     @Res({ passthrough: true }) res: any,
+    @Req() req: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.switchRole(user.id, dto.targetRole);
     if (result?.refreshToken) {
-      this.setRefreshTokenCookie(res, result.refreshToken);
+      this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
     return result;
   }
@@ -182,7 +204,7 @@ export class AuthController {
     }
     const result = await this.authService.refreshToken({ refreshToken: token });
     if (result?.refreshToken) {
-      this.setRefreshTokenCookie(res, result.refreshToken);
+      this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
     return result;
   }
@@ -199,7 +221,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: any,
   ) {
     const token = (req.cookies as any)?.['refreshToken'] || dto?.refreshToken;
-    this.clearRefreshTokenCookie(res);
+    this.clearRefreshTokenCookie(res, req);
     if (token) {
       return this.authService.logout({ refreshToken: token });
     }
