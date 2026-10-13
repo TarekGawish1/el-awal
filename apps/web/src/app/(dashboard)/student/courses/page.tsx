@@ -11,6 +11,7 @@ import {
   useStudentProfile,
 } from '@/features/student-portal/hooks/useStudentPortal';
 import { formatLessonDurationArabic } from '@/features/courses/utils/video-optimizer';
+import { API_BASE_URL } from '@/lib/api/endpoints';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -531,7 +532,7 @@ function AvailableCoursesCatalogTab({
     async function fetchCatalog() {
       setIsLoading(true);
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        const baseUrl = API_BASE_URL;
         let url = `${baseUrl}/courses/catalog?limit=50`;
         const res = await fetch(url);
         if (res.ok) {

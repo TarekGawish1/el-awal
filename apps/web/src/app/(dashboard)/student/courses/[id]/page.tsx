@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent } from '@/components/ui/Card';
 import { CourseSubscriptionModal } from '@/features/student-portal/components/CourseSubscriptionModal';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '@/lib/api/endpoints';
 
 interface StudentCoursePageProps {
   params: {
@@ -62,7 +63,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
   useEffect(() => {
     async function fetchCourseDetails() {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        const baseUrl = API_BASE_URL;
         const res = await fetch(`${baseUrl}/courses/${courseId}/public`);
         if (res.ok) {
           const data = await res.json();

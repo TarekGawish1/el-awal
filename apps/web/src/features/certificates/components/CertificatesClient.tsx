@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api/client";
+import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 
 interface SavedCertificate {
@@ -110,18 +111,15 @@ export function CertificatesClient() {
 
       let apiCerts: any[] = [];
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL ||
-          (process.env.NODE_ENV === "production"
-            ? "https://api.al-awal.online/api/v1"
-            : "http://localhost:3000/api/v1");
-        const res = await fetch(`${baseUrl}/certificates/public`);
-        if (res.ok) {
-          const json = await res.json();
-          apiCerts = json?.data || json || [];
-        }
+        const json = await apiClient<any>(API_ENDPOINTS.CERTIFICATES.LIST);
+        apiCerts = json?.data || (Array.isArray(json) ? json : []);
       } catch (err) {
-        console.error("Error fetching API certificates:", err);
+        try {
+          const json = await apiClient<any>(API_ENDPOINTS.CERTIFICATES.PUBLIC);
+          apiCerts = json?.data || (Array.isArray(json) ? json : []);
+        } catch (pubErr) {
+          console.error("Error fetching API certificates:", pubErr);
+        }
       }
 
       const mappedApiCerts = apiCerts.map((c: any) => {

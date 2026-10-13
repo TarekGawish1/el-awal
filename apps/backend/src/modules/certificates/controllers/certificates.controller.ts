@@ -21,6 +21,14 @@ export class CertificatesController {
     return this.certificatesService.getPublicCertificates();
   }
 
+  @Get()
+  @ApiBearerAuth()
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get all certificates for the teacher management portal' })
+  async getAllCertificates() {
+    return this.certificatesService.getAllCertificates();
+  }
+
   @Post()
   @ApiBearerAuth()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)

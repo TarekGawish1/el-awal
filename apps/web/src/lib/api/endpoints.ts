@@ -3,18 +3,32 @@
  * Aligned with docs/03-Architecture/api-design.md
  */
 
-const configuredUrl =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === "production"
-    ? "https://api.al-awal.online/api/v1"
-    : "http://localhost:3000/api/v1");
+function getCanonicalApiBaseUrl(): string {
+  const envUrl = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
 
-// Guard against missing 'api.' subdomain prefix in production environment
-export const API_BASE_URL =
-  configuredUrl.replace(/\/$/, "") === "https://al-awal.online/api/v1" ||
-  configuredUrl.replace(/\/$/, "") === "https://al-awal.online"
-    ? "https://api.al-awal.online/api/v1"
-    : configuredUrl;
+  // If unset, default based on NODE_ENV
+  if (!envUrl) {
+    return process.env.NODE_ENV === "production"
+      ? "https://api.al-awal.online/api/v1"
+      : "http://localhost:3000/api/v1";
+  }
+
+  // Guard against missing 'api.' subdomain prefix or relative paths in production
+  if (
+    envUrl === "https://al-awal.online/api/v1" ||
+    envUrl === "https://al-awal.online" ||
+    envUrl === "http://al-awal.online/api/v1" ||
+    envUrl === "http://al-awal.online" ||
+    envUrl === "/api/v1" ||
+    envUrl === "/api"
+  ) {
+    return "https://api.al-awal.online/api/v1";
+  }
+
+  return envUrl;
+}
+
+export const API_BASE_URL = getCanonicalApiBaseUrl();
 
 export const API_ENDPOINTS = {
   AUTH: {
@@ -203,5 +217,13 @@ export const API_ENDPOINTS = {
   SITE_SETTINGS: {
     PUBLIC: "/site-settings/public",
     LIST: "/site-settings",
+  },
+  CERTIFICATES: {
+    PUBLIC: "/certificates/public",
+    LIST: "/certificates",
+    CREATE: "/certificates",
+    DETAIL: (id: string) => `/certificates/${id}`,
+    DELETE: (id: string) => `/certificates/${id}`,
+    VISIBILITY: (id: string) => `/certificates/${id}/visibility`,
   },
 } as const;

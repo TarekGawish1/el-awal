@@ -33,6 +33,7 @@ import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 import { CookieConsentSettingsTrigger } from "@/components/analytics/CookieConsentBanner";
 import { resolveAssetUrl } from "@/lib/utils/asset-url";
 import { formatLessonDurationArabic } from "@/features/courses/utils/video-optimizer";
+import { API_BASE_URL } from "@/lib/api/endpoints";
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -2201,9 +2202,7 @@ function CertificatesSection() {
   useEffect(() => {
     const syncAndFetchCertificates = async () => {
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL ||
-          "https://api.al-awal.online/api/v1";
+        const baseUrl = API_BASE_URL;
 
         // 1. Get local storage certificates
         let localCerts: any[] = [];

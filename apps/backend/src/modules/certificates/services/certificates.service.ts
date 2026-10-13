@@ -59,6 +59,12 @@ export class CertificatesService {
     });
   }
 
+  async getAllCertificates() {
+    return this.prisma.certificate.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
   async setVisibility(id: string, isPublic: boolean) {
     const existing = await this.prisma.certificate.findUnique({
       where: { id },

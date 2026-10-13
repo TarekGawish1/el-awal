@@ -22,6 +22,7 @@ import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';
 import { filterUpcomingGroupExams } from '../utils/assessments';
 import { resolveAssetUrl } from '@/lib/utils/asset-url';
+import { API_BASE_URL } from '@/lib/api/endpoints';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
@@ -386,7 +387,7 @@ function OnlineCoursesCatalog({
     async function fetchCourses() {
       setIsLoading(true);
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        const baseUrl = API_BASE_URL;
 
         // 1. Fetch grade-specific courses
         let url = `${baseUrl}/courses/catalog?limit=12`;

@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { getStoredAccessToken } from "@/features/auth/utils/auth-tokens";
+import { apiClient } from "@/lib/api/client";
+import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { CertificateTemplateA, CertificateData } from "./CertificateTemplateA";
 
 const STAGE_GRADES = {
@@ -134,17 +135,8 @@ export function CertificateBuilder() {
     (async () => {
       setIsLoadingGroups(true);
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL ||
-          (process.env.NODE_ENV === "production"
-            ? "https://api.al-awal.online/api/v1"
-            : "http://localhost:3000/api/v1");
-        const token = getStoredAccessToken();
-        const res = await fetch(`${baseUrl}/groups`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (res.ok && !cancelled) {
-          const json = await res.json();
+        const json = await apiClient<any>(API_ENDPOINTS.GROUPS.LIST);
+        if (!cancelled) {
           const list = Array.isArray(json) ? json : json?.data || [];
           setGroups(
             list
@@ -181,34 +173,23 @@ export function CertificateBuilder() {
     const timer = setTimeout(async () => {
       setIsLoadingStudents(true);
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL ||
-          (process.env.NODE_ENV === "production"
-            ? "https://api.al-awal.online/api/v1"
-            : "http://localhost:3000/api/v1");
-        const token = getStoredAccessToken();
-        const params = new URLSearchParams({ limit: hasGroup ? "50" : "20" });
+        const params: Record<string, string> = { limit: hasGroup ? "50" : "20" };
         if (hasGroup) {
-          params.set("groupId", selectedGroupId);
+          params.groupId = selectedGroupId;
         } else if (gradeLevel) {
-          params.set("gradeLevel", gradeLevel);
+          params.gradeLevel = gradeLevel;
         }
-        if (search) params.set("search", search);
-        const res = await fetch(`${baseUrl}/students?${params.toString()}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const list = json?.data || [];
-          setStudentSuggestions(
-            list
-              .map((s: any) => ({
-                id: String(s.id),
-                name: s.user?.fullName || "",
-              }))
-              .filter((s: { id: string; name: string }) => s.name),
-          );
-        }
+        if (search) params.search = search;
+        const json = await apiClient<any>(API_ENDPOINTS.STUDENTS.LIST, { params });
+        const list = json?.data || (Array.isArray(json) ? json : []);
+        setStudentSuggestions(
+          list
+            .map((s: any) => ({
+              id: String(s.id),
+              name: s.user?.fullName || "",
+            }))
+            .filter((s: { id: string; name: string }) => s.name),
+        );
       } catch (e) {
         console.warn("Student lookup failed:", e);
       } finally {
@@ -349,22 +330,11 @@ export function CertificateBuilder() {
         if (!blob) return;
 
         try {
-          const baseUrl =
-            process.env.NEXT_PUBLIC_API_URL ||
-            (process.env.NODE_ENV === "production"
-              ? "https://api.al-awal.online/api/v1"
-              : "http://localhost:3000/api/v1");
-          const token = getStoredAccessToken();
-
           // 1. Get presigned upload URL for Cloudflare R2
           let uploadedFileUrl = previewImgData;
           try {
-            const presignedRes = await fetch(`${baseUrl}/content/presigned-upload-url`, {
+            const presignedData = await apiClient<any>("/content/presigned-upload-url", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
               body: JSON.stringify({
                 fileName: `certificate-${Date.now()}.png`,
                 contentType: "image/png",
@@ -372,11 +342,9 @@ export function CertificateBuilder() {
                 folder: "certificates",
               }),
             });
+            const presigned = presignedData?.data || presignedData;
 
-            if (presignedRes.ok) {
-              const presignedData = await presignedRes.json();
-              const presigned = presignedData?.data || presignedData;
-
+            if (presigned?.uploadUrl) {
               // 2. Direct PUT to Cloudflare R2
               await fetch(presigned.uploadUrl, {
                 method: "PUT",
@@ -395,38 +363,35 @@ export function CertificateBuilder() {
           );
 
           // 3. Save certificate metadata with direct R2 publicUrl
-          const res = await fetch(`${baseUrl}/certificates`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              studentName: data.studentName || "طالب",
-              gender: data.gender || "MALE",
-              subject: data.subject || "عام",
-              score: data.score || "100",
-              issueDate: data.issueDate || "",
-              year: data.year || "",
-              stage: data.stage || "",
-              grade: data.grade || "",
-              teacherName: data.teacherName || "",
-              groupName: selectedGroup?.name || "",
-              fileUrl: uploadedFileUrl,
-            }),
-          });
-
           let savedCertId = Date.now().toString();
           let serverFileUrl = previewImgData;
 
-          if (res.ok) {
-            const json = await res.json();
+          try {
+            const json = await apiClient<any>(API_ENDPOINTS.CERTIFICATES.CREATE, {
+              method: "POST",
+              body: JSON.stringify({
+                studentName: data.studentName || "طالب",
+                gender: data.gender || "MALE",
+                subject: data.subject || "عام",
+                score: data.score || "100",
+                issueDate: data.issueDate || "",
+                year: data.year || "",
+                stage: data.stage || "",
+                grade: data.grade || "",
+                teacherName: data.teacherName || "",
+                groupName: selectedGroup?.name || "",
+                fileUrl: uploadedFileUrl,
+              }),
+            });
+
             const created = json?.data || json;
             if (created?.id) savedCertId = created.id;
             if (created?.fileUrl) serverFileUrl = created.fileUrl;
             console.log(
               "Certificate uploaded successfully to R2 bucket and database.",
             );
+          } catch (createErr) {
+            console.warn("Failed to save certificate record on server:", createErr);
           }
 
           // Save/Update in localStorage with the real backend DB id so no duplicate ID ever exists

@@ -1,5 +1,7 @@
 "use server";
 
+import { API_BASE_URL } from "@/lib/api/endpoints";
+
 export async function submitContactMessage(formData: FormData) {
   try {
     const name = formData.get("name") as string;
@@ -11,7 +13,7 @@ export async function submitContactMessage(formData: FormData) {
     }
 
     // Call the backend API
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1'}/contact-messages`, {
+    const response = await fetch(`${API_BASE_URL}/contact-messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
