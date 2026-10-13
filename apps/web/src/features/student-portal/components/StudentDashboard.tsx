@@ -17,9 +17,11 @@ import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';
 import { resolveAssetUrl } from '@/lib/utils/asset-url';
+import { useAuth } from '@/features/auth';
 import { API_BASE_URL } from '@/lib/api/endpoints';
 
 export function StudentDashboard() {
+  const { user } = useAuth();
   const { data: overview, isLoading, isError, refetch } = useStudentDashboardOverview();
 
   // Certificate modal state
@@ -88,7 +90,7 @@ export function StudentDashboard() {
     );
   }
 
-  const studentName = profile?.user?.fullName || 'طالب';
+  const studentName = profile?.fullName || user?.fullName || 'طالب';
 
   const certData = certCourse ? {
     studentName,

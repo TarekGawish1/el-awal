@@ -30,6 +30,7 @@ export function useStudentProfile(options?: { enabled?: boolean }) {
         return null;
       }
     },
+    staleTime: 300_000,
   });
 }
 
