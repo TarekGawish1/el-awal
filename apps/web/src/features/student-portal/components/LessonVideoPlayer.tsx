@@ -249,25 +249,11 @@ export function LessonVideoPlayer({
         </div>
       )}
 
-      {/* Floating Dynamic Watermark & Static Ghost Attribution Nodes */}
+      {/* Floating Dynamic Watermark (Single moving node) */}
       <div
         className="pointer-events-none absolute inset-0 overflow-hidden z-20 select-none"
         draggable={false}
       >
-        {/* Semi-transparent ghost nodes across corners/center for physical recording defense */}
-        <div className="absolute top-[10%] left-[8%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-          {watermarkText}
-        </div>
-        <div className="absolute top-[20%] right-[10%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-          {watermarkText}
-        </div>
-        <div className="absolute bottom-[22%] left-[12%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-          {watermarkText}
-        </div>
-        <div className="absolute bottom-[10%] right-[8%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-          {watermarkText}
-        </div>
-
         {/* Primary Dynamic Floating Watermark with Smooth Transitions */}
         <div
           data-testid="dynamic-video-watermark"

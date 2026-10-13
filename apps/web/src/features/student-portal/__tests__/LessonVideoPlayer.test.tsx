@@ -169,7 +169,7 @@ describe('LessonVideoPlayer Component Hardened Security Defenses', () => {
     expect(printScreenEvent.defaultPrevented).toBe(true);
   });
 
-  it('displays full student attribution dynamic watermark and static ghost nodes', async () => {
+  it('displays full student attribution dynamic watermark as a single node', async () => {
     vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
       embedUrl: mockSecureEmbedUrl,
       expiresAt: 1720000000,
@@ -184,9 +184,9 @@ describe('LessonVideoPlayer Component Hardened Security Defenses', () => {
     expect(watermark).toHaveTextContent('أحمد محمود رضوان • STU-2026-8888 • 01012345678');
     expect(watermark).toHaveStyle({ position: 'absolute' });
 
-    // Ghost nodes with identifying information across the frame
-    const ghostMatches = screen.getAllByText('أحمد محمود رضوان • STU-2026-8888 • 01012345678');
-    expect(ghostMatches.length).toBeGreaterThanOrEqual(4);
+    // Exactly 1 single watermark node across the frame
+    const watermarkMatches = screen.getAllByText('أحمد محمود رضوان • STU-2026-8888 • 01012345678');
+    expect(watermarkMatches.length).toBe(1);
   });
 
   it('shifts watermark coordinates randomly over timer intervals between 10% and 85%', async () => {

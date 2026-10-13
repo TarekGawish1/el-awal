@@ -1488,22 +1488,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 </div>
               )}
 
-              {/* Floating Dynamic Anti-Theft Watermark & Static Ghost Nodes */}
+              {/* Floating Dynamic Anti-Theft Watermark (Single moving node) */}
               {streamAuth?.watermark && (
                 <div className="pointer-events-none absolute inset-0 overflow-hidden z-20 select-none" draggable={false}>
-                  <div className="absolute top-[10%] left-[8%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
-                  </div>
-                  <div className="absolute top-[20%] right-[10%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
-                  </div>
-                  <div className="absolute bottom-[22%] left-[12%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
-                  </div>
-                  <div className="absolute bottom-[10%] right-[8%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
-                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
-                  </div>
-
                   <div
                     className="text-xs font-mono font-bold text-white/30 tracking-wider p-2.5 select-none transition-all duration-700 ease-in-out backdrop-blur-[1px] bg-black/15 rounded-lg"
                     style={{ top: `${watermarkPos.top}%`, left: `${watermarkPos.left}%`, position: 'absolute' }}
