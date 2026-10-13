@@ -30,12 +30,12 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Register high-performance Fastify plugins
-  await app.register(fastifyCookie);
-  await app.register(fastifyCompress);
-  await app.register(fastifyHelmet, {
+  await app.register(fastifyCookie as any);
+  await app.register(fastifyCompress as any);
+  await app.register(fastifyHelmet as any, {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   });
-  await app.register(fastifyMultipart, {
+  await app.register(fastifyMultipart as any, {
     limits: {
       fileSize: 500 * 1024 * 1024, // 500MB max upload (allows lecture videos and document uploads)
     },
