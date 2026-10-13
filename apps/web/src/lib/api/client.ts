@@ -176,8 +176,8 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     Accept: 'application/json',
   };
 
-  // Only set application/json if body is not FormData
-  if (!(customConfig.body instanceof FormData)) {
+  // Only set application/json if a body is present and not FormData
+  if (customConfig.body !== undefined && customConfig.body !== null && !(customConfig.body instanceof FormData)) {
     defaultHeaders['Content-Type'] = 'application/json';
   }
 

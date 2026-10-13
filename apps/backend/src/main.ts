@@ -51,6 +51,18 @@ async function bootstrap() {
     .replace(/\/+$/, '');
 
   fastifyInstance.addHook('onRequest', (request: any, reply: any, done: any) => {
+    // Strip Content-Type: application/json from body-less requests to prevent FST_ERR_CTP_EMPTY_JSON_BODY (400)
+    const contentType = request.headers['content-type'];
+    const contentLength = request.headers['content-length'];
+    if (
+      contentType &&
+      contentType.includes('application/json') &&
+      (!contentLength || contentLength === '0') &&
+      ['GET', 'DELETE', 'HEAD', 'OPTIONS'].includes(request.method)
+    ) {
+      delete request.headers['content-type'];
+    }
+
     const rawHost = (
       request.headers['x-forwarded-host'] ||
       request.headers.host ||

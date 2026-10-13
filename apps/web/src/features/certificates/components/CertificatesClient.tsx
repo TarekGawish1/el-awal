@@ -320,7 +320,7 @@ export function CertificatesClient() {
       // Local-only certs (non-UUID ids) were never persisted, so skip the API call for them.
       if (isUuid(id)) {
         try {
-          await apiClient(`/certificates/${id}`, { method: "DELETE" });
+          await apiClient(API_ENDPOINTS.CERTIFICATES.DELETE(id), { method: "DELETE" });
         } catch (err: any) {
           // 404 = already deleted in DB → treat as success and continue cleaning local state
           const msg = err?.message || "";
@@ -367,7 +367,7 @@ export function CertificatesClient() {
     setTogglingId(cert.id);
     try {
       if (isUuid(cert.id)) {
-        await apiClient(`/certificates/${cert.id}/visibility`, {
+        await apiClient(API_ENDPOINTS.CERTIFICATES.VISIBILITY(cert.id), {
           method: "PATCH",
           body: JSON.stringify({ isPublic: next }),
         });
