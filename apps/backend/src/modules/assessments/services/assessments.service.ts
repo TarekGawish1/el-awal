@@ -63,11 +63,13 @@ export class AssessmentsService {
         await Promise.all([
           this.redisCache.delPattern(`student:dashboard:${studentId}`),
           this.redisCache.delPattern(`parent:overview:${studentId}`),
+          this.redisCache.delPattern(`parent:dashboard:*`),
         ]);
       } else {
         await Promise.all([
           this.redisCache.delPattern('student:dashboard:*'),
           this.redisCache.delPattern('parent:overview:*'),
+          this.redisCache.delPattern('parent:dashboard:*'),
         ]);
       }
     } catch (error) {
