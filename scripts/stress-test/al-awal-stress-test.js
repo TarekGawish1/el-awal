@@ -13,12 +13,12 @@ const successfulRequests = new Counter('successful_2xx_requests');
 // Realistic Stress Test Configuration: Ramp up gradually to discover breaking point
 export const options = {
   stages: [
-    // 1. Warm-up: Baseline check with low traffic
-    { duration: '15s', target: 30 },
-    // 2. Normal platform load (100 concurrent students)
-    { duration: '30s', target: 100 },
-    // 3. Peak load: testing dyno and Redis cache capacity (200 concurrent students)
-    { duration: '45s', target: 200 },
+    // 1. Warm-up: Baseline check with initial traffic
+    { duration: '15s', target: 50 },
+    // 2. High Load: Normal peak period (150 concurrent active users)
+    { duration: '30s', target: 150 },
+    // 3. Maximum Peak: Stress testing platform limits (300 concurrent active users)
+    { duration: '40s', target: 300 },
     // 4. Recovery & Ramp-down
     { duration: '15s', target: 0 },
   ],
@@ -95,9 +95,26 @@ export default function () {
         'Catalog API status 200': (r) => r.status === 200,
       });
 
-      sleep(Math.random() * 1.0 + 0.5);
+      // 2. Public Centers Schedules
+      const resCenters = http.get(`${API_URL}/schedules/public/centers`, {
+        tags: { type: 'backend_api', endpoint: 'public_centers' },
+      });
+      backendApiDuration.add(resCenters.timings.duration);
+      recordStatus(resCenters);
+      check(resCenters, {
+        'Centers API status 200': (r) => r.status === 200,
+      });
 
-      // 2. Parent Access Portal Page
+      sleep(Math.random() * 0.8 + 0.3);
+
+      // 3. Testimonials & Honors
+      const resTestimonials = http.get(`${API_URL}/testimonials/public`, {
+        tags: { type: 'backend_api', endpoint: 'testimonials' },
+      });
+      backendApiDuration.add(resTestimonials.timings.duration);
+      recordStatus(resTestimonials);
+
+      // 4. Parent Access Portal Page
       const resParent = http.get(`${BASE_URL}/parent-access`, {
         tags: { type: 'frontend_page', page: 'parent_access' },
       });
@@ -107,7 +124,7 @@ export default function () {
         'Parent Access 200': (r) => r.status === 200,
       });
 
-      // 3. System Heartbeat / Health Check
+      // 5. System Heartbeat / Health Check
       const resHealth = http.get(`${API_URL}/health`, {
         tags: { type: 'backend_api', endpoint: 'health' },
       });
@@ -117,7 +134,7 @@ export default function () {
         'Health status 200': (r) => r.status === 200,
       });
 
-      sleep(Math.random() * 1.5 + 0.5);
+      sleep(Math.random() * 1.0 + 0.5);
     });
 
   } else {
