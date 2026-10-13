@@ -37,6 +37,7 @@ export class SchedulesService {
           this.redisCache.delPattern('groups:*'),
           this.redisCache.delPattern('student:dashboard:*'),
           this.redisCache.delPattern('parent:overview:*'),
+          this.redisCache.delPattern('parent:dashboard:*'),
         ]);
       } catch (err) {
         this.logger.warn(`Failed to invalidate schedule caches: ${err}`);
@@ -1217,7 +1218,7 @@ export class SchedulesService {
     });
 
     if (this.redisCache) {
-      await this.redisCache.set(cacheKey, result, 600);
+      await this.redisCache.set(cacheKey, result, 86400);
     }
 
     return result;

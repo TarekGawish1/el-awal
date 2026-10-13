@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  useStudentProfile,
   useStudentDashboardOverview,
   useEnrollInCourse,
 } from '../hooks/useStudentPortal';
@@ -21,24 +20,21 @@ import { resolveAssetUrl } from '@/lib/utils/asset-url';
 import { API_BASE_URL } from '@/lib/api/endpoints';
 
 export function StudentDashboard() {
-  const { data: overview, isLoading: isOverviewLoading } = useStudentDashboardOverview();
-  const { data: fallbackProfile } = useStudentProfile({
-    enabled: !overview && !isOverviewLoading,
-  });
+  const { data: overview, isLoading, isError, refetch } = useStudentDashboardOverview();
 
   // Certificate modal state
   const [certCourse, setCertCourse] = useState<{ title: string; teacherName?: string } | null>(null);
   const isCertOpen = certCourse !== null;
 
-  const profile = overview?.student || fallbackProfile;
+  const profile = overview?.student;
   const courses = overview?.enrolledCourses || [];
   const upcomingExams = overview?.recentExams || [];
   const attendanceRate = overview?.kpis?.attendanceRatePercentage ?? 100;
   const nextSession = overview?.nextSession || null;
   const enrolledGroups = profile?.groupEnrollments || [];
-  const isCoursesLoading = isOverviewLoading && !overview;
-  const isAssessmentsLoading = isOverviewLoading && !overview;
-  const isAttendanceLoading = isOverviewLoading && !overview;
+  const isCoursesLoading = isLoading;
+  const isAssessmentsLoading = isLoading;
+  const isAttendanceLoading = isLoading;
 
   const formatSessionDateTime = (sessionDateStr: string, startTime: string) => {
     if (!sessionDateStr) return '';
@@ -71,8 +67,25 @@ export function StudentDashboard() {
     return `${dayName}، ${day} ${monthName} - ${timeStr}`;
   };
 
-  if (isOverviewLoading && !profile) {
+  if (isLoading) {
     return <div className="space-y-4"><Skeleton className="h-40 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  }
+
+  if (isError || !profile) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-3 my-6">
+        <AlertCircle className="w-8 h-8 text-red-600 mx-auto" />
+        <h3 className="font-bold text-red-900">تعذر تحميل بيانات لوحة التحكم</h3>
+        <p className="text-sm text-red-700">يرجى المحاولة مرة أخرى.</p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-colors cursor-pointer"
+        >
+          <RotateCcw className="w-4 h-4" /> إعادة المحاولة
+        </button>
+      </div>
+    );
   }
 
   const studentName = profile?.user?.fullName || 'طالب';

@@ -886,13 +886,8 @@ export class StudentsService {
     }
 
     // 1. Fetch student profile and group enrollments
-    const student = await this.prisma.studentProfile.findFirst({
-      where: {
-        OR: [
-          { id: studentId },
-          { userId: user.id },
-        ],
-      },
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
       include: {
         user: { select: { id: true, fullName: true, phone: true, email: true } },
         groupEnrollments: {

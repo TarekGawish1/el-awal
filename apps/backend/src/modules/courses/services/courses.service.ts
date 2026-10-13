@@ -101,6 +101,7 @@ export class CoursesService {
           this.redisCache.delPattern('courses:*'),
           this.redisCache.delPattern('student:dashboard:*'),
           this.redisCache.delPattern('parent:overview:*'),
+          this.redisCache.delPattern('parent:dashboard:*'),
         ]);
       } catch (err) {
         this.logger.warn(`Failed to clear courses cache: ${err}`);
@@ -473,7 +474,7 @@ export class CoursesService {
     });
 
     if (this.redisCache && result) {
-      await this.redisCache.set(redisKey, result, 600);
+      await this.redisCache.set(redisKey, result, 3600);
     }
 
     return result;
@@ -591,7 +592,7 @@ export class CoursesService {
     });
 
     if (this.redisCache && result) {
-      await this.redisCache.set(redisKey, result, 600);
+      await this.redisCache.set(redisKey, result, 3600);
     }
 
     return result;

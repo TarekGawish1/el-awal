@@ -45,11 +45,7 @@ export function useStudentDashboardOverview() {
       if (!isOnline) {
         return null;
       }
-      try {
-        return await apiClient<any>('/students/dashboard/overview');
-      } catch (err) {
-        return null;
-      }
+      return await apiClient<any>('/students/dashboard/overview');
     },
     staleTime: 60_000,
   });

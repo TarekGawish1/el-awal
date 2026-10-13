@@ -57,17 +57,23 @@ export class RedisCacheService implements OnModuleInit {
 
   /**
    * Set cache item with expiration TTL (in seconds).
+   * Stores directly into Redis without consuming server RAM.
+   * Local memoryFallback is strictly an emergency fallback when Redis is unreachable.
    */
   async set<T>(key: string, value: T, ttlSeconds = 300): Promise<void> {
-    this.memoryFallback.set(key, value, ttlSeconds);
-
     if (this.isRedisHealthy && this.redis) {
       try {
         await this.redis.set(key, value, { ex: ttlSeconds });
+        return;
       } catch (err: any) {
-        this.logger.warn(`Redis SET error for key [${key}]: ${err?.message}`);
+        this.logger.warn(`Redis SET error for key [${key}]: ${err?.message}. Falling back to emergency memory.`);
+        this.memoryFallback.set(key, value, ttlSeconds);
+        return;
       }
     }
+
+    // Only when Redis is unreachable or unconfigured
+    this.memoryFallback.set(key, value, ttlSeconds);
   }
 
   /**
@@ -88,9 +94,7 @@ export class RedisCacheService implements OnModuleInit {
    * Invalidate multiple keys matching a pattern (e.g. 'groups:*' or 'student:dashboard:*').
    */
   async delPattern(pattern: string): Promise<void> {
-    // Clear from memory fallback
-    const prefix = pattern.replace(/\*$/, '');
-    // In Upstash Redis
+    this.memoryFallback.clear();
     if (this.isRedisHealthy && this.redis) {
       try {
         const keys = await this.redis.keys(pattern);

@@ -106,7 +106,7 @@ export class TestimonialsService {
     });
 
     if (this.redisCache) {
-      await this.redisCache.set(cacheKey, result, 600);
+      await this.redisCache.set(cacheKey, result, 86400);
     }
 
     return result;
