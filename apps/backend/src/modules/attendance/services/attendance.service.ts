@@ -15,6 +15,7 @@ import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } fr
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { getSessionEndUtcDate } from '../utils/attendance.util';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class AttendanceService {
@@ -25,6 +26,7 @@ export class AttendanceService {
     private readonly attendanceRepository: AttendanceRepository,
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly realtimeGateway?: RealtimeGateway,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
@@ -139,6 +141,10 @@ export class AttendanceService {
 
     // 5. Emit domain event if this was the first successful scan
     if (!result.isDuplicate) {
+      if (this.redisCache) {
+        await this.redisCache.del(`student:dashboard:${student.id}`);
+        await this.redisCache.del(`parent:overview:${student.id}`);
+      }
       this.eventEmitter.emit('attendance.recorded', {
         sessionId: session.id,
         studentId: student.id,
@@ -390,6 +396,13 @@ export class AttendanceService {
     ]);
 
     this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
+
+    if (this.redisCache) {
+      for (const sid of targetStudentIds) {
+        await this.redisCache.del(`student:dashboard:${sid}`);
+        await this.redisCache.del(`parent:overview:${sid}`);
+      }
+    }
 
     return {
       sessionId,

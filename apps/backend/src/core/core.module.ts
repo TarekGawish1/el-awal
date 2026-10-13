@@ -1,4 +1,4 @@
-import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { Module, Global, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -15,7 +15,9 @@ import { TransformResponseInterceptor } from './interceptors/transform-response.
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { AppLogger } from './logger/app-logger.service';
+import { RedisCacheService } from './cache/redis-cache.service';
 
+@Global()
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -78,8 +80,9 @@ import { AppLogger } from './logger/app-logger.service';
       useClass: ResourceOwnershipGuard,
     },
     AppLogger,
+    RedisCacheService,
   ],
-  exports: [DatabaseModule, SecurityModule, ThrottlerModule, AppLogger],
+  exports: [DatabaseModule, SecurityModule, ThrottlerModule, AppLogger, RedisCacheService],
 })
 export class CoreModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

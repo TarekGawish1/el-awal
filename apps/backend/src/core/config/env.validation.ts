@@ -50,6 +50,10 @@ const baseEnvSchema = z.object({
 
   // Frontend app URL (used for push notification deep links)
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+
+  // Upstash Redis (Ireland eu-west-1)
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 });
 
 export const envSchema = baseEnvSchema.superRefine((env, ctx) => {

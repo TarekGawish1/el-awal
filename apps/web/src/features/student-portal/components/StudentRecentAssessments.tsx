@@ -14,11 +14,12 @@ import { filterUpcomingGroupExams } from '../utils/assessments';
  * (ASSIGNMENT type) are strictly excluded, and exams whose deadline has passed
  * are hidden. Mirrors the backend `getAssessments` scope for the STUDENT role.
  */
-export function StudentRecentAssessments() {
-  const { data: assessments, isLoading } = useStudentAssessments();
+export function StudentRecentAssessments({ exams }: { exams?: any[] } = {}) {
+  const { data: assessments, isLoading: isHookLoading } = useStudentAssessments();
   const assessmentList = Array.isArray(assessments) ? assessments : (assessments?.data || []);
 
-  const groupAssessments = filterUpcomingGroupExams(assessmentList);
+  const groupAssessments = exams !== undefined ? exams : filterUpcomingGroupExams(assessmentList);
+  const isLoading = exams !== undefined ? false : isHookLoading;
 
   return (
     <Card className="border-slate-100 shadow-sm">

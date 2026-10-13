@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -20,6 +21,7 @@ import {
   buildConflictMessage,
   ScheduleLike,
 } from '../utils/schedule-conflict.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class GroupsService {
@@ -29,6 +31,7 @@ export class GroupsService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly realtimeGateway: RealtimeGateway,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
@@ -140,7 +143,7 @@ export class GroupsService {
     const creatorName = currentUser?.fullName || (currentUser?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
     const creatorId = currentUser?.id || null;
 
-    return this.prisma.academicGroup.create({
+    const createdGroup = await this.prisma.academicGroup.create({
       data: {
         id: dto.id || undefined,
         name: dto.name,
@@ -166,6 +169,14 @@ export class GroupsService {
       },
       include: { schedules: true },
     });
+
+    if (this.redisCache) {
+      await this.redisCache.delPattern('groups:*');
+      await this.redisCache.delPattern('student:dashboard:*');
+      await this.redisCache.delPattern('parent:overview:*');
+    }
+
+    return createdGroup;
   }
 
   /**
@@ -193,6 +204,12 @@ export class GroupsService {
       }
     }
 
+    const cacheKey = `groups:teacher:${effectiveTeacherId}:${academicYear || 'all'}:${academicTerm || 'all'}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const where: any = {
       OR: [
         { teacherId: effectiveTeacherId },
@@ -203,7 +220,7 @@ export class GroupsService {
     if (academicYear) where.academicYear = academicYear;
     if (academicTerm) where.academicTerm = academicTerm;
 
-    return this.prisma.academicGroup.findMany({
+    const groups = await this.prisma.academicGroup.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -216,6 +233,12 @@ export class GroupsService {
         },
       },
     });
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, groups, 600);
+    }
+
+    return groups;
   }
 
   /**
@@ -274,7 +297,7 @@ export class GroupsService {
 
     const updaterName = user?.fullName || (user?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // update main group
       const updatedGroup = await tx.academicGroup.update({
         where: { id: groupId },
@@ -303,6 +326,14 @@ export class GroupsService {
 
       return updatedGroup;
     });
+
+    if (this.redisCache) {
+      await this.redisCache.delPattern('groups:*');
+      await this.redisCache.delPattern('student:dashboard:*');
+      await this.redisCache.delPattern('parent:overview:*');
+    }
+
+    return result;
   }
 
   /**
@@ -322,6 +353,12 @@ export class GroupsService {
     await this.prisma.academicGroup.delete({
       where: { id: groupId },
     });
+
+    if (this.redisCache) {
+      await this.redisCache.delPattern('groups:*');
+      await this.redisCache.delPattern('student:dashboard:*');
+      await this.redisCache.delPattern('parent:overview:*');
+    }
 
     return { success: true, message: 'Group successfully deleted' };
   }

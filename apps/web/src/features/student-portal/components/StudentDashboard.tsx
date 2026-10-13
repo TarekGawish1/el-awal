@@ -4,10 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   useStudentProfile,
-  useStudentCourses,
-  useStudentAssessments,
-  useStudentAttendance,
-  useGroupSessions,
+  useStudentDashboardOverview,
   useEnrollInCourse,
 } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -20,61 +17,26 @@ import { CourseSubscriptionModal } from './CourseSubscriptionModal';
 import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';
-import { filterUpcomingGroupExams } from '../utils/assessments';
 import { resolveAssetUrl } from '@/lib/utils/asset-url';
 import { API_BASE_URL } from '@/lib/api/endpoints';
 
 export function StudentDashboard() {
-  const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
-  const { data: courses, isLoading: isCoursesLoading } = useStudentCourses();
-  const { data: assessments, isLoading: isAssessmentsLoading } = useStudentAssessments();
-  const { data: attendance, isLoading: isAttendanceLoading } = useStudentAttendance();
+  const { data: overview, isLoading: isOverviewLoading } = useStudentDashboardOverview();
+  const { data: fallbackProfile, isLoading: isFallbackProfileLoading } = useStudentProfile();
 
   // Certificate modal state
   const [certCourse, setCertCourse] = useState<{ title: string; teacherName?: string } | null>(null);
   const isCertOpen = certCourse !== null;
 
-  // These hooks are dual-shape: online they return the cursor-paginated { data, meta } envelope,
-  // while their offline/error fallbacks return a bare array. Normalize to a plain list either way.
-  const assessmentList = Array.isArray(assessments) ? assessments : (assessments?.data || []);
-  // Only count upcoming group exams (no homework, no expired deadlines).
-  const upcomingExams = filterUpcomingGroupExams(assessmentList);
-  const attendanceRecords = Array.isArray(attendance) ? attendance : (attendance?.data || []);
-
-  // Attendance rate is derived client-side from the student's visible records, mirroring the
-  // dedicated attendance page: present / total (present = PRESENT), defaulting to 100 when there
-  // are no records yet. The cursor-paginated API returns { data, meta } with no precomputed rate.
-  const attendancePresentCount = attendanceRecords.filter((r: any) => r.status === 'PRESENT').length;
-  const attendanceRate = attendanceRecords.length > 0
-    ? Math.round((attendancePresentCount / attendanceRecords.length) * 100)
-    : 100;
-
+  const profile = overview?.student || fallbackProfile;
+  const courses = overview?.enrolledCourses || [];
+  const upcomingExams = overview?.recentExams || [];
+  const attendanceRate = overview?.kpis?.attendanceRatePercentage ?? 100;
+  const nextSession = overview?.nextSession || null;
   const enrolledGroups = profile?.groupEnrollments || [];
-  const primaryGroupId = enrolledGroups[0]?.group?.id;
-
-  const { data: sessions } = useGroupSessions(primaryGroupId);
-
-  const nextSession = React.useMemo(() => {
-    if (!sessions) return null;
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    
-    const upcoming = sessions
-      .filter((session: any) => {
-        const sessionDateStr = session.sessionDate.split('T')[0];
-        return sessionDateStr >= todayStr;
-      })
-      .sort((a: any, b: any) => {
-        const dateA = new Date(a.sessionDate);
-        const dateB = new Date(b.sessionDate);
-        if (dateA.getTime() !== dateB.getTime()) {
-          return dateA.getTime() - dateB.getTime();
-        }
-        return (a.startTime || '').localeCompare(b.startTime || '');
-      });
-      
-    return upcoming[0] || null;
-  }, [sessions]);
+  const isCoursesLoading = isOverviewLoading && !overview;
+  const isAssessmentsLoading = isOverviewLoading && !overview;
+  const isAttendanceLoading = isOverviewLoading && !overview;
 
   const formatSessionDateTime = (sessionDateStr: string, startTime: string) => {
     if (!sessionDateStr) return '';
@@ -107,7 +69,7 @@ export function StudentDashboard() {
     return `${dayName}، ${day} ${monthName} - ${timeStr}`;
   };
 
-  if (isProfileLoading) {
+  if (isOverviewLoading && !profile) {
     return <div className="space-y-4"><Skeleton className="h-40 w-full" /><Skeleton className="h-64 w-full" /></div>;
   }
 
@@ -169,6 +131,7 @@ export function StudentDashboard() {
             <OnlineCoursesCatalog
               gradeLevel={profile.gradeLevel}
               academicStage={profile.academicStage || undefined}
+              enrolledCourses={courses}
               onViewCertificate={(course) => setCertCourse(course)}
             />
           )}
@@ -261,7 +224,7 @@ export function StudentDashboard() {
         </Card>
       </div>
 
-      <StudentLatestHomework />
+      <StudentLatestHomework homework={overview?.latestHomework} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-slate-100 shadow-sm">
@@ -357,7 +320,7 @@ export function StudentDashboard() {
           </CardContent>
         </Card>
 
-        <StudentRecentAssessments />
+        <StudentRecentAssessments exams={overview?.recentExams} />
       </div>
       </>
       )}
@@ -368,14 +331,16 @@ export function StudentDashboard() {
 function OnlineCoursesCatalog({
   gradeLevel,
   academicStage,
+  enrolledCourses = [],
   onViewCertificate,
 }: {
   gradeLevel?: string;
   academicStage?: string;
+  enrolledCourses?: any[];
   onViewCertificate?: (course: { title: string; teacherName?: string }) => void;
 }) {
   const router = useRouter();
-  const { data: myCourses = [] } = useStudentCourses();
+  const myCourses = enrolledCourses;
   const enrollMutation = useEnrollInCourse();
 
   const [courses, setCourses] = useState<any[]>([]);

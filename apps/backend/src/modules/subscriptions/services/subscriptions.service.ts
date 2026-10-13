@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -19,6 +20,7 @@ import {
   isEnrolledInPeriod,
   isPeriodBeforeEnrollment,
 } from '../utils/proration.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class SubscriptionsService {
@@ -27,6 +29,7 @@ export class SubscriptionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   private async runInTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
@@ -214,6 +217,11 @@ export class SubscriptionsService {
         `Booklet payment recorded: Student [${dto.studentId}], Booklet [${dto.bookletId} - ${bookletTitle}], Paid: ${dto.amountPaid} EGP`,
       );
 
+      if (this.redisCache) {
+        await this.redisCache.del(`student:dashboard:${dto.studentId}`);
+        await this.redisCache.del(`parent:overview:${dto.studentId}`);
+      }
+
       return payment;
     }
 
@@ -350,6 +358,11 @@ export class SubscriptionsService {
     this.logger.log(
       `Payment recorded: Student [${dto.studentId}], Period ${periodMonth}/${periodYear}, Paid: ${dto.amountPaid} EGP`,
     );
+
+    if (this.redisCache) {
+      await this.redisCache.del(`student:dashboard:${dto.studentId}`);
+      await this.redisCache.del(`parent:overview:${dto.studentId}`);
+    }
 
     return payment;
   }
@@ -537,6 +550,11 @@ export class SubscriptionsService {
         `QR Booklet Payment processed: Student [${student.user.fullName}], Booklet [${booklet.title}], Paid: ${amountPaid} EGP (Duplicate: ${isDuplicate})`,
       );
 
+      if (this.redisCache) {
+        await this.redisCache.del(`student:dashboard:${student.id}`);
+        await this.redisCache.del(`parent:overview:${student.id}`);
+      }
+
       return {
         success: true,
         isDuplicate,
@@ -704,6 +722,11 @@ export class SubscriptionsService {
     this.logger.log(
       `QR Payment processed: Student [${student.user.fullName}], Period ${periodMonth}/${periodYear}, Paid: ${amountPaid} EGP (Duplicate: ${isDuplicate})`,
     );
+
+    if (this.redisCache) {
+      await this.redisCache.del(`student:dashboard:${student.id}`);
+      await this.redisCache.del(`parent:overview:${student.id}`);
+    }
 
     return {
       success: true,

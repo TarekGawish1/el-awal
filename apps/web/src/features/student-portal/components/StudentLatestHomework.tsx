@@ -26,12 +26,32 @@ function formatDateTime(value: string) {
  * Renders the homework attached to the latest group lesson session and lets the
  * student open the assessment to submit their answers.
  */
-export function StudentLatestHomework() {
+export function StudentLatestHomework({ homework }: { homework?: any } = {}) {
+  const isProvided = homework !== undefined;
   const now = new Date();
   const { data: groupData } = useStudentGroup();
-  const { data: sessions = [], isLoading } = useStudentGroupSessions({ month: now.getMonth() + 1, year: now.getFullYear() });
+  const { data: sessions = [], isLoading: isSessionsLoading } = useStudentGroupSessions(
+    { month: now.getMonth() + 1, year: now.getFullYear() }
+  );
 
   const latestHomeworkSession = useMemo(() => {
+    if (isProvided) {
+      if (!homework) return null;
+      return {
+        topic: homework.topic || homework.title,
+        sessionDate: homework.sessionDate,
+        assessment: {
+          id: homework.assessmentId || homework.id,
+          title: homework.title,
+          description: homework.description,
+          dueDate: homework.dueDate,
+          totalScore: homework.totalScore,
+          submission: homework.submission,
+        },
+        groupName: homework.groupName,
+        educationalContents: homework.worksheet ? [homework.worksheet] : [],
+      };
+    }
     // Find sessions that have an assessment
     const withHomework = sessions.filter((session: any) => {
       const assessment = session.assessment;
@@ -49,7 +69,9 @@ export function StudentLatestHomework() {
 
     const candidates = active.length > 0 ? active : withHomework;
     return candidates.sort((a: any, b: any) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime())[0];
-  }, [sessions]);
+  }, [sessions, isProvided, homework]);
+
+  const isLoading = isProvided ? false : isSessionsLoading;
 
   if (isLoading) {
     return <Card className="border-slate-100 shadow-sm"><CardContent className="flex items-center justify-center p-10"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600" /></CardContent></Card>;
@@ -98,7 +120,7 @@ export function StudentLatestHomework() {
             {assessment.description || 'تسليم إجابة واجب الحصة.'
               ? <p>{assessment.description || 'مطلوب تسليم إجابة هذا الواجب قبل الموعد المحدد.'}</p>
               : null}
-            {latestHomeworkSession.location && <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="w-3.5 h-3.5" />القاعة: {latestHomeworkSession.location}</p>}
+            {(latestHomeworkSession as any)?.location && <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="w-3.5 h-3.5" />القاعة: {(latestHomeworkSession as any).location}</p>}
           </div>
 
           {worksheet && (

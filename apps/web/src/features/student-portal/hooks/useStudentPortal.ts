@@ -33,6 +33,28 @@ export function useStudentProfile() {
   });
 }
 
+export function useStudentDashboardOverview() {
+  const { user } = useAuth();
+  const studentId = user?.studentProfileId || user?.id;
+
+  return useQuery({
+    queryKey: ['student-dashboard-overview', studentId],
+    enabled: !!studentId && user?.role === 'STUDENT',
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return null;
+      }
+      try {
+        return await apiClient<any>('/students/dashboard/overview');
+      } catch (err) {
+        return null;
+      }
+    },
+    staleTime: 60_000,
+  });
+}
+
 export function useStudentQrCode() {
   const { user } = useAuth();
   const studentId = user?.studentProfileId || user?.id;

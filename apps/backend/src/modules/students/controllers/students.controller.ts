@@ -70,6 +70,15 @@ export class StudentsController {
     return this.studentsService.getMyGroupSessions(user, query);
   }
 
+  @Get('dashboard/overview')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get consolidated student dashboard overview (profile, KPIs, next session, courses, upcoming exams, latest homework)' })
+  async getStudentDashboardOverview(
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getStudentDashboardOverview(user);
+  }
+
   @Get(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.PARENT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Get student demographic and academic profile by ID' })

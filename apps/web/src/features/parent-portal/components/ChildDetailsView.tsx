@@ -1,11 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useStudent } from '@/features/students/hooks/use-students';
-import { useStudentAttendanceHistory } from '@/features/attendance/hooks/use-attendance';
-import { useStudentPaymentHistory } from '@/features/finance/hooks/useFinance';
-import { useGroup } from '@/features/groups/hooks/useGroups';
-import { useAssessments } from '@/features/assessments/hooks/use-assessments';
+import { useChildOverview } from '../hooks/useParentPortal';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 import { Badge, Skeleton } from '@/components/ui';
 import {
@@ -30,24 +26,17 @@ interface ChildDetailsViewProps {
 }
 
 export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
-  const { data: student, isLoading: isStudentLoading, isError: isStudentError } = useStudent(studentId);
-  const { data: attendanceHistory, isLoading: isAttendanceLoading } = useStudentAttendanceHistory(studentId, 10);
-  const { data: paymentHistory, isLoading: isPaymentLoading } = useStudentPaymentHistory(studentId);
-  const { data: assignmentsData, isLoading: isAssignmentsLoading } = useAssessments({
-    type: 'ASSIGNMENT',
-    studentId,
-  });
-  const { data: examsData, isLoading: isExamsLoading } = useAssessments({
-    type: 'EXAM',
-    studentId,
-  });
-  
-  const enrollments = student?.groupEnrollments || [];
-  const primaryGroupId = enrollments[0]?.group?.id;
-  const { data: primaryGroup } = useGroup(primaryGroupId || '');
+  const { data: overview, isLoading, isError } = useChildOverview(studentId);
 
-  const isLoading = isStudentLoading || isAttendanceLoading || isPaymentLoading;
-  const studentName = student?.user?.fullName || 'الطالب';
+  const student = overview?.student;
+  const primaryGroup = overview?.primaryGroup;
+  const attendanceHistory = overview?.attendanceHistory || [];
+  const paymentHistory = overview?.paymentHistory || [];
+  const assignments = overview?.assignments || [];
+  const exams = overview?.exams || [];
+  const enrollments = student?.groupEnrollments || [];
+
+  const studentName = student?.fullName || 'الطالب';
 
   if (isLoading) {
     return (
@@ -58,7 +47,7 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
     );
   }
 
-  if (isStudentError || !student) {
+  if (isError || !student) {
     return (
       <div className="text-center py-8 space-y-3">
         <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
@@ -70,17 +59,25 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
   }
 
   // --- Calculations ---
-  const totalAttended = attendanceHistory?.filter((r: any) => r.status === 'PRESENT').length || 0;
-  const hwCompleted = attendanceHistory?.filter((r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED')).length || 0;
-  const hwMissing = attendanceHistory?.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'MISSING').length || 0;
-  const hwIncomplete = attendanceHistory?.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'INCOMPLETE').length || 0;
+  const totalAttended = overview?.kpis?.hwStats?.totalAttended ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT').length;
+  const hwCompleted = overview?.kpis?.hwStats?.hwCompleted ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED')).length;
+  const hwMissing = overview?.kpis?.hwStats?.hwMissing ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'MISSING').length;
+  const hwIncomplete = overview?.kpis?.hwStats?.hwIncomplete ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'INCOMPLETE').length;
 
-  const totalPaid = paymentHistory?.filter((p: any) => p.paymentStatus === 'PAID').reduce((acc: number, p: any) => acc + (Number(p.amountPaid) || 0), 0) || 0;
-  const totalUnpaid = paymentHistory?.filter((p: any) => p.paymentStatus !== 'PAID').reduce((acc: number, p: any) => acc + (Number(p.amountExpected) || 0), 0) || 0;
+  const totalPaid = overview?.kpis?.totalPaid ?? paymentHistory.filter((p: any) => p.paymentStatus === 'PAID').reduce((acc: number, p: any) => acc + (Number(p.amountPaid) || 0), 0);
+  const totalUnpaid = overview?.kpis?.totalUnpaid ?? paymentHistory.filter((p: any) => p.paymentStatus !== 'PAID').reduce((acc: number, p: any) => acc + (Number(p.amountExpected) || 0), 0);
 
   // Next Session Calculation
   let nextSessionStr = 'غير محدد';
-  if (primaryGroup?.schedules?.length) {
+  if (overview?.nextSession) {
+    const nextDate = new Date(overview.nextSession.nextDate);
+    const daysAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    let [sh, sm] = (overview.nextSession.startTime || '00:00').split(':');
+    let h = parseInt(sh, 10);
+    const ampm = h >= 12 ? 'م' : 'ص';
+    h = h % 12 || 12;
+    nextSessionStr = `${daysAr[overview.nextSession.dayOfWeek]}، ${nextDate.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })} - ${h}:${sm} ${ampm}`;
+  } else if (primaryGroup?.schedules?.length) {
     const today = new Date();
     const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
     const currentHourMinute = today.getHours() * 60 + today.getMinutes();
@@ -120,18 +117,6 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
       nextSessionStr = `${daysAr[nextSchedule.dayOfWeek]}، ${nextDate.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })} - ${h}:${sm} ${ampm}`;
     }
   }
-
-
-  // Filter assignments and exams for this child (physical group / general)
-  const assignments = (assignmentsData?.data || []).filter((item: any) => {
-    if (item.courseId || item.lessonId) return false;
-    return true;
-  });
-
-  const exams = (examsData?.data || []).filter((item: any) => {
-    if (item.courseId || item.lessonId) return false;
-    return true;
-  });
 
   const upcomingExam = exams.find((e: any) => {
     const rawDate = e.startTime || e.startDate || e.dueDate;
@@ -326,12 +311,7 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
           ) : null}
         </div>
 
-        {isAssignmentsLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-20 w-full rounded-2xl" />
-            <Skeleton className="h-20 w-full rounded-2xl" />
-          </div>
-        ) : assignments.length === 0 ? (
+        {assignments.length === 0 ? (
           <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-6 text-center">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2">
               <CheckCircle2 className="w-5 h-5" />

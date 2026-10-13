@@ -39,6 +39,7 @@ import {
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class AssessmentsService {
@@ -52,7 +53,27 @@ export class AssessmentsService {
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly storageService?: StorageService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
+
+  private async invalidatePortalCaches(studentId?: string | null) {
+    if (!this.redisCache) return;
+    try {
+      if (studentId) {
+        await Promise.all([
+          this.redisCache.delPattern(`student:dashboard:${studentId}`),
+          this.redisCache.delPattern(`parent:overview:${studentId}`),
+        ]);
+      } else {
+        await Promise.all([
+          this.redisCache.delPattern('student:dashboard:*'),
+          this.redisCache.delPattern('parent:overview:*'),
+        ]);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to invalidate portal caches: ${error}`);
+    }
+  }
 
   /**
    * High-Performance Cached Assessment Definition:
@@ -337,6 +358,7 @@ export class AssessmentsService {
     }
 
     this.assessmentsListCache.clear();
+    await this.invalidatePortalCaches();
     return assessment;
   }
 
@@ -1307,6 +1329,7 @@ export class AssessmentsService {
     );
 
     this.assessmentsListCache.clear();
+    await this.invalidatePortalCaches(studentId);
     return {
       submissionId: result.id,
       assessmentId,
@@ -1409,6 +1432,7 @@ export class AssessmentsService {
     );
 
     this.assessmentsListCache.clear();
+    await this.invalidatePortalCaches(studentId);
     return {
       submissionId: submission.id,
       assessmentId,
@@ -1464,7 +1488,7 @@ export class AssessmentsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Fetch all existing answers for specified questions in a single query
       const questionIds = dto.manualGrades.map((g) => g.questionId);
       const existingAnswers = await tx.studentAnswer.findMany({
@@ -1575,6 +1599,9 @@ export class AssessmentsService {
         answers: (updatedSubmission as any).answers,
       };
     });
+
+    await this.invalidatePortalCaches(submission.studentId);
+    return result;
   }
 
   /**
@@ -1832,6 +1859,7 @@ export class AssessmentsService {
 
     this.assessmentsListCache.clear();
     this.assessmentDetailsCache.delete(`assessment:base:${assessmentId}`);
+    await this.invalidatePortalCaches();
     return updated;
 
   }
@@ -2142,6 +2170,7 @@ export class AssessmentsService {
     // 4. Delete assessment
     this.assessmentsListCache.clear();
     this.assessmentDetailsCache.delete(`assessment:base:${assessmentId}`);
+    await this.invalidatePortalCaches();
     await this.prisma.assessment.delete({
 
       where: { id: assessmentId },

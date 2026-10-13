@@ -14,7 +14,7 @@ import { CreateStudentDto } from '../dto/create-student.dto';
 import { UpdateStudentDto } from '../dto/update-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
-import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus, NotificationChannel, NotificationType, NotificationStatus } from '@prisma/client';
+import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus, NotificationChannel, NotificationType, NotificationStatus, AttendanceStatus, CourseEnrollmentStatus } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
@@ -28,6 +28,7 @@ import { ResetParentPasswordDto } from '../dto/reset-parent-password.dto';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { formatStudentApprovalMessage } from '../../../utils/spintax';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class StudentsService {
@@ -40,6 +41,7 @@ export class StudentsService {
     private readonly notificationsService: NotificationsService,
     private readonly realtimeGateway: RealtimeGateway,
     @Optional() private readonly storageService?: StorageService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
@@ -864,6 +866,321 @@ export class StudentsService {
         educationalContents,
       };
     }));
+  }
+
+  /**
+   * Consolidated Student Dashboard Overview.
+   * Aggregates demographic profile, enrolled groups, attendance KPIs, upcoming exams,
+   * online course progress, next physical session, and latest homework into a single payload.
+   * Cached with Redis (TTL 300s) and invalidated on attendance/grade/enrollment mutations.
+   */
+  async getStudentDashboardOverview(user: AuthenticatedUser) {
+    const studentId = user.studentProfileId || user.id;
+    const cacheKey = `student:dashboard:${studentId}`;
+
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    // 1. Fetch student profile and group enrollments
+    const student = await this.prisma.studentProfile.findFirst({
+      where: {
+        OR: [
+          { id: studentId },
+          { userId: user.id },
+        ],
+      },
+      include: {
+        user: { select: { id: true, fullName: true, phone: true, email: true } },
+        groupEnrollments: {
+          where: { status: { in: [GroupEnrollmentStatus.ACTIVE, 'PENDING'] } },
+          include: {
+            group: {
+              select: {
+                id: true,
+                name: true,
+                gradeLevel: true,
+                academicStage: true,
+                monthlyFee: true,
+                schedules: {
+                  orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+                  select: { id: true, dayOfWeek: true, startTime: true, endTime: true, location: true },
+                },
+              },
+            },
+          },
+          orderBy: { enrolledAt: 'asc' },
+        },
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student profile not found');
+    }
+
+    const actualStudentId = student.id;
+    const activeEnrollment = student.groupEnrollments.find((ge) => ge.status === GroupEnrollmentStatus.ACTIVE);
+    const primaryGroup = activeEnrollment?.group || null;
+    const groupId = primaryGroup?.id;
+
+    // 2. Parallel queries for attendance, billing, courses, sessions, exams, and homework
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [
+      totalAttendance,
+      attendedCount,
+      currentMonthPayment,
+      courseEnrollments,
+      upcomingSession,
+      rawExams,
+      latestAssignment,
+    ] = await Promise.all([
+      // Attendance counts
+      this.prisma.attendanceRecord.count({ where: { studentId: actualStudentId } }),
+      this.prisma.attendanceRecord.count({ where: { studentId: actualStudentId, status: AttendanceStatus.PRESENT } }),
+
+      // Current month tuition payment
+      this.prisma.studentPaymentRecord.findFirst({
+        where: {
+          studentId: actualStudentId,
+          periodYear: currentYear,
+          periodMonth: currentMonth,
+          paymentType: PaymentType.TUITION,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+
+      // Enrolled online courses
+      this.prisma.courseEnrollment.findMany({
+        where: { studentId: actualStudentId, status: CourseEnrollmentStatus.ACTIVE },
+        include: {
+          course: {
+            include: {
+              teacher: { include: { user: { select: { fullName: true } } } },
+              modules: {
+                include: {
+                  lessons: { select: { id: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+
+      // Next session for group
+      groupId
+        ? this.prisma.lessonSession.findFirst({
+            where: {
+              groupId,
+              sessionDate: { gte: today },
+            },
+            orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
+            include: {
+              schedule: { select: { id: true, location: true } },
+              group: { select: { name: true } },
+            },
+          })
+        : null,
+
+      // Upcoming physical group exams
+      groupId
+        ? this.prisma.assessment.findMany({
+            where: {
+              isPublished: true,
+              type: 'EXAM',
+              courseId: null,
+              lessonId: null,
+              OR: [{ groupId }, { targetGroups: { some: { id: groupId } } }],
+            },
+            include: {
+              group: { select: { id: true, name: true } },
+              targetGroups: { select: { id: true, name: true } },
+              submissions: {
+                where: { studentId: actualStudentId },
+                select: { id: true, status: true, scoreObtained: true },
+              },
+              _count: { select: { questions: true } },
+            },
+            orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+            take: 10,
+          })
+        : [],
+
+      // Latest homework assignment
+      groupId
+        ? this.prisma.assessment.findFirst({
+            where: {
+              isPublished: true,
+              type: 'ASSIGNMENT',
+              courseId: null,
+              lessonId: null,
+              OR: [{ groupId }, { targetGroups: { some: { id: groupId } } }],
+            },
+            include: {
+              group: { select: { id: true, name: true } },
+              submissions: {
+                where: { studentId: actualStudentId },
+                orderBy: { attemptNumber: 'desc' },
+                take: 1,
+                select: { status: true, scoreObtained: true, submittedAt: true },
+              },
+              _count: { select: { questions: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null,
+    ]);
+
+    // Attendance calculation
+    const attendanceRatePercentage =
+      totalAttendance > 0 ? Math.round((attendedCount / totalAttendance) * 100) : 100;
+
+    // Course progress calculation
+    const courseSummaries = await Promise.all(
+      courseEnrollments.map(async (ce) => {
+        const totalLessons = ce.course.modules?.flatMap((m) => m.lessons).length || 0;
+        const completedLessons = await this.prisma.courseProgress.count({
+          where: {
+            studentId: actualStudentId,
+            courseId: ce.courseId,
+            isCompleted: true,
+          },
+        });
+        const progressPercentage =
+          totalLessons > 0 ? Math.min(100, Math.round((completedLessons / totalLessons) * 100)) : 0;
+        return {
+          courseId: ce.courseId,
+          title: ce.course.title,
+          coverImageUrl: ce.course.coverImageUrl,
+          teacherName: ce.course.teacher?.user?.fullName || 'أستاذ أحمد غريب',
+          progressPercentage,
+          totalLessons,
+          completedLessons,
+          isCertificateEligible: progressPercentage >= 100,
+        };
+      }),
+    );
+
+    // Format next session
+    let nextSession: any = null;
+    if (upcomingSession) {
+      nextSession = {
+        id: upcomingSession.id,
+        topic: upcomingSession.topic,
+        sessionDate: upcomingSession.sessionDate,
+        startTime: upcomingSession.startTime,
+        endTime: upcomingSession.endTime,
+        location: upcomingSession.schedule?.location || 'مقر السنتر',
+        groupName: upcomingSession.group?.name || primaryGroup?.name,
+        schedule: upcomingSession.schedule,
+      };
+    }
+
+    // Filter upcoming exams (not expired)
+    const nowMs = Date.now();
+    const upcomingExams = (rawExams || [])
+      .filter((e) => {
+        if (!e.dueDate) return true;
+        return new Date(e.dueDate).getTime() >= nowMs;
+      })
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        totalScore: Number(e.totalScore || 0),
+        dueDate: e.dueDate,
+        group: e.group || e.targetGroups?.[0] || null,
+        targetGroups: e.targetGroups,
+        _count: { submissions: e.submissions?.length || 0 },
+        submissions: e.submissions,
+      }));
+
+    // Format latest homework
+    let latestHomework: any = null;
+    if (latestAssignment) {
+      const sub = latestAssignment.submissions?.[0] || null;
+      latestHomework = {
+        assessmentId: latestAssignment.id,
+        id: latestAssignment.id,
+        title: latestAssignment.title,
+        description: latestAssignment.description,
+        dueDate: latestAssignment.dueDate,
+        totalScore: Number(latestAssignment.totalScore || 0),
+        questionsCount: latestAssignment._count?.questions || 0,
+        groupName: latestAssignment.group?.name || primaryGroup?.name || 'المجموعة الدراسية',
+        sessionDate: latestAssignment.createdAt,
+        topic: latestAssignment.title,
+        submission: sub
+          ? {
+              status: sub.status,
+              scoreObtained: sub.scoreObtained != null ? Number(sub.scoreObtained) : null,
+              submittedAt: sub.submittedAt,
+            }
+          : null,
+      };
+    }
+
+    const payload = {
+      student: {
+        id: student.id,
+        studentCode: student.studentCode,
+        fullName: student.user.fullName,
+        phone: student.user.phone,
+        email: student.user.email,
+        gradeLevel: student.gradeLevel,
+        academicStage: student.academicStage,
+        attendanceMode: student.attendanceMode,
+        groupEnrollments: student.groupEnrollments.map((ge) => ({
+          id: ge.id,
+          status: ge.status,
+          group: {
+            id: ge.group.id,
+            name: ge.group.name,
+            gradeLevel: ge.group.gradeLevel,
+            academicStage: ge.group.academicStage,
+            monthlyFee: Number(ge.group.monthlyFee || 0),
+            schedules: ge.group.schedules,
+          },
+        })),
+      },
+      kpis: {
+        onlineCoursesCount: courseSummaries.length,
+        upcomingExamsCount: upcomingExams.length,
+        attendanceRatePercentage,
+        totalAttendanceSessions: totalAttendance,
+        presentAttendanceSessions: attendedCount,
+        currentMonthBilling: {
+          periodYear: currentYear,
+          periodMonth: currentMonth,
+          isPaid: currentMonthPayment?.paymentStatus === PaymentStatus.PAID,
+          amountPaid: Number(currentMonthPayment?.amountPaid || 0),
+          status: currentMonthPayment?.paymentStatus || PaymentStatus.PENDING,
+        },
+      },
+      nextSession,
+      enrolledCourses: courseSummaries,
+      recentExams: upcomingExams,
+      latestHomework,
+    };
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, payload, 300);
+    }
+
+    return payload;
+  }
+
+  async invalidateStudentDashboardCache(studentId: string) {
+    if (this.redisCache) {
+      await this.redisCache.del(`student:dashboard:${studentId}`);
+      await this.redisCache.delPattern(`parent:overview:*`);
+    }
   }
 
   /**

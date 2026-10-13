@@ -32,6 +32,10 @@ describe('ParentPortalService', () => {
     },
     studentPaymentRecord: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
+    },
+    assessment: {
+      findMany: jest.fn(),
     },
   };
 
@@ -101,6 +105,8 @@ describe('ParentPortalService', () => {
       });
 
       mockPrismaService.attendanceRecord.findMany.mockResolvedValue([]);
+      mockPrismaService.studentPaymentRecord.findMany.mockResolvedValue([]);
+      mockPrismaService.assessment.findMany.mockResolvedValue([]);
 
       const result = await service.getStudentOverview(parentId, studentId);
 

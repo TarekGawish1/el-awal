@@ -9,3 +9,13 @@ export function useLinkedStudents() {
     queryFn: () => apiClient<LinkedStudentRecord[]>(API_ENDPOINTS.PARENT_PORTAL.LINKED_STUDENTS),
   });
 }
+
+export function useChildOverview(studentId: string) {
+  return useQuery({
+    queryKey: ['parent-portal', 'student-overview', studentId],
+    enabled: !!studentId,
+    queryFn: () => apiClient<any>(API_ENDPOINTS.PARENT_PORTAL.CHILD_OVERVIEW(studentId)),
+    staleTime: 60_000,
+  });
+}
+
