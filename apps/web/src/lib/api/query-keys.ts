@@ -46,6 +46,7 @@ export const QUERY_KEYS = {
   public: {
     centers: () => ['public', 'centers'] as const,
     testimonials: () => ['public', 'testimonials'] as const,
+    certificates: () => ['public', 'certificates'] as const,
     catalog: (filters?: any) =>
       filters !== undefined
         ? (['public', 'catalog', filters] as const)

@@ -96,3 +96,26 @@ export function useSiteSettings() {
     refetchOnWindowFocus: false,
   });
 }
+
+/**
+ * Hook to fetch public student certificates with client-side caching
+ * GET /certificates/public
+ */
+export function usePublicCertificates() {
+  return useQuery<any[]>({
+    queryKey: QUERY_KEYS.public.certificates(),
+    queryFn: async () => {
+      try {
+        const res = await apiClient<any>(API_ENDPOINTS.CERTIFICATES.PUBLIC);
+        return res?.data || (Array.isArray(res) ? res : []);
+      } catch (err) {
+        console.warn('Failed to fetch public certificates:', err);
+        return [];
+      }
+    },
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 60 * 60 * 1000,    // 60 minutes
+    refetchOnWindowFocus: false,
+  });
+}
+

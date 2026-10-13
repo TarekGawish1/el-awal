@@ -28,6 +28,7 @@ import {
   usePublicTestimonials,
   usePublicCatalog,
   useSiteSettings,
+  usePublicCertificates,
 } from "@/hooks/usePublicContent";
 import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 import { CookieConsentSettingsTrigger } from "@/components/analytics/CookieConsentBanner";
@@ -2122,6 +2123,7 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
 function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
   const { data: siteSettings } = useSiteSettings();
+  const { data: publicCerts = [] } = usePublicCertificates();
 
   // Owner control: academic years allowed on the landing page (null = all).
   // Managed from the teacher dashboard (سنوات الظهور على الموقع), cached via TanStack Query.
@@ -2267,15 +2269,17 @@ function CertificatesSection() {
         }
 
         // 3. Fetch all certificates from backend (which now includes the synced ones)
-        let apiCerts = [];
-        try {
-          const res = await fetch(`${baseUrl}/certificates/public`);
-          if (res.ok) {
-            const json = await res.json();
-            apiCerts = json?.data || json || [];
+        let apiCerts = Array.isArray(publicCerts) && publicCerts.length > 0 ? publicCerts : [];
+        if (apiCerts.length === 0) {
+          try {
+            const res = await fetch(`${baseUrl}/certificates/public`);
+            if (res.ok) {
+              const json = await res.json();
+              apiCerts = json?.data || json || [];
+            }
+          } catch (apiError) {
+            console.warn("Could not fetch API certificates", apiError);
           }
-        } catch (apiError) {
-          console.warn("Could not fetch API certificates", apiError);
         }
 
         // Ensure arrays
@@ -2368,7 +2372,7 @@ function CertificatesSection() {
     };
 
     syncAndFetchCertificates();
-  }, []);
+  }, [publicCerts]);
 
   return (
     <section

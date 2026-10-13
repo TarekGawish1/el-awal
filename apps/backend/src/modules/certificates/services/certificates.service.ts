@@ -80,7 +80,7 @@ export class CertificatesService {
     });
 
     if (this.redisCache) {
-      await this.redisCache.set(cacheKey, certificates, 600);
+      await this.redisCache.set(cacheKey, certificates, 86400);
     }
 
     return certificates;
