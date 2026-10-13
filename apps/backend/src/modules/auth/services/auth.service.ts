@@ -642,24 +642,34 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh session');
     }
 
-    // Grace period for rotated refresh tokens (60 seconds)
-    // Prevents concurrent requests or retries from falsely triggering reuse detection panic
-    const GRACE_PERIOD_MS = 60 * 1000;
-    const isWithinGracePeriod =
-      existingSession.revokedAt &&
-      Date.now() - existingSession.revokedAt.getTime() < GRACE_PERIOD_MS;
-
     if (existingSession.revokedAt) {
-      if (isWithinGracePeriod && existingSession.replacedById) {
-        this.logger.log(
-          `Concurrent refresh token request received within grace period for user ${existingSession.userId}. Issuing refreshed tokens without revoking session family.`,
-        );
+      // If this session was previously rotated (replaced), resolve the active replacement chain
+      if (existingSession.replacedById) {
+        let currentReplacementId: string | null = existingSession.replacedById;
+        let activeReplacement = null;
+        let hops = 0;
 
-        const replacement = await this.prisma.refreshTokenSession.findUnique({
-          where: { id: existingSession.replacedById },
-        });
+        while (currentReplacementId && hops < 5) {
+          const replacement = await this.prisma.refreshTokenSession.findUnique({
+            where: { id: currentReplacementId },
+          });
 
-        if (replacement && !replacement.revokedAt && replacement.expiresAt > new Date()) {
+          if (!replacement) break;
+
+          if (!replacement.revokedAt && replacement.expiresAt > new Date()) {
+            activeReplacement = replacement;
+            break;
+          }
+
+          currentReplacementId = replacement.replacedById;
+          hops++;
+        }
+
+        if (activeReplacement) {
+          this.logger.log(
+            `Client presented previously rotated session for user ${existingSession.userId}; safely healed to active replacement session ${activeReplacement.id}`,
+          );
+
           const user = await this.prisma.user.findUnique({
             where: { id: decoded.sub },
           });
@@ -689,15 +699,12 @@ export class AuthService {
         }
       }
 
-      // True reuse attack detected outside grace period: Revoke all active sessions for this user!
-      this.logger.error(
-        `Suspicious refresh token reuse detected for user ${existingSession.userId} outside grace period. Revoking all sessions.`,
+      // If the session was revoked without an active replacement, reject only this request.
+      // NEVER wipe other active devices/sessions for this user.
+      this.logger.warn(
+        `Revoked refresh token presented for user ${existingSession.userId}. Rejecting single request without wiping active devices.`,
       );
-      await this.prisma.refreshTokenSession.updateMany({
-        where: { userId: existingSession.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      throw new UnauthorizedException('Refresh token was revoked or reused');
+      throw new UnauthorizedException('Refresh token was revoked or expired');
     }
 
     if (existingSession.expiresAt < new Date()) {
