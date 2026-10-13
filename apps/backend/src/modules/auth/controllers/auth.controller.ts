@@ -25,13 +25,15 @@ export class AuthController {
    * Sets the long-lived refresh token in an HttpOnly, Secure cookie.
    * Uses sameSite: 'none' in production to allow cross-site requests (al-awal.online -> herokuapp.com).
    * Sets domain: '.al-awal.online' when accessed via the platform domain to ensure session sharing across subdomains.
+   * Adds partitioned: true (CHIPS) to comply with modern Chrome, Brave, and Safari partitioned cookie requirements.
    */
   private setRefreshTokenCookie(res: any, refreshToken: string, req?: any) {
     if (!res) return;
     const isProd = process.env.NODE_ENV === 'production';
     const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-    const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host || '';
-    const isAlAwalHost = typeof host === 'string' && host.includes('al-awal.online');
+    const host = (req?.headers?.['x-forwarded-host'] || req?.headers?.host || req?.hostname || '').toString();
+    const origin = (req?.headers?.origin || req?.headers?.referer || '').toString();
+    const isAlAwalHost = host.includes('al-awal.online') || origin.includes('al-awal.online');
 
     const cookieOptions: any = {
       httpOnly: true,
@@ -39,6 +41,7 @@ export class AuthController {
       sameSite: isProd ? ('none' as const) : ('lax' as const),
       path: '/',
       maxAge,
+      partitioned: isProd,
     };
 
     if (isProd && isAlAwalHost) {
@@ -60,14 +63,16 @@ export class AuthController {
   private clearRefreshTokenCookie(res: any, req?: any) {
     if (!res) return;
     const isProd = process.env.NODE_ENV === 'production';
-    const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host || '';
-    const isAlAwalHost = typeof host === 'string' && host.includes('al-awal.online');
+    const host = (req?.headers?.['x-forwarded-host'] || req?.headers?.host || req?.hostname || '').toString();
+    const origin = (req?.headers?.origin || req?.headers?.referer || '').toString();
+    const isAlAwalHost = host.includes('al-awal.online') || origin.includes('al-awal.online');
 
     const clearOptions: any = {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? ('none' as const) : ('lax' as const),
       path: '/',
+      partitioned: isProd,
     };
 
     if (isProd && isAlAwalHost) {

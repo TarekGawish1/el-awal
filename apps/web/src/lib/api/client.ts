@@ -34,53 +34,71 @@ async function executeRefreshToken(): Promise<string | null> {
     return null;
   }
 
-  try {
-    const refreshUrl = `${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`;
-    // Always include credentials so the browser passes the HttpOnly 'refreshToken' cookie
-    const response = await fetch(refreshUrl, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(currentRefreshToken ? { refreshToken: currentRefreshToken } : {}),
-    });
+  const isBrowser = typeof window !== 'undefined';
+  // Strategy: In browser environments, try same-origin '/api/v1/auth/refresh' first
+  // to avoid cross-origin cookie stripping by Brave Shields, Safari ITP, and Chrome 3PCD.
+  const refreshUrls = isBrowser
+    ? ['/api/v1/auth/refresh', `${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`]
+    : [`${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`];
 
-    if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      const isJson = contentType.includes('application/json');
-      // Only treat 401/403 as explicit auth rejections if it came from the API (JSON response),
-      // preventing network-level HTML errors (Cloudflare/CDN challenges or HTML 403s) from wiping sessions.
-      if (response.status === 401 || (response.status === 403 && isJson)) {
-        handleAuthFailure(true);
+  for (let i = 0; i < refreshUrls.length; i++) {
+    const refreshUrl = refreshUrls[i];
+    const isLastAttempt = i === refreshUrls.length - 1;
+
+    try {
+      // Always include credentials so the browser passes the HttpOnly 'refreshToken' cookie
+      const response = await fetch(refreshUrl, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(currentRefreshToken ? { refreshToken: currentRefreshToken } : {}),
+      });
+
+      if (!response.ok) {
+        // If not the final candidate URL, continue to the fallback endpoint
+        if (!isLastAttempt) {
+          continue;
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
+        // Only treat 401/403 as explicit auth rejections if all candidates failed with API JSON error
+        if (response.status === 401 || (response.status === 403 && isJson)) {
+          handleAuthFailure(true);
+        }
+        return null;
       }
+
+      const data = await response.json();
+      const tokens = (data && data.data ? data.data : data) as { accessToken: string; refreshToken?: string };
+
+      if (tokens?.accessToken) {
+        updateStoredTokens({
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        });
+
+        // Synchronize in-memory auth store (RAM)
+        useAuthStore.getState().updateTokens({
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken || '',
+        });
+
+        return tokens.accessToken;
+      }
+    } catch (error) {
+      if (!isLastAttempt) {
+        continue;
+      }
+      console.warn('Silent token refresh network error:', error);
       return null;
     }
-
-    const data = await response.json();
-    const tokens = (data && data.data ? data.data : data) as { accessToken: string; refreshToken?: string };
-
-    if (tokens?.accessToken) {
-      updateStoredTokens({
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-
-      // Synchronize in-memory auth store (RAM)
-      useAuthStore.getState().updateTokens({
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken || '',
-      });
-
-      return tokens.accessToken;
-    }
-
-    return null;
-  } catch (error) {
-    console.warn('Silent token refresh network error:', error);
-    return null;
   }
+
+  return null;
 }
 
 async function getRefreshedAccessToken(): Promise<string | null> {
@@ -148,8 +166,23 @@ function handleAuthFailure(isExplicitRejection: boolean = false): void {
  */
 export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, token, headers, _isRetry = false, skipAuthRefresh = false, ...customConfig } = options;
+  const isBrowser = typeof window !== 'undefined';
+  const isProductionPlatform = isBrowser && window.location.hostname.includes('al-awal.online');
+  const isAuthEndpoint =
+    endpoint.includes(API_ENDPOINTS.AUTH.LOGIN) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.PARENT_ACCESS) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.STUDENT_REGISTRATION_REGISTER) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.REFRESH) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.LOGOUT);
 
-  let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  // In production browser, prioritize same-origin /api/v1/auth/* to guarantee first-party cookies
+  const shouldUseSameOriginAuth = isProductionPlatform && isAuthEndpoint && !endpoint.startsWith('http');
+
+  let url = endpoint.startsWith('http')
+    ? endpoint
+    : shouldUseSameOriginAuth
+      ? `/api/v1${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+      : `${API_BASE_URL}${endpoint}`;
 
   if (params) {
     const searchParams = new URLSearchParams();
@@ -164,13 +197,7 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     }
   }
 
-  const isInternalApi = !endpoint.startsWith('http') || endpoint.startsWith(API_BASE_URL);
-  const isAuthEndpoint =
-    endpoint.includes(API_ENDPOINTS.AUTH.LOGIN) ||
-    endpoint.includes(API_ENDPOINTS.AUTH.PARENT_ACCESS) ||
-    endpoint.includes(API_ENDPOINTS.AUTH.STUDENT_REGISTRATION_REGISTER) ||
-    endpoint.includes(API_ENDPOINTS.AUTH.REFRESH) ||
-    endpoint.includes(API_ENDPOINTS.AUTH.LOGOUT);
+  const isInternalApi = !endpoint.startsWith('http') || endpoint.startsWith(API_BASE_URL) || shouldUseSameOriginAuth;
 
   const defaultHeaders: Record<string, string> = {
     Accept: 'application/json',
@@ -255,6 +282,13 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     const json = isJson ? await response.json().catch(() => null) : null;
 
     if (!response.ok) {
+      if (shouldUseSameOriginAuth && (response.status >= 500 || response.status === 404)) {
+        return apiClient<T>(`${API_BASE_URL}${endpoint}`, {
+          ...options,
+          skipAuthRefresh: true,
+        });
+      }
+
       const problem = (json || {}) as ProblemDetailsError;
       throw new ApiError({
         statusCode: response.status,
@@ -280,6 +314,17 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
+    }
+
+    if (shouldUseSameOriginAuth && !endpoint.startsWith('http')) {
+      try {
+        return await apiClient<T>(`${API_BASE_URL}${endpoint}`, {
+          ...options,
+          skipAuthRefresh: true,
+        });
+      } catch (fallbackError) {
+        if (fallbackError instanceof ApiError) throw fallbackError;
+      }
     }
 
     // Network / Offline Error

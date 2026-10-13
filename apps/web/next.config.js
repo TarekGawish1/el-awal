@@ -37,18 +37,19 @@ const nextConfig = {
   async rewrites() {
     const rawBackendUrl =
       process.env.BACKEND_INTERNAL_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      'https://api.al-awal.online/api/v1';
+      (process.env.NODE_ENV === 'production'
+        ? 'https://al-awal-cbe2188d9efa.herokuapp.com/api/v1'
+        : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1');
 
     let backendUrl = rawBackendUrl.replace(/\/$/, '');
-    // Guard against localhost and self-referential rewrites (missing 'api.' subdomain prefix)
+    // Guard against localhost and self-referential rewrites
     if (
       backendUrl.includes('localhost:3000') ||
       backendUrl === 'https://al-awal.online/api/v1' ||
       backendUrl === 'https://al-awal.online' ||
       !backendUrl.startsWith('http')
     ) {
-      backendUrl = 'https://api.al-awal.online/api/v1';
+      backendUrl = 'https://al-awal-cbe2188d9efa.herokuapp.com/api/v1';
     }
 
     return [
