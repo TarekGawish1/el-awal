@@ -1,2 +1,2 @@
-release: npm run prisma:db:push
-web: npm run start:prod --workspace=@el-awal/backend
+release: bun run prisma:db:push
+web: bun --filter @el-awal/backend start:prod

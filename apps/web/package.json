@@ -6,15 +6,12 @@
     "dev": "next dev",
     "dev:https": "next dev --experimental-https",
     "build": "next build",
-    "heroku-postbuild": "npm run build",
+    "heroku-postbuild": "bun run build",
     "start": "next start -p $PORT",
     "lint": "next lint",
     "test": "vitest run"
   },
-  "engines": {
-    "node": "24.x"
-  },
-  "packageManager": "pnpm@10.18.3",
+  "packageManager": "bun@1.4.2",
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@microsoft/clarity": "^1.0.2",

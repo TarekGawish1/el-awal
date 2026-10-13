@@ -5,9 +5,10 @@
   "workspaces": [
     "apps/*"
   ],
+  "packageManager": "bun@1.4.2",
   "scripts": {
     "dev": "bun run dev:web",
-    "dev:all": "node -e \"const { spawn } = require('child_process'); const p1 = spawn('bun', ['run', 'dev:backend'], { stdio: 'inherit', shell: true }); const p2 = spawn('bun', ['run', 'dev:web'], { stdio: 'inherit', shell: true }); process.on('SIGINT', () => { p1.kill(); p2.kill(); process.exit(); });\"",
+    "dev:all": "bun -e \"const { spawn } = require('child_process'); const p1 = spawn('bun', ['run', 'dev:backend'], { stdio: 'inherit', shell: true }); const p2 = spawn('bun', ['run', 'dev:web'], { stdio: 'inherit', shell: true }); process.on('SIGINT', () => { p1.kill(); p2.kill(); process.exit(); });\"",
     "dev:web": "bun --filter @el-awal/web dev",
     "dev:backend": "bun --filter @el-awal/backend dev",
     "dev:platform": "bun --filter @el-awal/platform dev",
