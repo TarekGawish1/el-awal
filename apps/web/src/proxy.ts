@@ -12,7 +12,7 @@ import type { NextRequest } from 'next/server';
  * 2. Unaliased www subdomain (www.al-awal.online)
  * 3. Insecure HTTP requests (forwarded via Heroku / Cloudflare)
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
   const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '');
 
