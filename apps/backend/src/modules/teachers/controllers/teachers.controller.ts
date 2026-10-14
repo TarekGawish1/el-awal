@@ -5,6 +5,7 @@ import { StudentsService } from '../../students/services/students.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
 import { UpdateAcademicPeriodDto } from '../dto/update-academic-period.dto';
 import { UpdateTeacherProfileDto } from '../dto/update-teacher-profile.dto';
+import { ChangeTeacherPasswordDto } from '../dto/change-teacher-password.dto';
 import { ResetStudentPasswordDto } from '../../students/dto/reset-student-password.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
@@ -69,6 +70,17 @@ export class TeachersController {
   ) {
     const teacherId = user.teacherProfileId || user.id;
     return this.teachersService.updateTeacherProfile(teacherId, dto);
+  }
+
+  @Put('change-password')
+  @Roles(UserRole.TEACHER)
+  @ApiOperation({ summary: 'Change authenticated teacher login password' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  async changePassword(
+    @Body() dto: ChangeTeacherPasswordDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.teachersService.changeTeacherPassword(user.id, dto);
   }
 
   @Get('academic-period')

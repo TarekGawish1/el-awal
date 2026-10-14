@@ -5,6 +5,8 @@ import { AttendanceStatus, GroupEnrollmentStatus, SubmissionStatus, CourseEnroll
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
 import { RedisCacheService } from '../../../core/cache/redis-cache.service';
+import { ChangeTeacherPasswordDto } from '../dto/change-teacher-password.dto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class TeachersService {
@@ -724,5 +726,42 @@ export class TeachersService {
 
     this.logger.log(`Teacher profile updated for user [${targetId}]`);
     return updated;
+  }
+
+  async changeTeacherPassword(
+    userId: string,
+    dto: ChangeTeacherPasswordDto,
+  ): Promise<{ success: boolean; message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true, role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('حساب المستخدم غير موجود');
+    }
+
+    const isMatch = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!isMatch) {
+      throw new BadRequestException('كلمة المرور الحالية غير صحيحة');
+    }
+
+    const isSame = await bcrypt.compare(dto.newPassword, user.passwordHash);
+    if (isSame) {
+      throw new BadRequestException('كلمة المرور الجديدة لا يمكن أن تكون مطابقة لكلمة المرور الحالية');
+    }
+
+    const newPasswordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    this.logger.log(`Password successfully updated for teacher [${userId}]`);
+
+    return {
+      success: true,
+      message: 'تم تغيير كلمة المرور بنجاح',
+    };
   }
 }

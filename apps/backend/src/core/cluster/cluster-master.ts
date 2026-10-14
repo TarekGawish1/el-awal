@@ -177,6 +177,18 @@ function handleWorkerMessage(senderWorkerId: string, msg: any): void {
       break;
     }
 
+    case 'WORKER_HEARTBEAT': {
+      if (msg.memory && typeof msg.memory === 'object') {
+        state.workerMetrics.set(senderWorkerId, {
+          rss: Number(msg.memory.rss) || 0,
+          heapUsed: Number(msg.memory.heapUsed) || 0,
+          heapTotal: Number(msg.memory.heapTotal) || 0,
+          updatedAt: Date.now(),
+        });
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -188,6 +200,7 @@ function handleWorkerMessage(senderWorkerId: string, msg: any): void {
 function scaleDownWorker2(): void {
   state.examModeActive = false;
   state.examModeExpiresAt = null;
+  state.workerMetrics.delete('2');
   if (state.examModeTimer) {
     clearTimeout(state.examModeTimer);
     state.examModeTimer = null;
@@ -202,6 +215,7 @@ function scaleDownWorker2(): void {
 
   logger.log(`🛑 [ClusterMaster] Disconnecting Worker 2 (PID: ${worker2.process.pid})...`);
   state.workers.delete('2');
+  state.workerMetrics.delete('2');
   worker2.disconnect();
 
   const forceKillTimeout = setTimeout(() => {
@@ -234,13 +248,27 @@ function broadcastClusterState(): void {
 }
 
 /**
- * Returns current summary of the cluster.
+ * Returns current summary of the cluster with total aggregated memory.
  */
 function getClusterStateSummary() {
   const workerList: Array<{ id: string; pid: number }> = [];
   for (const [id, w] of state.workers.entries()) {
     if (w.process?.pid) {
       workerList.push({ id, pid: w.process.pid });
+    }
+  }
+
+  // Calculate aggregated cluster memory across Master and all alive Workers
+  let totalRss = process.memoryUsage().rss;
+  let totalHeapUsed = process.memoryUsage().heapUsed;
+  let totalHeapTotal = process.memoryUsage().heapTotal;
+
+  const now = Date.now();
+  for (const [id, metrics] of state.workerMetrics.entries()) {
+    if (state.workers.has(id) && now - metrics.updatedAt < 15000) {
+      totalRss += metrics.rss;
+      totalHeapUsed += metrics.heapUsed;
+      totalHeapTotal += metrics.heapTotal;
     }
   }
 
@@ -251,6 +279,11 @@ function getClusterStateSummary() {
     workers: workerList,
     examModeActive: state.examModeActive,
     examModeExpiresAt: state.examModeExpiresAt,
+    clusterMemory: {
+      rssMb: Math.round(totalRss / 1024 / 1024),
+      heapUsedMb: Math.round(totalHeapUsed / 1024 / 1024),
+      heapTotalMb: Math.round(totalHeapTotal / 1024 / 1024),
+    },
     timestamp: new Date().toISOString(),
   };
 }

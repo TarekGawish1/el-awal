@@ -25,6 +25,11 @@ export interface UpdateTeacherProfilePayload {
   phone?: string;
 }
 
+export interface ChangeTeacherPasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export async function fetchTeacherProfile(): Promise<TeacherProfileResponse> {
   return apiClient<TeacherProfileResponse>(API_ENDPOINTS.TEACHER.PROFILE);
 }
@@ -33,6 +38,15 @@ export async function updateTeacherProfileInDb(
   payload: UpdateTeacherProfilePayload,
 ): Promise<TeacherProfileResponse> {
   return apiClient<TeacherProfileResponse>(API_ENDPOINTS.TEACHER.PROFILE, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function changeTeacherPasswordInDb(
+  payload: ChangeTeacherPasswordPayload,
+): Promise<{ success: boolean; message: string }> {
+  return apiClient<{ success: boolean; message: string }>(API_ENDPOINTS.TEACHER.CHANGE_PASSWORD, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
@@ -65,6 +79,10 @@ export function useTeacherProfile() {
     },
   });
 
+  const changePasswordMutation = useMutation({
+    mutationFn: changeTeacherPasswordInDb,
+  });
+
   return {
     profile: profileQuery.data,
     isLoading: profileQuery.isLoading,
@@ -74,5 +92,9 @@ export function useTeacherProfile() {
     isUpdating: updateMutation.isPending,
     updateError: updateMutation.error,
     resetUpdateError: updateMutation.reset,
+    changePassword: changePasswordMutation.mutateAsync,
+    isChangingPassword: changePasswordMutation.isPending,
+    changePasswordError: changePasswordMutation.error,
+    resetChangePasswordError: changePasswordMutation.reset,
   };
 }

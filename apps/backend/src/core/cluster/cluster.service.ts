@@ -10,6 +10,16 @@ export interface ClusterStatus {
   examModeActive: boolean;
   examModeExpiresAt: string | null;
   currentRps: number;
+  memoryUsage?: {
+    heapUsedMb: number;
+    heapTotalMb: number;
+    rssMb: number;
+  };
+  clusterMemory?: {
+    heapUsedMb: number;
+    heapTotalMb: number;
+    rssMb: number;
+  };
   autoScaler: {
     enabled: boolean;
     surgeThresholdRps: number;
@@ -93,6 +103,19 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
 
     const sum = this.recentRpsHistory.reduce((acc, val) => acc + val, 0);
     this.currentRps = Math.round(sum / this.recentRpsHistory.length);
+
+    // Send heartbeat with worker's current memory to Master
+    if (this.isClustered() && typeof process.send === 'function') {
+      const mem = process.memoryUsage();
+      process.send({
+        action: 'WORKER_HEARTBEAT',
+        memory: {
+          rss: mem.rss,
+          heapUsed: mem.heapUsed,
+          heapTotal: mem.heapTotal,
+        },
+      });
+    }
 
     // Only Primary Worker 1 manages auto-scaling decisions to avoid IPC race conditions
     if (!this.isPrimaryWorker() || !this.isClustered()) {
@@ -227,6 +250,12 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
    * Returns current cluster status, live RPS, and memory usage.
    */
   async getStatus(): Promise<ClusterStatus> {
+    const memory = (this.cachedClusterState as any).clusterMemory || {
+      heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      heapTotalMb: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    };
+
     return {
       mode: this.isClustered() ? 'clustered' : 'standalone',
       primaryPid: this.cachedClusterState.primaryPid || process.pid,
@@ -237,6 +266,7 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
       examModeActive: Boolean(this.cachedClusterState.examModeActive),
       examModeExpiresAt: this.cachedClusterState.examModeExpiresAt || null,
       currentRps: this.getCurrentRps(),
+      memoryUsage: memory,
       autoScaler: {
         enabled: true,
         surgeThresholdRps: 25,

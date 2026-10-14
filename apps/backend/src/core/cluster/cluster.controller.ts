@@ -28,17 +28,9 @@ export class ClusterController {
   @ApiResponse({ status: 200, description: 'Cluster status details' })
   async getStatus() {
     const status = await this.clusterService.getStatus();
-    const memory = process.memoryUsage();
     return {
       success: true,
-      data: {
-        ...status,
-        memoryUsage: {
-          heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
-          heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
-          rssMb: Math.round(memory.rss / 1024 / 1024),
-        },
-      },
+      data: status,
     };
   }
 
