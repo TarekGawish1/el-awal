@@ -5,7 +5,7 @@
     "email": "teacher@elawal.com",
     "phone": "+201021902000",
     "name": "أ. أحمد غريب",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxOTE5ODQ1LCJleHAiOjE3OTE5MjA3NDV9.7IrnrVSUrndR-FUGWFrO0y2N7nkNGCtShrgoQNlN6lE"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxOTQ4NDA4LCJleHAiOjE3OTE5NDkzMDh9.jLiBxmuekbcI0t4PL7nJynr0vMmjVbJQrwIWlrSFiow"
   },
   "students": [
     {
@@ -13,7 +13,7 @@
       "studentProfileId": "dcc233e2-8cdc-417d-bbac-534905630a29",
       "name": "احمد طارق عمر جاويش",
       "studentCode": "STU202600061",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkY2MyMzNlMi04Y2RjLTQxN2QtYmJhYy01MzQ5MDU2MzBhMjkiLCJwaG9uZSI6IjAxMDY3Nzg5NTc0Iiwicm9sZSI6IlNUVURFTlQiLCJ0eXAiOiJhY2Nlc3MiLCJpYXQiOjE3OTE5MTk4NTEsImV4cCI6MTc5MTkyMDc1MX0.xTdwmEIi95T3Jd2CqPTqD7YVzkuxvAxDaCzJ9SQVjqg"
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkY2MyMzNlMi04Y2RjLTQxN2QtYmJhYy01MzQ5MDU2MzBhMjkiLCJwaG9uZSI6IjAxMDY3Nzg5NTc0Iiwicm9sZSI6IlNUVURFTlQiLCJ0eXAiOiJhY2Nlc3MiLCJpYXQiOjE3OTE5NDg0MTAsImV4cCI6MTc5MTk0OTMxMH0.uUe3FGfL6fI2L4XpErJGheXK4pSm06xfwxL4yncpqwA"
     }
   ],
   "parents": [
@@ -23,7 +23,7 @@
       "name": "طارق عمر جاويش",
       "phone": "+201016138448",
       "linkedStudentId": "dcc233e2-8cdc-417d-bbac-534905630a29",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjQxN2VjMC1jMzljLTQ1YzMtYmM2ZC0wY2EyNzc2OWIxZTQiLCJwaG9uZSI6IjAxMDE2MTM4NDQ4Iiwicm9sZSI6IlBBUkVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTkxOTg1MiwiZXhwIjoxNzkxOTIwNzUyfQ.YOAY9Uxzgl0u5LDn07VlXviMjxnRXDIVkUbzC_7kMPs"
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjQxN2VjMC1jMzljLTQ1YzMtYmM2ZC0wY2EyNzc2OWIxZTQiLCJwaG9uZSI6IjAxMDE2MTM4NDQ4Iiwicm9sZSI6IlBBUkVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTk0ODQxMSwiZXhwIjoxNzkxOTQ5MzExfQ.QY85vFOIE7BGNUhURVtUd48Rgc7nKtOp_y2-CnAL6zI"
     }
   ],
   "groups": [
@@ -96,47 +96,6 @@
     }
   ],
   "courses": [],
-  "assessments": [
-    {
-      "id": "f16e17ab-6ea7-4ff1-8aa9-ad0adf90f2ea",
-      "title": "اختبار دوري: تقييم مهارات مجموعة السبت و الثلاثاء (الساعة 4:00 م) - الصف الثاني الإعدادي",
-      "type": "EXAM",
-      "totalScore": 30,
-      "questions": [
-        {
-          "id": "e2779ef8-0585-41a0-b457-d84bdbbf8bf4",
-          "questionText": "أي من الكميات التالية تعتبر كمية فيزيائية متجهة؟"
-        },
-        {
-          "id": "3b30d463-6e89-460c-a2b8-5f68bb367907",
-          "questionText": "ضع علامة صح أو خطأ: السرعة اللحظية لجسم هي سرعته عند لحظة زمنية معينة."
-        },
-        {
-          "id": "9b1df8f6-0041-4fe4-a56a-96cb3ab3eafe",
-          "questionText": "مسألة رياضية مقالية: تحرك جسم من السكون بعجلة منتظمة مقدارها 2 م/ث² لمدة 5 ثوانٍ. احسب السرعة النهائية للجسم والمسافة المقطوعة مع كتابة خطوات الحل كاملة. (يمكنك كتابة خطوات الحل أو تصوير ورقة الإجابة ورفعها)"
-        }
-      ]
-    },
-    {
-      "id": "ccfc562b-2ece-4103-81b8-1cc035aabb14",
-      "title": "واجب: حصة - 2026-10-13",
-      "type": "ASSIGNMENT",
-      "totalScore": 20,
-      "questions": [
-        {
-          "id": "1a50b65c-b0a6-42bd-9db2-386284ca98dd",
-          "questionText": "اختر الإجابة الصحيحة: ما هي الوحدة الأساسية لقياس القوة في النظام الدولي للوحدات؟"
-        },
-        {
-          "id": "ecff49a2-4ab1-4cde-af30-143497a4a397",
-          "questionText": "ضع علامة صح أو خطأ: لكل فعل رد فعل مساوٍ له في المقدار ومضاد له في الاتجاه."
-        },
-        {
-          "id": "07ae9265-b3d7-4876-bebf-595f25d19894",
-          "questionText": "سؤال مقالي: اذكر نص القانون الأول لنيوتن (قانون القصور الذاتي)، مع ذكر مثال تطبيقي من الحياة اليومية. (يمكنك كتابة الإجابة أو تصوير حلك في الكشكول ورفع الصورة)"
-        }
-      ]
-    }
-  ],
-  "updatedAt": "2026-10-13T19:30:58.860Z"
+  "assessments": [],
+  "updatedAt": "2026-10-14T03:26:55.599Z"
 }
