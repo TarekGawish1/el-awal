@@ -245,6 +245,13 @@ enum WhatsAppStatus {
   @@map("whatsapp_status")
 }
 
+enum VerificationTokenType {
+  LOGIN_OTP
+  PASSWORD_RESET
+
+  @@map("verification_token_type")
+}
+
 // ==========================================
 // 2. USERS & IDENTITY DOMAIN
 // ==========================================
@@ -301,6 +308,21 @@ model RefreshTokenSession {
   @@index([userId, revokedAt, expiresAt], map: "idx_refresh_sessions_user_active")
   @@index([expiresAt], map: "idx_refresh_sessions_expiry")
   @@map("refresh_token_sessions")
+}
+
+model AuthVerificationToken {
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  identifier String                @map("identifier") @db.VarChar(100)
+  tokenHash  String                @map("token_hash") @db.VarChar(128)
+  tokenType  VerificationTokenType @map("token_type")
+  expiresAt  DateTime              @map("expires_at") @db.Timestamptz(6)
+  attempts   Int                   @default(0) @map("attempts")
+  usedAt     DateTime?             @map("used_at") @db.Timestamptz(6)
+  createdAt  DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([identifier, tokenType, usedAt, expiresAt], map: "idx_auth_verification_lookup")
+  @@index([tokenHash, tokenType], map: "idx_auth_verification_token")
+  @@map("auth_verification_tokens")
 }
 
 model TeacherProfile {

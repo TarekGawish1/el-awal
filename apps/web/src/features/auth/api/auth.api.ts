@@ -48,6 +48,54 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthToke
 }
 
 /**
+ * Requests a 6-digit WhatsApp OTP code for quick login via POST /api/v1/auth/otp/request
+ */
+export async function requestLoginOtp(phone: string): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
+  return apiClient<{ success: boolean; message: string; cooldownSeconds: number }>(API_ENDPOINTS.AUTH.OTP_REQUEST, {
+    method: 'POST',
+    body: JSON.stringify({ phone: phone.trim() }),
+  });
+}
+
+/**
+ * Verifies 6-digit WhatsApp OTP code and logs in user via POST /api/v1/auth/otp/verify
+ */
+export async function verifyLoginOtp(phone: string, code: string): Promise<AuthTokensResponse> {
+  const session = await apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.OTP_VERIFY, {
+    method: 'POST',
+    body: JSON.stringify({
+      phone: phone.trim(),
+      code: code.trim(),
+    }),
+  });
+
+  return session;
+}
+
+/**
+ * Requests a secure password reset link sent via WhatsApp via POST /api/v1/auth/password-reset/request
+ */
+export async function requestPasswordReset(phone: string): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
+  return apiClient<{ success: boolean; message: string; cooldownSeconds: number }>(API_ENDPOINTS.AUTH.PASSWORD_RESET_REQUEST, {
+    method: 'POST',
+    body: JSON.stringify({ phone: phone.trim() }),
+  });
+}
+
+/**
+ * Confirms password reset with cryptographic token and sets new password via POST /api/v1/auth/password-reset/confirm
+ */
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  return apiClient<{ success: boolean; message: string }>(API_ENDPOINTS.AUTH.PASSWORD_RESET_CONFIRM, {
+    method: 'POST',
+    body: JSON.stringify({
+      token: token.trim(),
+      newPassword: newPassword.trim(),
+    }),
+  });
+}
+
+/**
  * Authenticates the parent linked to an administration-registered student phone.
  */
 export async function parentAccessUser(credentials: ParentAccessCredentials): Promise<AuthTokensResponse> {

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { loginUser, logoutUser, fetchCurrentUser } from '../api/auth.api';
+import { loginUser, logoutUser, fetchCurrentUser, verifyLoginOtp, requestLoginOtp, requestPasswordReset, confirmPasswordReset } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 import { LoginCredentials, AuthTokensResponse, AuthUser } from '../types/auth.types';
 import { getRoleLandingRoute, sanitizeRedirectUrl, hasMultipleRoles } from '../utils/role-routing';
@@ -29,11 +29,15 @@ export function normalizeAuthErrorMessage(error: unknown): string {
       if (error.code === 'OFFLINE_NO_PREVIOUS_SESSION' || error.code === 'OFFLINE_INVALID_CREDENTIALS') {
         return error.message;
       }
-      return 'بيانات الدخول غير صحيحة أو الحساب غير مفعّل';
+      return error.message || 'بيانات الدخول غير صحيحة أو الحساب غير مفعّل';
     }
 
     if (error.statusCode === 403) {
       return 'الحساب غير مصرح له بتسجيل الدخول إلى النظام';
+    }
+
+    if (error.statusCode === 404) {
+      return error.message || 'رقم الهاتف غير مسجل بالنظام';
     }
 
     if (error.statusCode === 429) {
@@ -41,7 +45,7 @@ export function normalizeAuthErrorMessage(error: unknown): string {
     }
 
     if (error.statusCode >= 500) {
-      return 'حدث خطأ في خادم النظام، يرجى المحاولة مرة أخرى لاحقاً';
+      return error.message || 'حدث خطأ في خادم النظام، يرجى المحاولة مرة أخرى لاحقاً';
     }
 
     return error.message || 'تعذر تسجيل الدخول، يرجى المحاولة مرة أخرى';
@@ -104,47 +108,54 @@ export function useAuth() {
     refetchOnWindowFocus: false,
   });
 
+  const handleAuthSuccess = (data: AuthTokensResponse) => {
+    // 1. Persist session to store & storage
+    setSession(data);
+
+    // 2. Clear query cache to prevent stale user state
+    queryClient.clear();
+
+    // 3. Trigger background zero-cold-start bootstrap hydration if online
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      bootstrapManager.performBootstrap({ queryClient }).catch((err) => {
+        console.warn('Background bootstrap sync error:', err);
+      });
+    }
+
+    // 4. If user is a student or teacher, navigate directly to their dashboard
+    if (data.user.role === 'STUDENT') {
+      router.push('/student/dashboard');
+      return;
+    }
+    if (data.user.role === 'TEACHER') {
+      router.push('/teacher/dashboard');
+      return;
+    }
+
+    // If user has multiple profiles (assistant who is also parent), redirect to role selection screen
+    if (hasMultipleRoles(data.user)) {
+      router.push('/select-role');
+      return;
+    }
+
+    // 5. Determine redirect path (query param or role-based landing)
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const requestedRedirect = searchParams?.get('redirect');
+    const safeRedirect = sanitizeRedirectUrl(requestedRedirect, data.user.role);
+    const destination = safeRedirect || getRoleLandingRoute(data.user.role);
+
+    // 6. Navigate to destination
+    router.push(destination);
+  };
+
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => loginUser(credentials),
-    onSuccess: (data: AuthTokensResponse) => {
-      // 1. Persist session to store & storage
-      setSession(data);
+    onSuccess: (data: AuthTokensResponse) => handleAuthSuccess(data),
+  });
 
-      // 2. Clear query cache to prevent stale user state
-      queryClient.clear();
-
-      // 3. Trigger background zero-cold-start bootstrap hydration if online
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        bootstrapManager.performBootstrap({ queryClient }).catch((err) => {
-          console.warn('Background bootstrap sync error:', err);
-        });
-      }
-
-      // 4. If user is a student or teacher, navigate directly to their dashboard
-      if (data.user.role === 'STUDENT') {
-        router.push('/student/dashboard');
-        return;
-      }
-      if (data.user.role === 'TEACHER') {
-        router.push('/teacher/dashboard');
-        return;
-      }
-
-      // If user has multiple profiles (assistant who is also parent), redirect to role selection screen
-      if (hasMultipleRoles(data.user)) {
-        router.push('/select-role');
-        return;
-      }
-
-      // 5. Determine redirect path (query param or role-based landing)
-      const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      const requestedRedirect = searchParams?.get('redirect');
-      const safeRedirect = sanitizeRedirectUrl(requestedRedirect, data.user.role);
-      const destination = safeRedirect || getRoleLandingRoute(data.user.role);
-
-      // 6. Navigate to destination
-      router.push(destination);
-    },
+  const loginOtpMutation = useMutation({
+    mutationFn: ({ phone, code }: { phone: string; code: string }) => verifyLoginOtp(phone, code),
+    onSuccess: (data: AuthTokensResponse) => handleAuthSuccess(data),
   });
 
   const safeLogout = async () => {
@@ -211,6 +222,21 @@ export function useAuth() {
     error: loginMutation.error ? normalizeAuthErrorMessage(loginMutation.error) : null,
     rawError: loginMutation.error,
     resetError: loginMutation.reset,
+
+    // WhatsApp OTP Login
+    loginWithOtp: loginOtpMutation.mutate,
+    loginWithOtpAsync: loginOtpMutation.mutateAsync,
+    isOtpLoading: loginOtpMutation.isPending,
+    isOtpSuccess: loginOtpMutation.isSuccess,
+    isOtpError: loginOtpMutation.isError,
+    otpError: loginOtpMutation.error ? normalizeAuthErrorMessage(loginOtpMutation.error) : null,
+    resetOtpError: loginOtpMutation.reset,
+
+    // API Helpers
+    requestLoginOtp,
+    requestPasswordReset,
+    confirmPasswordReset,
+
     logout: safeLogout,
     LogoutConfirmation,
   };

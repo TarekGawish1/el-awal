@@ -601,3 +601,59 @@ export function formatAssistantCredentialsMessage(data: {
   return lines.join('\n');
 }
 
+/**
+ * Generates an anti-ban WhatsApp message with 6-digit OTP code for quick login.
+ */
+export function formatLoginOtpMessage(data: {
+  name?: string;
+  code: string;
+  expiresInMinutes?: number;
+}): string {
+  const greetings = [
+    'السلام عليكم ورحمة الله وبركاته،',
+    'أهلاً وسهلاً بك،',
+    'مرحباً بك،',
+    'تحية طيبة وبعد،',
+  ];
+  const greeting = pickRandom(greetings);
+  const sig = pickRandom(SIGNATURES);
+  const expiry = data.expiresInMinutes || 5;
+  const nameLine = data.name ? `عزيزنا/ *${data.name}*،\n` : '';
+
+  const bodies = [
+    `${nameLine}رمز التحقق لتسجيل الدخول السريع إلى حسابك هو:\n\n*${data.code}*\n\n⏱️ هذا الرمز صالح لمدة ${expiry} دقائق فقط للاستخدام لمرة واحدة.\n🔒 لأمان حسابك، لا تشارك هذا الرمز مع أي شخص.`,
+    `${nameLine}كود الدخول المباشر إلى منصة الأوّل التعليمية هو:\n\n*${data.code}*\n\n⏱️ ينتهي هذا الرمز خلال ${expiry} دقائق.\n🛡️ احرص على سرية هذا الرمز ولا تفصح عنه لأحد.`,
+    `${nameLine}طلب تسجيل الدخول عبر واتساب لمنصة الأوّل:\n\nرمز التحقق: *${data.code}*\n\n⏱️ صالح لمدة ${expiry} دقائق.\n⚠️ تنبيه أمني: لا تعطي هذا الرمز لأي طرف آخر.`,
+  ];
+
+  const body = pickRandom(bodies);
+  return `${greeting}\n\n${body}\n\n${sig}`;
+}
+
+/**
+ * Generates an anti-ban WhatsApp message with a secure password reset link.
+ */
+export function formatPasswordResetMessage(data: {
+  name?: string;
+  resetUrl: string;
+  expiresInMinutes?: number;
+}): string {
+  const greetings = [
+    'السلام عليكم ورحمة الله وبركاته،',
+    'أهلاً وسهلاً بك،',
+    'تحية طيبة وبعد،',
+  ];
+  const greeting = pickRandom(greetings);
+  const sig = pickRandom(SIGNATURES);
+  const expiry = data.expiresInMinutes || 15;
+  const nameLine = data.name ? `عزيزنا/ *${data.name}*،\n` : '';
+
+  const bodies = [
+    `${nameLine}تلقينا طلباً لإعادة تعيين كلمة المرور لحسابك في منصة الأوّل التعليمية.\n\n🔗 يمكنك تعيين كلمة المرور الجديدة عبر الرابط التالي:\n${data.resetUrl}\n\n⏱️ هذا الرابط صالح لمدة ${expiry} دقيقة فقط وللاستخدام لمرة واحدة.\n⚠️ إذا لم تقم بطلب تغيير كلمة المرور، يرجى تجاهل هذه الرسالة فلن يتغير أي شيء بحسابك.`,
+    `${nameLine}رابط استعادة وتعيين كلمة المرور الجديدة لحسابك:\n\n${data.resetUrl}\n\n⏱️ ينتهي مفعول هذا الرابط خلال ${expiry} دقيقة.\n🔒 حرصاً على أمانك، لا تشارك هذا الرابط مع أحد.\n(إذا لم تكن أنت صاحب هذا الطلب يمكنك تجاهل الرسالة بأمان)`,
+  ];
+
+  const body = pickRandom(bodies);
+  return `${greeting}\n\n${body}\n\n${sig}`;
+}
+

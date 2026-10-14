@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
 import { StudentRegistrationService } from '../services/student-registration.service';
+import { AuthVerificationService } from '../services/auth-verification.service';
 import { LoginDto } from '../dto/login.dto';
 import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
@@ -10,6 +11,8 @@ import { SwitchRoleDto } from '../dto/switch-role.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { RegisterStudentDto } from '../dto/student-registration.dto';
 import { RegisterByGroupDto } from '../dto/register-by-group.dto';
+import { RequestOtpDto, VerifyOtpDto } from '../dto/otp.dto';
+import { RequestPasswordResetDto, ConfirmPasswordResetDto } from '../dto/password-reset.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
@@ -19,6 +22,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly studentRegistrationService: StudentRegistrationService,
+    private readonly authVerificationService: AuthVerificationService,
   ) {}
 
   /**
@@ -101,6 +105,55 @@ export class AuthController {
       this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
     return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('otp/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a 6-digit WhatsApp OTP for passwordless login' })
+  @ApiResponse({ status: 200, description: 'OTP dispatched successfully via WhatsApp' })
+  async requestOtp(@Body() dto: RequestOtpDto) {
+    return this.authVerificationService.requestLoginOtp(dto.phone);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('otp/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify 6-digit WhatsApp OTP and authenticate user' })
+  @ApiResponse({ status: 200, description: 'Authenticated successfully, returns tokens and user object', type: AuthTokensResponseDto })
+  async verifyOtp(
+    @Body() dto: VerifyOtpDto,
+    @Res({ passthrough: true }) res: any,
+    @Req() req: any,
+  ): Promise<AuthTokensResponseDto> {
+    const user = await this.authVerificationService.verifyLoginOtp(dto.phone, dto.code);
+    const result = await this.authService.issueTokens(user as any);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken, req);
+    }
+    return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a secure password reset link dispatched via WhatsApp' })
+  @ApiResponse({ status: 200, description: 'Password reset link dispatched via WhatsApp' })
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.authVerificationService.requestPasswordReset(dto.phone);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('password-reset/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm password reset with cryptographic token and update password' })
+  @ApiResponse({ status: 200, description: 'Password updated successfully' })
+  async confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
+    return this.authVerificationService.confirmPasswordReset(dto.token, dto.newPassword);
   }
 
   @Public()

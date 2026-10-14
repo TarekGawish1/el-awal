@@ -1,5 +1,7 @@
 export { LoginForm } from './components/LoginForm';
 export { LoginContainer } from './components/LoginContainer';
+export { ForgotPasswordModal } from './components/ForgotPasswordModal';
+export { ResetPasswordContainer } from './components/ResetPasswordContainer';
 export { RoleSelectionContainer } from './components/RoleSelectionContainer';
 export { ParentAccessForm } from './components/ParentAccessForm';
 export { StudentRegistrationForm } from './components/StudentRegistrationForm';

@@ -33,6 +33,10 @@ export const API_BASE_URL = getCanonicalApiBaseUrl();
 export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: "/auth/login",
+    OTP_REQUEST: "/auth/otp/request",
+    OTP_VERIFY: "/auth/otp/verify",
+    PASSWORD_RESET_REQUEST: "/auth/password-reset/request",
+    PASSWORD_RESET_CONFIRM: "/auth/password-reset/confirm",
     PARENT_ACCESS: "/auth/parent-access",
     STUDENT_REGISTRATION_REGISTER: "/auth/student-registration/register",
     GROUP_INVITE: (token: string) => `/auth/group-invite/${token}`,
