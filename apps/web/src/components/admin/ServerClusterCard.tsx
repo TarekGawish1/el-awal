@@ -13,6 +13,12 @@ interface ClusterStatusData {
   workers: Array<{ id: string; pid: number }>;
   examModeActive: boolean;
   examModeExpiresAt: string | null;
+  currentRps?: number;
+  autoScaler?: {
+    enabled: boolean;
+    surgeThresholdRps: number;
+    surgeTriggered: boolean;
+  };
   timestamp: string;
   memoryUsage?: {
     heapUsedMb: number;
@@ -45,7 +51,7 @@ export function ServerClusterCard() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
+    const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -77,6 +83,8 @@ export function ServerClusterCard() {
 
   const activeWorkers = data?.activeWorkersCount || 1;
   const isExamActive = Boolean(data?.examModeActive || activeWorkers > 1);
+  const isSurgeActive = Boolean(data?.autoScaler?.surgeTriggered);
+  const currentRps = data?.currentRps ?? 0;
   const rssMb = data?.memoryUsage?.rssMb || 280;
   const totalRamMb = 512;
   const ramPercent = Math.min(Math.round((rssMb / totalRamMb) * 100), 100);
@@ -94,17 +102,23 @@ export function ServerClusterCard() {
               <h2 className="text-lg font-bold text-neutral-800">محرك السيرفر ووضع الامتحانات والذروة</h2>
               <span
                 className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                  isExamActive
+                  isSurgeActive
+                    ? 'bg-rose-500 text-white shadow-sm animate-pulse'
+                    : isExamActive
                     ? 'bg-amber-500 text-white shadow-sm'
                     : 'bg-emerald-100 text-emerald-700'
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${isExamActive ? 'bg-white animate-ping' : 'bg-emerald-500'}`} />
-                {isExamActive ? 'وضع الذروة مضاعف (2 Workers)' : 'الوضع الاقتصادي (Worker 1)'}
+                {isSurgeActive
+                  ? 'تشغيل تلقائي لضغط الزيارات 🚀'
+                  : isExamActive
+                  ? 'وضع الذروة مضاعف (2 Workers)'
+                  : 'الوضع الاقتصادي (Worker 1)'}
               </span>
             </div>
             <p className="text-xs text-neutral-500 mt-0.5">
-              تعدد العمليات (In-Server Clustering) لمضاعفة تحمل السيرفر حتى 1,200 طلب في الثانية.
+              تعدد العمليات (In-Server Clustering) بمعدل استجابة فائق وتحجيم تلقائي مع ضغط الركوستات والامتحانات.
             </p>
           </div>
         </div>
@@ -121,7 +135,7 @@ export function ServerClusterCard() {
 
       {/* Body Stats */}
       <div className="p-5 sm:p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Active Workers */}
           <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100">
             <div className="flex items-center justify-between text-neutral-500 text-xs font-bold mb-1">
@@ -134,6 +148,21 @@ export function ServerClusterCard() {
             </div>
             <p className="text-[11px] text-neutral-500 mt-1">
               {isExamActive ? 'النسختان تتقاسمان حركة المرور 50% / 50%' : 'نسخة واحدة كافية للأيام العادية'}
+            </p>
+          </div>
+
+          {/* Live Request Rate (RPS) */}
+          <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100">
+            <div className="flex items-center justify-between text-neutral-500 text-xs font-bold mb-1">
+              <span>معدل الطلبات اللحظي</span>
+              <Zap className="w-4 h-4 text-amber-500" />
+            </div>
+            <div className="text-2xl font-black text-neutral-800">
+              {currentRps}{' '}
+              <span className="text-xs font-medium text-neutral-400">طلب/ثانية</span>
+            </div>
+            <p className="text-[11px] text-neutral-500 mt-1">
+              يبدأ التكبير التلقائي عند &gt; 25 طلب/ث
             </p>
           </div>
 
@@ -161,28 +190,30 @@ export function ServerClusterCard() {
             </p>
           </div>
 
-          {/* Exam Mode Auto Timer */}
+          {/* Exam Mode / Auto-Scaler Trigger */}
           <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100">
             <div className="flex items-center justify-between text-neutral-500 text-xs font-bold mb-1">
-              <span>حالة المؤقت التلقائي</span>
+              <span>التشغيل التلقائي (Auto-Scale)</span>
               <Clock className="w-4 h-4 text-amber-500" />
             </div>
             <div className="text-sm font-bold text-neutral-800 mt-1">
-              {isExamActive ? (
+              {isSurgeActive ? (
+                <span className="text-rose-600">نشط بسبب ضغط الطلبات 🚀</span>
+              ) : isExamActive ? (
                 data?.examModeExpiresAt ? (
                   <span className="text-amber-600">
                     يعمل حتى {new Date(data.examModeExpiresAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 ) : (
-                  <span className="text-amber-600">نشط ومفعل</span>
+                  <span className="text-amber-600">وضع الذروة نشط</span>
                 )
               ) : (
-                <span className="text-neutral-500">مغلق (الوضع الاقتصادي)</span>
+                <span className="text-emerald-600 font-semibold">مترقب (تلقائي 100%)</span>
               )}
             </div>
             <p className="text-[11px] text-neutral-400 mt-2 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-              يعمل تلقائياً قبل الامتحانات بـ 60 دقيقة
+              تلقائياً عند الامتحانات أو زيادة الركوستات
             </p>
           </div>
         </div>

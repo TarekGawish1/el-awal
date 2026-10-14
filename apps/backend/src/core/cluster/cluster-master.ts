@@ -122,8 +122,9 @@ function handleWorkerMessage(senderWorkerId: string, msg: any): void {
   switch (msg.action) {
     case 'CLUSTER_SCALE_UP': {
       const durationMinutes = Number(msg.durationMinutes) || 120;
+      const reason = msg.reason || 'MANUAL';
       logger.log(
-        `📈 [ClusterMaster] Scale-Up request received from Worker ${senderWorkerId}. Target duration: ${durationMinutes} minutes.`,
+        `📈 [ClusterMaster] Scale-Up request received from Worker ${senderWorkerId} (Reason: ${reason}). Target duration: ${durationMinutes} minutes.`,
       );
 
       state.examModeActive = true;
@@ -134,7 +135,7 @@ function handleWorkerMessage(senderWorkerId: string, msg: any): void {
       }
 
       state.examModeTimer = setTimeout(() => {
-        logger.log(`⏰ [ClusterMaster] Exam Mode duration expired (${durationMinutes} min). Scaling down Worker 2...`);
+        logger.log(`⏰ [ClusterMaster] Scale-Up duration expired (${durationMinutes} min, Reason: ${reason}). Scaling down Worker 2...`);
         scaleDownWorker2();
       }, durationMinutes * 60 * 1000);
 

@@ -11,6 +11,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyMultipart from '@fastify/multipart';
 import cluster from 'node:cluster';
 import { startClusterMaster } from './core/cluster/cluster-master';
+import { ClusterService } from './core/cluster/cluster.service';
 
 import { shouldRedirectToCanonicalPlatform } from './core/middleware/canonical-redirect.util';
 
@@ -30,6 +31,7 @@ async function bootstrap() {
     },
   );
   const configService = app.get(ConfigService);
+  const clusterService = app.get(ClusterService);
 
   // Register high-performance Fastify plugins
   await app.register(fastifyCookie as any);
@@ -53,6 +55,13 @@ async function bootstrap() {
     .replace(/\/+$/, '');
 
   fastifyInstance.addHook('onRequest', (request: any, reply: any, done: any) => {
+    const url = request.url || '/';
+
+    // Record incoming requests for real-time traffic surge auto-scaling (skip internal health pings)
+    if (!url.startsWith('/api/health')) {
+      clusterService.recordRequest();
+    }
+
     // Strip Content-Type: application/json from body-less requests to prevent FST_ERR_CTP_EMPTY_JSON_BODY (400)
     const contentType = request.headers['content-type'];
     const contentLength = request.headers['content-length'];
@@ -71,7 +80,6 @@ async function bootstrap() {
       request.hostname ||
       ''
     ).toString();
-    const url = request.url || '/';
     if (shouldRedirectToCanonicalPlatform(rawHost, request.method, url)) {
       const targetPath = url.startsWith('/') ? url : `/${url}`;
       reply.redirect(`${canonicalAppUrl}${targetPath}`, 301);
