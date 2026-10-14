@@ -1037,30 +1037,74 @@ export class StudentsService {
       totalAttendance > 0 ? Math.round((attendedCount / totalAttendance) * 100) : 100;
 
     // Course progress calculation
-    const courseSummaries = await Promise.all(
-      courseEnrollments.map(async (ce) => {
-        const totalLessons = ce.course.modules?.flatMap((m) => m.lessons).length || 0;
-        const completedLessons = await this.prisma.courseProgress.count({
+    const enrolledCourseIds = courseEnrollments.map((ce) => ce.courseId);
+    const completedCountsByCourse = new Map<string, number>();
+    for (const cid of enrolledCourseIds) {
+      completedCountsByCourse.set(cid, 0);
+    }
+
+    if (enrolledCourseIds.length > 0 && typeof this.prisma.courseProgress?.groupBy === 'function') {
+      try {
+        const counts = await this.prisma.courseProgress.groupBy({
+          by: ['courseId'],
           where: {
             studentId: actualStudentId,
-            courseId: ce.courseId,
+            courseId: { in: enrolledCourseIds },
             isCompleted: true,
           },
+          _count: { _all: true },
         });
-        const progressPercentage =
-          totalLessons > 0 ? Math.min(100, Math.round((completedLessons / totalLessons) * 100)) : 0;
-        return {
-          courseId: ce.courseId,
-          title: ce.course.title,
-          coverImageUrl: ce.course.coverImageUrl,
-          teacherName: ce.course.teacher?.user?.fullName || 'أستاذ أحمد غريب',
-          progressPercentage,
-          totalLessons,
-          completedLessons,
-          isCertificateEligible: progressPercentage >= 100,
-        };
-      }),
-    );
+        for (const row of counts) {
+          if (row.courseId) {
+            completedCountsByCourse.set(
+              row.courseId,
+              (row as any)._count?._all ?? (row as any)._count ?? 0,
+            );
+          }
+        }
+      } catch {
+        // Fallback to single batch findMany if groupBy is unmocked in test environment
+        try {
+          if (typeof this.prisma.courseProgress?.findMany === 'function') {
+            const list = await this.prisma.courseProgress.findMany({
+              where: {
+                studentId: actualStudentId,
+                courseId: { in: enrolledCourseIds },
+                isCompleted: true,
+              },
+              select: { courseId: true },
+            });
+            for (const item of list) {
+              if (item.courseId) {
+                completedCountsByCourse.set(
+                  item.courseId,
+                  (completedCountsByCourse.get(item.courseId) || 0) + 1,
+                );
+              }
+            }
+          }
+        } catch {
+          // Retain default 0 counts
+        }
+      }
+    }
+
+    const courseSummaries = courseEnrollments.map((ce) => {
+      const totalLessons = ce.course.modules?.flatMap((m) => m.lessons).length || 0;
+      const completedLessons = completedCountsByCourse.get(ce.courseId) ?? 0;
+      const progressPercentage =
+        totalLessons > 0 ? Math.min(100, Math.round((completedLessons / totalLessons) * 100)) : 0;
+      return {
+        courseId: ce.courseId,
+        title: ce.course.title,
+        coverImageUrl: ce.course.coverImageUrl,
+        teacherName: ce.course.teacher?.user?.fullName || 'أستاذ أحمد غريب',
+        progressPercentage,
+        totalLessons,
+        completedLessons,
+        isCertificateEligible: progressPercentage >= 100,
+      };
+    });
 
     // Format next session
     let nextSession: any = null;

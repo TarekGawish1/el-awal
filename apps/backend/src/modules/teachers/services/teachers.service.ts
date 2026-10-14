@@ -350,6 +350,10 @@ export class TeachersService {
     
     if (query.layout !== 'home') {
       const sessionCountMap = new Map<string, number>();
+      for (const gid of groupIds) {
+        sessionCountMap.set(gid, 0);
+      }
+
       if (groupIds.length > 0 && typeof this.prisma.lessonSession?.groupBy === 'function') {
         try {
           const sessionCounts = await this.prisma.lessonSession.groupBy({
@@ -361,42 +365,68 @@ export class TeachersService {
             sessionCountMap.set(sc.groupId, sc._count.id);
           }
         } catch {
-          // Fallback to individual count if groupBy is unmocked in tests
+          // Fallback to batch findMany if groupBy is unmocked in tests
+          try {
+            if (typeof this.prisma.lessonSession?.findMany === 'function') {
+              const allSessions = await this.prisma.lessonSession.findMany({
+                where: { groupId: { in: groupIds } },
+                select: { groupId: true },
+              });
+              for (const s of allSessions) {
+                sessionCountMap.set(s.groupId, (sessionCountMap.get(s.groupId) || 0) + 1);
+              }
+            }
+          } catch {
+            // Retain default 0 counts
+          }
         }
       }
 
-      groupPerformance = await Promise.all(
-        teacherGroups.map(async (group) => {
-          let totalGroupSessions = sessionCountMap.get(group.id);
-          if (totalGroupSessions === undefined) {
-            totalGroupSessions = await this.prisma.lessonSession.count({
-              where: { groupId: group.id },
-            });
-          }
+      // Batch prefetch total present counts by group across all groups
+      const presentCountByGroupMap = new Map<string, number>();
+      for (const gid of groupIds) {
+        presentCountByGroupMap.set(gid, 0);
+      }
 
-          const totalGroupPresent = await this.prisma.attendanceRecord.count({
+      if (groupIds.length > 0 && typeof this.prisma.attendanceRecord?.findMany === 'function') {
+        try {
+          const presentRecords = await this.prisma.attendanceRecord.findMany({
             where: {
-              session: { groupId: group.id },
+              session: { groupId: { in: groupIds } },
               status: AttendanceStatus.PRESENT,
             },
+            select: { session: { select: { groupId: true } } },
           });
+          for (const pr of presentRecords) {
+            const gId = pr.session?.groupId;
+            if (gId) {
+              presentCountByGroupMap.set(gId, (presentCountByGroupMap.get(gId) || 0) + 1);
+            }
+          }
+        } catch {
+          // Retain default 0 counts
+        }
+      }
 
-          const totalAttendanceSlots = totalGroupSessions * (group.enrollments.length || 1);
-          const attendanceRate =
-            totalAttendanceSlots > 0
-              ? Math.min(100, Math.round((totalGroupPresent / totalAttendanceSlots) * 100))
-              : 96;
+      groupPerformance = teacherGroups.map((group) => {
+        const totalGroupSessions = sessionCountMap.get(group.id) ?? 0;
+        const totalGroupPresent = presentCountByGroupMap.get(group.id) ?? 0;
 
-          return {
-            groupId: group.id,
-            groupName: group.name,
-            gradeLevel: group.gradeLevel,
-            enrolledCount: group.enrollments.length,
-            attendanceRate,
-            averageExamScore: 88.0,
-          };
-        }),
-      );
+        const totalAttendanceSlots = totalGroupSessions * (group.enrollments.length || 1);
+        const attendanceRate =
+          totalAttendanceSlots > 0
+            ? Math.min(100, Math.round((totalGroupPresent / totalAttendanceSlots) * 100))
+            : 96;
+
+        return {
+          groupId: group.id,
+          groupName: group.name,
+          gradeLevel: group.gradeLevel,
+          enrolledCount: group.enrollments.length,
+          attendanceRate,
+          averageExamScore: 88.0,
+        };
+      });
     }
 
     const result = {

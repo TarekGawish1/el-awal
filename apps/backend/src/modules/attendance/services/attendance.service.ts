@@ -386,22 +386,68 @@ export class AttendanceService {
       }
     }
 
-    const [presentCount, absentCount, excusedCount, totalEnrolled] = await Promise.all([
-      this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.PRESENT } }),
-      this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.ABSENT } }),
-      this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.EXCUSED } }),
-      this.prisma.groupEnrollment.count({
-        where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
-      }),
-    ]);
+    let presentCount = 0;
+    let absentCount = 0;
+    let excusedCount = 0;
+    let totalEnrolled = 0;
+
+    if (typeof this.prisma.attendanceRecord?.groupBy === 'function') {
+      try {
+        const [attendanceGroups, enrolled] = await Promise.all([
+          this.prisma.attendanceRecord.groupBy({
+            by: ['status'],
+            where: { sessionId },
+            _count: { _all: true },
+          }),
+          this.prisma.groupEnrollment.count({
+            where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
+          }),
+        ]);
+        totalEnrolled = enrolled;
+        for (const ag of attendanceGroups) {
+          const c = (ag as any)._count?._all ?? (ag as any)._count ?? 0;
+          if (ag.status === AttendanceStatus.PRESENT) presentCount = c;
+          else if (ag.status === AttendanceStatus.ABSENT) absentCount = c;
+          else if (ag.status === AttendanceStatus.EXCUSED) excusedCount = c;
+        }
+      } catch {
+        // Fallback for mock environments
+        const [p, a, e, enrolled] = await Promise.all([
+          this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.PRESENT } }),
+          this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.ABSENT } }),
+          this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.EXCUSED } }),
+          this.prisma.groupEnrollment.count({
+            where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
+          }),
+        ]);
+        presentCount = p;
+        absentCount = a;
+        excusedCount = e;
+        totalEnrolled = enrolled;
+      }
+    } else {
+      const [p, a, e, enrolled] = await Promise.all([
+        this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.PRESENT } }),
+        this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.ABSENT } }),
+        this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.EXCUSED } }),
+        this.prisma.groupEnrollment.count({
+          where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
+        }),
+      ]);
+      presentCount = p;
+      absentCount = a;
+      excusedCount = e;
+      totalEnrolled = enrolled;
+    }
 
     this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
 
-    if (this.redisCache) {
-      for (const sid of targetStudentIds) {
-        await this.redisCache.del(`student:dashboard:${sid}`);
-        await this.redisCache.del(`parent:overview:${sid}`);
-      }
+    if (this.redisCache && targetStudentIds.length > 0) {
+      const cacheDeletions = targetStudentIds.flatMap((sid) => [
+        this.redisCache!.del(`student:dashboard:${sid}`),
+        this.redisCache!.del(`parent:overview:${sid}`),
+      ]);
+      await Promise.allSettled(cacheDeletions);
     }
 
     return {

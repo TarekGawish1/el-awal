@@ -250,33 +250,64 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
    */
   async getStats() {
     const cairoMidnight = this.getCairoMidnight();
-    const [sentToday, queuedCount, failedCount, totalSent, totalDelivered] = await Promise.all([
-      this.prisma.whatsAppMessageLog.count({
-        where: {
-          status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] },
-          sentAt: { gte: cairoMidnight },
-        },
-      }),
-      this.prisma.whatsAppMessageLog.count({
-        where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
-      }),
-      this.prisma.whatsAppMessageLog.count({
-        where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
-      }),
-      this.prisma.whatsAppMessageLog.count({
-        where: { status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] } },
-      }),
-      this.prisma.whatsAppMessageLog.count({
-        where: { status: WhatsAppStatus.DELIVERED },
-      }),
-    ]);
+
+    const sentTodayPromise = this.prisma.whatsAppMessageLog.count({
+      where: {
+        status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] },
+        sentAt: { gte: cairoMidnight },
+      },
+    });
+
+    const statusCountsPromise = (async () => {
+      try {
+        if (typeof this.prisma.whatsAppMessageLog.groupBy === 'function') {
+          const grouped = await this.prisma.whatsAppMessageLog.groupBy({
+            by: ['status'],
+            _count: { _all: true },
+          });
+          const countMap = new Map<WhatsAppStatus, number>();
+          for (const item of grouped) {
+            countMap.set(item.status, item._count._all);
+          }
+          const getCount = (...statuses: WhatsAppStatus[]) =>
+            statuses.reduce((sum, s) => sum + (countMap.get(s) || 0), 0);
+
+          return {
+            queuedCount: getCount(WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING),
+            failedCount: getCount(WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL),
+            totalSent: getCount(WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED),
+            totalDelivered: getCount(WhatsAppStatus.DELIVERED),
+          };
+        }
+      } catch {
+        // Fallback for mocked test environments where groupBy is not defined or fails
+      }
+
+      const [queuedCount, failedCount, totalSent, totalDelivered] = await Promise.all([
+        this.prisma.whatsAppMessageLog.count({
+          where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
+        }),
+        this.prisma.whatsAppMessageLog.count({
+          where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
+        }),
+        this.prisma.whatsAppMessageLog.count({
+          where: { status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] } },
+        }),
+        this.prisma.whatsAppMessageLog.count({
+          where: { status: WhatsAppStatus.DELIVERED },
+        }),
+      ]);
+      return { queuedCount, failedCount, totalSent, totalDelivered };
+    })();
+
+    const [sentToday, statusCounts] = await Promise.all([sentTodayPromise, statusCountsPromise]);
 
     return {
       sentToday,
-      queuedCount,
-      failedCount,
-      totalSent,
-      totalDelivered,
+      queuedCount: statusCounts.queuedCount,
+      failedCount: statusCounts.failedCount,
+      totalSent: statusCounts.totalSent,
+      totalDelivered: statusCounts.totalDelivered,
     };
   }
 

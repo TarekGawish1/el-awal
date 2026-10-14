@@ -2422,6 +2422,54 @@ export class SyncService {
 
     const recorderId = user?.id || 'system';
 
+    // Batch prefetch sessions and students to eliminate N+1 roundtrips in mutation batch processing
+    const sessionIds = Array.from(new Set(
+      mutations.map((m) => m?.payload?.sessionId).filter(Boolean) as string[]
+    ));
+    const preloadedSessions = sessionIds.length > 0 && typeof this.prisma.lessonSession?.findMany === 'function'
+      ? await this.prisma.lessonSession.findMany({
+          where: { id: { in: sessionIds } },
+          select: {
+            id: true,
+            groupId: true,
+            group: {
+              select: { teacherId: true },
+            },
+          },
+        }).catch(() => [])
+      : [];
+    const sessionMap = new Map(preloadedSessions.map((s) => [s.id, s]));
+
+    const lookupTokens = Array.from(new Set(
+      mutations.flatMap((m) => {
+        const p = m?.payload || {};
+        return [p.studentId, p.qrCodeToken].filter(Boolean).map((t: string) => String(t).trim());
+      })
+    ));
+
+    const preloadedStudents = lookupTokens.length > 0 && typeof this.prisma.studentProfile?.findMany === 'function'
+      ? await this.prisma.studentProfile.findMany({
+          where: {
+            OR: [
+              { id: { in: lookupTokens.filter((t) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) } },
+              { qrCodeToken: { in: lookupTokens } },
+              { studentCode: { in: lookupTokens } },
+            ],
+          },
+          include: {
+            user: { select: { isActive: true } },
+            groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+          },
+        }).catch(() => [])
+      : [];
+
+    const studentMap = new Map<string, typeof preloadedStudents[0]>();
+    for (const st of preloadedStudents) {
+      if (st.id) studentMap.set(st.id, st);
+      if (st.qrCodeToken) studentMap.set(st.qrCodeToken.trim(), st);
+      if (st.studentCode) studentMap.set(st.studentCode.trim(), st);
+    }
+
     for (const mutation of mutations) {
       try {
         switch (mutation.type) {
@@ -2445,17 +2493,21 @@ export class SyncService {
             if ((!targetStudentId || !isTargetUuid) && (qrCodeToken || targetStudentId)) {
               const lookupToken = (qrCodeToken || targetStudentId).trim();
               const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lookupToken);
-              const student = await this.prisma.studentProfile.findFirst({
-                where: {
-                  OR: [
-                    { qrCodeToken: lookupToken },
-                    { studentCode: lookupToken },
-                    ...(isLookupUuid ? [{ id: lookupToken }] : []),
-                  ],
-                  user: { isActive: true },
-                },
-                include: { groupEnrollments: true },
-              });
+              let student = studentMap.get(lookupToken);
+              if (!student) {
+                student = await this.prisma.studentProfile.findFirst({
+                  where: {
+                    OR: [
+                      { qrCodeToken: lookupToken },
+                      { studentCode: lookupToken },
+                      ...(isLookupUuid ? [{ id: lookupToken }] : []),
+                    ],
+                    user: { isActive: true },
+                  },
+                  include: { groupEnrollments: true },
+                });
+                if (student) studentMap.set(lookupToken, student);
+              }
 
               if (!student) {
                 results.push({ mutationId: mutation.id, status: 'FAILED', error: 'INVALID_QR_CODE' });
@@ -2476,15 +2528,19 @@ export class SyncService {
             }
 
             // 2. Validate Session and Student Enrollment
-            const session = await this.prisma.lessonSession.findUnique({
-              where: { id: sessionId },
-              select: {
-                groupId: true,
-                group: {
-                  select: { teacherId: true },
+            let session = sessionMap.get(sessionId);
+            if (!session) {
+              session = await this.prisma.lessonSession.findUnique({
+                where: { id: sessionId },
+                select: {
+                  groupId: true,
+                  group: {
+                    select: { teacherId: true },
+                  },
                 },
-              },
-            });
+              });
+              if (session) sessionMap.set(sessionId, session);
+            }
 
             if (!session) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
@@ -2499,13 +2555,17 @@ export class SyncService {
               }
             }
 
-            const studentData = await this.prisma.studentProfile.findFirst({
-              where: { id: targetStudentId },
-              include: {
-                user: { select: { isActive: true } },
-                groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
-              }
-            });
+            let studentData = studentMap.get(targetStudentId);
+            if (!studentData) {
+              studentData = await this.prisma.studentProfile.findFirst({
+                where: { id: targetStudentId },
+                include: {
+                  user: { select: { isActive: true } },
+                  groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+                }
+              });
+              if (studentData) studentMap.set(targetStudentId, studentData);
+            }
 
             if (!studentData || !studentData.user.isActive) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_INACTIVE_OR_NOT_FOUND' });
@@ -2665,19 +2725,23 @@ export class SyncService {
               const trimmedToken = (qrCodeToken || targetStudentId).trim();
               const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
               
-              const student = await this.prisma.studentProfile.findFirst({
-                where: {
-                  OR: [
-                    { qrCodeToken: trimmedToken },
-                    { studentCode: trimmedToken },
-                    ...(isUuid ? [{ id: trimmedToken }] : []),
-                  ],
-                },
-                include: {
-                  user: { select: { isActive: true } },
-                  groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
-                }
-              });
+              let student = studentMap.get(trimmedToken);
+              if (!student) {
+                student = await this.prisma.studentProfile.findFirst({
+                  where: {
+                    OR: [
+                      { qrCodeToken: trimmedToken },
+                      { studentCode: trimmedToken },
+                      ...(isUuid ? [{ id: trimmedToken }] : []),
+                    ],
+                  },
+                  include: {
+                    user: { select: { isActive: true } },
+                    groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+                  }
+                });
+                if (student) studentMap.set(trimmedToken, student);
+              }
 
               if (!student || !student.user.isActive) {
                 results.push({ mutationId: mutation.id, status: 'FAILED', error: 'INVALID_QR_CODE' });
@@ -2701,15 +2765,19 @@ export class SyncService {
               continue;
             }
 
-            const session = await this.prisma.lessonSession.findUnique({
-              where: { id: sessionId },
-              select: {
-                groupId: true,
-                group: {
-                  select: { teacherId: true },
+            let session = sessionMap.get(sessionId);
+            if (!session) {
+              session = await this.prisma.lessonSession.findUnique({
+                where: { id: sessionId },
+                select: {
+                  groupId: true,
+                  group: {
+                    select: { teacherId: true },
+                  },
                 },
-              },
-            });
+              });
+              if (session) sessionMap.set(sessionId, session);
+            }
 
             if (!session) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
@@ -2724,13 +2792,17 @@ export class SyncService {
               }
             }
 
-            const studentData = await this.prisma.studentProfile.findFirst({
-              where: { id: targetStudentId },
-              include: {
-                user: { select: { isActive: true } },
-                groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
-              }
-            });
+            let studentData = studentMap.get(targetStudentId);
+            if (!studentData) {
+              studentData = await this.prisma.studentProfile.findFirst({
+                where: { id: targetStudentId },
+                include: {
+                  user: { select: { isActive: true } },
+                  groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+                }
+              });
+              if (studentData) studentMap.set(targetStudentId, studentData);
+            }
 
             if (!studentData || !studentData.user.isActive) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_INACTIVE_OR_NOT_FOUND' });

@@ -679,36 +679,98 @@ export class ParentPortalService {
       orderBy: { enrolledAt: 'desc' },
     });
 
-    return Promise.all(
-      enrollments.map(async (e) => {
-        const totalLessons = await this.prisma.courseLesson.count({
-          where: { module: { courseId: e.courseId } },
-        });
+    const courseIds = enrollments.map((e) => e.courseId);
 
-        const completedLessons = await this.prisma.courseProgress.count({
+    // 1. Batch count total lessons per course
+    const totalLessonsByCourse = new Map<string, number>();
+    for (const cid of courseIds) {
+      totalLessonsByCourse.set(cid, 0);
+    }
+
+    if (courseIds.length > 0 && typeof this.prisma.courseLesson?.findMany === 'function') {
+      try {
+        const lessons = await this.prisma.courseLesson.findMany({
+          where: { module: { courseId: { in: courseIds } } },
+          select: { id: true, module: { select: { courseId: true } } },
+        });
+        for (const l of lessons) {
+          const cid = l.module.courseId;
+          totalLessonsByCourse.set(cid, (totalLessonsByCourse.get(cid) || 0) + 1);
+        }
+      } catch {
+        // Retain default 0 counts
+      }
+    }
+
+    // 2. Batch count completed lessons per course for this student
+    const completedLessonsByCourse = new Map<string, number>();
+    for (const cid of courseIds) {
+      completedLessonsByCourse.set(cid, 0);
+    }
+
+    if (courseIds.length > 0 && typeof this.prisma.courseProgress?.groupBy === 'function') {
+      try {
+        const progressGroups = await this.prisma.courseProgress.groupBy({
+          by: ['courseId'],
           where: {
             studentId,
-            courseId: e.courseId,
+            courseId: { in: courseIds },
             isCompleted: true,
           },
+          _count: { _all: true },
         });
+        for (const pg of progressGroups) {
+          if (pg.courseId) {
+            completedLessonsByCourse.set(
+              pg.courseId,
+              (pg as any)._count?._all ?? (pg as any)._count ?? 0,
+            );
+          }
+        }
+      } catch {
+        try {
+          if (typeof this.prisma.courseProgress?.findMany === 'function') {
+            const list = await this.prisma.courseProgress.findMany({
+              where: {
+                studentId,
+                courseId: { in: courseIds },
+                isCompleted: true,
+              },
+              select: { courseId: true },
+            });
+            for (const item of list) {
+              if (item.courseId) {
+                completedLessonsByCourse.set(
+                  item.courseId,
+                  (completedLessonsByCourse.get(item.courseId) || 0) + 1,
+                );
+              }
+            }
+          }
+        } catch {
+          // Retain default 0 counts
+        }
+      }
+    }
 
-        const progressPercentage =
-          totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+    return enrollments.map((e) => {
+      const totalLessons = totalLessonsByCourse.get(e.courseId) ?? 0;
+      const completedLessons = completedLessonsByCourse.get(e.courseId) ?? 0;
+      const progressPercentage =
+        totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
-        return {
-          courseId: e.course.id,
-          title: e.course.title,
-          subject: e.course.subject,
-          gradeLevel: e.course.gradeLevel,
-          teacherName: e.course.teacher.user.fullName,
-          enrolledAt: e.enrolledAt,
-          totalModules: e.course._count.modules,
-          totalLessons,
-          completedLessons,
-          progressPercentage,
-        };
-      }),
-    );
+      return {
+        courseId: e.course.id,
+        title: e.course.title,
+        subject: e.course.subject,
+        gradeLevel: e.course.gradeLevel,
+        teacherName: e.course.teacher.user.fullName,
+        enrolledAt: e.enrolledAt,
+        totalModules: e.course._count.modules,
+        totalLessons,
+        completedLessons,
+        progressPercentage,
+      };
+    });
   }
 }

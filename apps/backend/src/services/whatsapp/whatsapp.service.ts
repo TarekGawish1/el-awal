@@ -457,19 +457,27 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private async recordDeliveryReceipts(updates: unknown): Promise<void> {
     if (!Array.isArray(updates)) return;
 
+    const messageIdsToUpdate: string[] = [];
     for (const entry of updates) {
       const receipt = entry as { key?: { id?: string; fromMe?: boolean }; update?: { status?: number } };
       const messageId = receipt.key?.id;
       // Baileys acknowledgement values >= 3 represent delivered/read/played.
-      if (!receipt.key?.fromMe || !messageId || (receipt.update?.status ?? 0) < 3) continue;
+      if (receipt.key?.fromMe && messageId && (receipt.update?.status ?? 0) >= 3) {
+        messageIdsToUpdate.push(messageId);
+      }
+    }
 
+    if (messageIdsToUpdate.length > 0) {
       try {
         await this.prisma.whatsAppMessageLog.updateMany({
-          where: { providerMessageId: messageId, status: WhatsAppStatus.SENT },
+          where: {
+            providerMessageId: { in: messageIdsToUpdate },
+            status: WhatsAppStatus.SENT,
+          },
           data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
         });
       } catch (error) {
-        this.logger.warn(`Failed to record WhatsApp delivery receipt for ${messageId}`, error);
+        this.logger.warn(`Failed to record WhatsApp delivery receipts batch`, error);
       }
     }
   }
@@ -590,24 +598,22 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         `1. فتح تطبيق واتساب على الهاتف والضغط على "طلب مراجعة" (Request a Review).\n` +
         `2. أو الدخول إلى "مركز التحكم في الإشعارات" وفك الارتباط وربط رقم هاتف جديد فوراً لضمان استمرار وصول الرسائل لأولياء الأمور.`;
 
-      for (const staff of staffUsers) {
-        await this.prisma.notification.create({
+      await this.prisma.notification.createMany({
+        data: staffUsers.map((staff) => ({
+          recipientId: staff.id,
+          type: 'WHATSAPP_BAN_ALERT',
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          title,
+          message,
+          channels: [NotificationChannel.IN_APP],
+          isRead: false,
           data: {
-            recipientId: staff.id,
-            type: 'WHATSAPP_BAN_ALERT',
-            notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
-            title,
-            message,
-            channels: [NotificationChannel.IN_APP],
-            isRead: false,
-            data: {
-              isBanned: true,
-              bannedAt: this.bannedAt?.toISOString(),
-              reason: this.banReason,
-            },
+            isBanned: true,
+            bannedAt: this.bannedAt?.toISOString(),
+            reason: this.banReason,
           },
-        });
-      }
+        })),
+      });
 
       this.logger.log(`📢 Ban notifications sent to ${staffUsers.length} staff members.`);
     } catch (err) {

@@ -87,32 +87,55 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
               none: { assessmentId: assessment.id },
             },
           },
-          select: { id: true },
+          select: { id: true, userId: true },
         });
 
         const notificationType =
           assessment.assessmentType === 'HOMEWORK' || assessment.type === 'ASSIGNMENT'
             ? NotificationType.HOMEWORK_DEADLINE_REMINDER
             : NotificationType.EXAM_DEADLINE_REMINDER;
-        const pendingUserIds: string[] = [];
 
-        for (const student of pendingStudents) {
-          const userId =
-            (student as { userId?: string }).userId || student.id;
-          const alreadySent = await this.prisma.notification.findFirst({
-            where: {
-              recipientId: userId,
-              notificationType,
-              referenceEntityId: assessment.id,
-              createdAt: {
-                gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-              },
-            },
-            select: { id: true },
-          });
+        const candidateUserIds = pendingStudents
+          .map((s) => s.userId || s.id)
+          .filter(Boolean);
 
-          if (!alreadySent && userId) pendingUserIds.push(userId);
+        let alreadySentSet = new Set<string>();
+        if (candidateUserIds.length > 0) {
+          if (typeof this.prisma.notification?.findMany === 'function') {
+            try {
+              const alreadySentList = await this.prisma.notification.findMany({
+                where: {
+                  recipientId: { in: candidateUserIds },
+                  notificationType,
+                  referenceEntityId: assessment.id,
+                  createdAt: {
+                    gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+                  },
+                },
+                select: { recipientId: true },
+              });
+              alreadySentSet = new Set(alreadySentList.map((n) => n.recipientId));
+            } catch {
+              alreadySentSet = new Set<string>();
+            }
+          } else if (typeof this.prisma.notification?.findFirst === 'function') {
+            for (const uid of candidateUserIds) {
+              const sent = await this.prisma.notification.findFirst({
+                where: {
+                  recipientId: uid,
+                  notificationType,
+                  referenceEntityId: assessment.id,
+                  createdAt: {
+                    gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+                  },
+                },
+              });
+              if (sent) alreadySentSet.add(uid);
+            }
+          }
         }
+
+        const pendingUserIds = candidateUserIds.filter((uid) => !alreadySentSet.has(uid));
 
         if (pendingUserIds.length === 0) continue;
 

@@ -282,6 +282,33 @@ export class SchedulersService implements OnModuleInit {
         `[StudentReminder] Found ${targetSessions.length} session(s) in window`,
       );
 
+      // Pre-fetch all sent notifications in one batch query
+      const targetSessionIds = targetSessions.map((s) => s.id);
+      const allStudentUserIds: string[] = [];
+      for (const session of targetSessions) {
+        for (const enrollment of session.group.enrollments) {
+          if (enrollment.student?.user?.id) {
+            allStudentUserIds.push(enrollment.student.user.id);
+          }
+        }
+      }
+
+      const sentNotifications =
+        targetSessionIds.length > 0 && allStudentUserIds.length > 0
+          ? await this.prisma.notification.findMany({
+              where: {
+                recipientId: { in: allStudentUserIds },
+                notificationType: NotificationType.SESSION_REMINDER_STUDENT,
+                referenceEntityId: { in: targetSessionIds },
+              },
+              select: { recipientId: true, referenceEntityId: true },
+            })
+          : [];
+
+      const sentSet = new Set(
+        sentNotifications.map((n) => `${n.recipientId}:${n.referenceEntityId}`),
+      );
+
       for (const session of targetSessions) {
         const timeStr = session.startTime || '';
         for (const enrollment of session.group.enrollments) {
@@ -289,14 +316,9 @@ export class SchedulersService implements OnModuleInit {
           const studentUser = student.user;
 
           // Deduplicate: avoid sending twice for the same session to the same student
-          const alreadySent = await this.prisma.notification.findFirst({
-            where: {
-              recipientId: studentUser.id,
-              notificationType: NotificationType.SESSION_REMINDER_STUDENT,
-              referenceEntityId: session.id,
-            },
-          });
-          if (alreadySent) continue;
+          const dedupKey = `${studentUser.id}:${session.id}`;
+          if (sentSet.has(dedupKey)) continue;
+          sentSet.add(dedupKey);
 
           // Notify student in-app and web push
           await this.notifications.sendNotification({
@@ -379,6 +401,35 @@ export class SchedulersService implements OnModuleInit {
         await this.clusterService.scaleUp(120);
       }
 
+      // Pre-fetch all sent online exam reminder notifications in one batch query
+      const targetExamIds = exams.map((e) => e.id);
+      const allExamStudentUserIds: string[] = [];
+      for (const exam of exams) {
+        for (const group of exam.targetGroups) {
+          for (const enrollment of group.enrollments) {
+            if (enrollment.student?.user?.id) {
+              allExamStudentUserIds.push(enrollment.student.user.id);
+            }
+          }
+        }
+      }
+
+      const sentExamNotifications =
+        targetExamIds.length > 0 && allExamStudentUserIds.length > 0
+          ? await this.prisma.notification.findMany({
+              where: {
+                recipientId: { in: allExamStudentUserIds },
+                notificationType: NotificationType.ONLINE_EXAM_REMINDER,
+                referenceEntityId: { in: targetExamIds },
+              },
+              select: { recipientId: true, referenceEntityId: true },
+            })
+          : [];
+
+      const sentExamSet = new Set(
+        sentExamNotifications.map((n) => `${n.recipientId}:${n.referenceEntityId}`),
+      );
+
       for (const exam of exams) {
         const startTimeStr = exam.startDate?.toLocaleTimeString('ar-EG', {
           timeZone: 'Africa/Cairo',
@@ -394,14 +445,9 @@ export class SchedulersService implements OnModuleInit {
             // Skip students who already submitted
             if (alreadySubmittedIds.has(student.id)) continue;
 
-            const alreadySent = await this.prisma.notification.findFirst({
-              where: {
-                recipientId: student.user.id,
-                notificationType: NotificationType.ONLINE_EXAM_REMINDER,
-                referenceEntityId: exam.id,
-              },
-            });
-            if (alreadySent) continue;
+            const dedupKey = `${student.user.id}:${exam.id}`;
+            if (sentExamSet.has(dedupKey)) continue;
+            sentExamSet.add(dedupKey);
 
             await this.notifications.sendNotification({
               recipientId: student.user.id,
@@ -446,30 +492,54 @@ export class SchedulersService implements OnModuleInit {
         },
       });
 
+      const teacherUserIds = teachers.map((t) => t.user.id);
+      const teacherIds = teachers.map((t) => t.id);
+
+      // 1. Batch prefetch already sent notifications today
+      const alreadySentTodayList =
+        force || teacherUserIds.length === 0
+          ? []
+          : await this.prisma.notification.findMany({
+              where: {
+                recipientId: { in: teacherUserIds },
+                notificationType: NotificationType.TEACHER_DAILY_SCHEDULE,
+                createdAt: { gte: start, lte: end },
+              },
+              select: { recipientId: true },
+            });
+      const sentTodayTeacherSet = new Set(alreadySentTodayList.map((n) => n.recipientId));
+
+      // 2. Batch prefetch today's candidate sessions for all teachers
+      const todayDateOnly = new Date(`${dateStr}T00:00:00.000Z`);
+      const allTodaySessions =
+        teacherIds.length > 0
+          ? await this.prisma.lessonSession.findMany({
+              where: {
+                group: { teacherId: { in: teacherIds } },
+                sessionDate: todayDateOnly,
+                isCancelled: false,
+              },
+              include: { group: { select: { teacherId: true, name: true, gradeLevel: true } } },
+              orderBy: { startTime: 'asc' },
+            })
+          : [];
+
+      const sessionsByTeacherId = new Map<string, typeof allTodaySessions>();
+      for (const s of allTodaySessions) {
+        const tid = s.group.teacherId;
+        if (!sessionsByTeacherId.has(tid)) {
+          sessionsByTeacherId.set(tid, []);
+        }
+        sessionsByTeacherId.get(tid)!.push(s);
+      }
+
       for (const teacher of teachers) {
         // Deduplicate: ensure teacher receives at most one morning agenda per day unless forced
-        if (!force) {
-          const alreadySentToday = await this.prisma.notification.findFirst({
-            where: {
-              recipientId: teacher.user.id,
-              notificationType: NotificationType.TEACHER_DAILY_SCHEDULE,
-              createdAt: { gte: start, lte: end },
-            },
-          });
-          if (alreadySentToday) continue;
+        if (!force && sentTodayTeacherSet.has(teacher.user.id)) {
+          continue;
         }
 
-        // Query candidate sessions strictly for today's calendar date (PostgreSQL DATE column)
-        const todayDateOnly = new Date(`${dateStr}T00:00:00.000Z`);
-        const sessions = await this.prisma.lessonSession.findMany({
-          where: {
-            group: { teacherId: teacher.id },
-            sessionDate: todayDateOnly,
-            isCancelled: false,
-          },
-          include: { group: { select: { name: true, gradeLevel: true } } },
-          orderBy: { startTime: 'asc' },
-        });
+        const sessions = sessionsByTeacherId.get(teacher.id) || [];
 
         const agendaLines = sessions.map(
           (s) => `${s.group.name} (${s.group.gradeLevel}) — الساعة ${s.startTime || '—'}`,
@@ -595,19 +665,36 @@ export class SchedulersService implements OnModuleInit {
         return sessionUtc >= windowStart && sessionUtc <= windowEnd;
       });
 
+      // Pre-fetch all sent teacher session reminders in one batch query
+      const targetSessionIds = targetSessions.map((s) => s.id);
+      const allTeacherUserIds = targetSessions
+        .map((s) => s.group.teacher?.user?.id)
+        .filter(Boolean) as string[];
+
+      const sentTeacherReminders =
+        targetSessionIds.length > 0 && allTeacherUserIds.length > 0
+          ? await this.prisma.notification.findMany({
+              where: {
+                recipientId: { in: allTeacherUserIds },
+                notificationType: NotificationType.TEACHER_SESSION_REMINDER,
+                referenceEntityId: { in: targetSessionIds },
+              },
+              select: { recipientId: true, referenceEntityId: true },
+            })
+          : [];
+
+      const sentTeacherSet = new Set(
+        sentTeacherReminders.map((n) => `${n.recipientId}:${n.referenceEntityId}`),
+      );
+
       for (const session of targetSessions) {
         const teacher = session.group.teacher;
         const teacherUser = teacher.user;
 
         // Deduplicate: avoid sending twice for the same session
-        const alreadySent = await this.prisma.notification.findFirst({
-          where: {
-            recipientId: teacherUser.id,
-            notificationType: NotificationType.TEACHER_SESSION_REMINDER,
-            referenceEntityId: session.id,
-          },
-        });
-        if (alreadySent) continue;
+        const dedupKey = `${teacherUser.id}:${session.id}`;
+        if (sentTeacherSet.has(dedupKey)) continue;
+        sentTeacherSet.add(dedupKey);
 
         const channels: NotificationChannel[] = [
           NotificationChannel.IN_APP,
@@ -710,6 +797,16 @@ export class SchedulersService implements OnModuleInit {
 
       let totalMarked = 0;
 
+      const allRecordsToCreate: Array<{
+        sessionId: string;
+        studentId: string;
+        status: AttendanceStatus;
+        recordingMethod: RecordingMethod;
+        recordedById: string;
+        notes: string;
+        recordedAt: Date;
+      }> = [];
+
       for (const session of sessions) {
         const teacherUserId = session.group.teacher?.user?.id;
         if (!teacherUserId) continue;
@@ -724,11 +821,8 @@ export class SchedulersService implements OnModuleInit {
           .map((e) => e.studentId)
           .filter((id) => !alreadyRecordedIds.has(id));
 
-        if (studentsToMark.length === 0) continue;
-
-        // إنشاء سجلات حضور تلقائية
-        await this.prisma.attendanceRecord.createMany({
-          data: studentsToMark.map((studentId) => ({
+        for (const studentId of studentsToMark) {
+          allRecordsToCreate.push({
             sessionId: session.id,
             studentId,
             status: AttendanceStatus.PRESENT,
@@ -736,15 +830,21 @@ export class SchedulersService implements OnModuleInit {
             recordedById: teacherUserId,
             notes: 'تسجيل تلقائي — لم يُسجَّل غياب',
             recordedAt: new Date(),
-          })),
-          skipDuplicates: true, // أمان إضافي ضد التكرار
-        });
-
-        totalMarked += studentsToMark.length;
-        this.logger.debug(
-          `[AutoAttendance] Session ${session.id} → marked ${studentsToMark.length} student(s) as PRESENT`,
-        );
+          });
+        }
       }
+
+      if (allRecordsToCreate.length > 0) {
+        const CHUNK_SIZE = 500;
+        for (let i = 0; i < allRecordsToCreate.length; i += CHUNK_SIZE) {
+          await this.prisma.attendanceRecord.createMany({
+            data: allRecordsToCreate.slice(i, i + CHUNK_SIZE),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      totalMarked = allRecordsToCreate.length;
 
       this.logger.log(
         `✅ [AutoAttendance] Done. Processed ${sessions.length} session(s), auto-marked ${totalMarked} student attendance record(s) as PRESENT.`,

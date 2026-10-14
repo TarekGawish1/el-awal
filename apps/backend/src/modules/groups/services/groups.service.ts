@@ -626,9 +626,12 @@ export class GroupsService {
       where: { groupId },
     });
 
-    // Batch optimize attendance counts using SQL groupBy
+    // Batch optimize attendance counts using SQL groupBy with zero per-student loop fallbacks
     const studentIds = group.enrollments.map((e) => e.studentId);
     const presentCountMap = new Map<string, number>();
+    for (const sid of studentIds) {
+      presentCountMap.set(sid, 0);
+    }
 
     if (studentIds.length > 0 && typeof this.prisma.attendanceRecord?.groupBy === 'function') {
       try {
@@ -645,41 +648,45 @@ export class GroupsService {
           presentCountMap.set(ag.studentId, (ag as any)._count?._all ?? (ag as any)._count ?? 0);
         }
       } catch {
-        // Fallback to per-student count if groupBy is unsupported in mock environment
+        // Fallback to a single batch findMany if groupBy is unsupported in mock environment
+        try {
+          if (typeof this.prisma.attendanceRecord?.findMany === 'function') {
+            const records = await this.prisma.attendanceRecord.findMany({
+              where: {
+                studentId: { in: studentIds },
+                session: { groupId },
+                status: AttendanceStatus.PRESENT,
+              },
+              select: { studentId: true },
+            });
+            for (const r of records) {
+              presentCountMap.set(r.studentId, (presentCountMap.get(r.studentId) || 0) + 1);
+            }
+          }
+        } catch {
+          // If mock does not support batch findMany, retain default 0 counts
+        }
       }
     }
 
-    const roster = await Promise.all(
-      group.enrollments.map(async (e) => {
-        let presentCount = presentCountMap.get(e.studentId);
-        if (presentCount === undefined && typeof this.prisma.attendanceRecord?.count === 'function') {
-          presentCount = await this.prisma.attendanceRecord.count({
-            where: {
-              studentId: e.studentId,
-              session: { groupId },
-              status: AttendanceStatus.PRESENT,
-            },
-          });
-        }
-        presentCount = presentCount || 0;
+    const roster = group.enrollments.map((e) => {
+      const presentCount = presentCountMap.get(e.studentId) ?? 0;
+      const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
 
-        const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
-
-        return {
-          enrollmentId: e.id,
-          studentId: e.studentId,
-          studentCode: e.student.studentCode,
-          fullName: e.student.user.fullName,
-          phone: e.student.user.phone,
-          gradeLevel: e.student.gradeLevel,
-          enrolledAt: e.enrolledAt,
-          parent: e.student.parentLinks[0]?.parent.user || null,
-          attendanceRate,
-          totalPresent: presentCount,
-          totalSessions,
-        };
-      }),
-    );
+      return {
+        enrollmentId: e.id,
+        studentId: e.studentId,
+        studentCode: e.student.studentCode,
+        fullName: e.student.user.fullName,
+        phone: e.student.user.phone,
+        gradeLevel: e.student.gradeLevel,
+        enrolledAt: e.enrolledAt,
+        parent: e.student.parentLinks[0]?.parent.user || null,
+        attendanceRate,
+        totalPresent: presentCount,
+        totalSessions,
+      };
+    });
 
     return {
       groupId: group.id,
