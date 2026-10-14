@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { PrismaService } from '../core/database/prisma.service';
-import { NotificationsService } from '../modules/notifications/services/notifications.service';
+import { NotificationsService, SendNotificationDto } from '../modules/notifications/services/notifications.service';
 import { NotificationSettingsService } from '../modules/notifications/services/notification-settings.service';
 import {
   NotificationChannel,
@@ -305,30 +305,32 @@ export class SchedulersService implements OnModuleInit {
             })
           : [];
 
-      const sentSet = new Set(
+      const visitedStudentSessions = new Set<string>(
         sentNotifications.map((n) => `${n.recipientId}:${n.referenceEntityId}`),
       );
+      const remindersToDispatch: SendNotificationDto[] = [];
 
       for (const session of targetSessions) {
         const timeStr = session.startTime || '';
+
         for (const enrollment of session.group.enrollments) {
           const student = enrollment.student;
-          const studentUser = student.user;
+          const studentUser = student?.user;
+          if (!studentUser?.id) continue;
 
-          // Deduplicate: avoid sending twice for the same session to the same student
+          // Visited Set pattern: avoid sending twice for the same session to the same student
           const dedupKey = `${studentUser.id}:${session.id}`;
-          if (sentSet.has(dedupKey)) continue;
-          sentSet.add(dedupKey);
+          if (visitedStudentSessions.has(dedupKey)) continue;
+          visitedStudentSessions.add(dedupKey);
 
-          // Notify student in-app and web push
-          await this.notifications.sendNotification({
+          remindersToDispatch.push({
             recipientId: studentUser.id,
             notificationType: NotificationType.SESSION_REMINDER_STUDENT,
             type: 'SESSION_REMINDER_STUDENT',
             title: '📅 تذكير: حصة دراسية قريباً',
             body: `تذكير: لديك حصة في مجموعة (${session.group.name}) الساعة ${timeStr} اليوم.`,
-            channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
             referenceEntityId: session.id,
+            channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
             data: {
               sessionId: session.id,
               groupId: session.groupId,
@@ -337,6 +339,11 @@ export class SchedulersService implements OnModuleInit {
             },
           });
         }
+      }
+
+      // OUTSIDE ALL LOOPS: single batch dispatch for all sessions and students
+      if (remindersToDispatch.length > 0) {
+        await this.notifications.sendBatch(remindersToDispatch);
       }
     } catch (error) {
       this.logger.error('[StudentReminder] Error in cron job', error);
@@ -426,9 +433,10 @@ export class SchedulersService implements OnModuleInit {
             })
           : [];
 
-      const sentExamSet = new Set(
+      const visitedExamStudents = new Set<string>(
         sentExamNotifications.map((n) => `${n.recipientId}:${n.referenceEntityId}`),
       );
+      const examRemindersToDispatch: SendNotificationDto[] = [];
 
       for (const exam of exams) {
         const startTimeStr = exam.startDate?.toLocaleTimeString('ar-EG', {
@@ -442,32 +450,34 @@ export class SchedulersService implements OnModuleInit {
         for (const group of exam.targetGroups) {
           for (const enrollment of group.enrollments) {
             const student = enrollment.student;
+            if (!student?.user?.id) continue;
             // Skip students who already submitted
             if (alreadySubmittedIds.has(student.id)) continue;
 
             const dedupKey = `${student.user.id}:${exam.id}`;
-            if (sentExamSet.has(dedupKey)) continue;
-            sentExamSet.add(dedupKey);
+            if (visitedExamStudents.has(dedupKey)) continue;
+            visitedExamStudents.add(dedupKey);
 
-            await this.notifications.sendNotification({
+            examRemindersToDispatch.push({
               recipientId: student.user.id,
               notificationType: NotificationType.ONLINE_EXAM_REMINDER,
               type: 'ONLINE_EXAM_REMINDER',
               title: '⏰ تذكير: امتحان أونلاين قريباً',
               body: `تذكير: امتحان (${exam.title}) يبدأ الساعة ${startTimeStr}. تأكد من جهازك وإنترنتك.`,
-              channels: [
-                NotificationChannel.IN_APP,
-                NotificationChannel.WEB_PUSH,
-              ],
               referenceEntityId: exam.id,
+              channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
               data: {
                 examId: exam.id,
-                studentId: student.id,
                 startDate: exam.startDate?.toISOString(),
               },
             });
           }
         }
+      }
+
+      // OUTSIDE ALL LOOPS: single batch dispatch for all exams and students
+      if (examRemindersToDispatch.length > 0) {
+        await this.notifications.sendBatch(examRemindersToDispatch);
       }
     } catch (error) {
       this.logger.error('[ExamReminder] Error in cron job', error);
@@ -533,11 +543,18 @@ export class SchedulersService implements OnModuleInit {
         sessionsByTeacherId.get(tid)!.push(s);
       }
 
+      const settings = await this.settingsService.getSettings();
+
+      const visitedTeachers = new Set<string>(sentTodayTeacherSet);
+      const teacherAgendasToDispatch: SendNotificationDto[] = [];
+      const forcedWhatsAppDispatches: Array<{ phone: string; body: string }> = [];
+
       for (const teacher of teachers) {
-        // Deduplicate: ensure teacher receives at most one morning agenda per day unless forced
-        if (!force && sentTodayTeacherSet.has(teacher.user.id)) {
+        // Visited Set pattern: ensure teacher receives at most one morning agenda per day unless forced
+        if (!force && visitedTeachers.has(teacher.user.id)) {
           continue;
         }
+        visitedTeachers.add(teacher.user.id);
 
         const sessions = sessionsByTeacherId.get(teacher.id) || [];
 
@@ -564,7 +581,6 @@ export class SchedulersService implements OnModuleInit {
               `\n🎓 منصة الأوّل التعليمية — نتمنى لك يوماً سعيداً وموفقاً ومثمراً 🌟`,
             ].join('\n');
 
-        const settings = await this.settingsService.getSettings();
         const targetPhone = settings.teacherRecipientPhone?.trim() || teacher.user.phone;
 
         const channels: NotificationChannel[] = [
@@ -575,7 +591,7 @@ export class SchedulersService implements OnModuleInit {
           channels.push(NotificationChannel.WHATSAPP);
         }
 
-        await this.notifications.sendNotification({
+        teacherAgendasToDispatch.push({
           recipientId: teacher.user.id,
           notificationType: NotificationType.TEACHER_DAILY_SCHEDULE,
           type: 'TEACHER_DAILY_SCHEDULE',
@@ -597,20 +613,30 @@ export class SchedulersService implements OnModuleInit {
             dateStr,
             agendaLines,
           );
-          const waResult = await this.whatsapp.sendTrackedProtectedMessage(targetPhone, waBody);
-          this.logger.log(
-            `[TeacherSchedule] Direct WhatsApp dispatch to ${targetPhone}: outcome=${waResult.outcome}, reason=${waResult.failureReason || 'OK'}`,
-          );
-          if (waResult.outcome !== 'sent') {
-            return {
-              success: false,
-              message: `تعذر إرسال رسالة الواتساب: ${waResult.failureReason || waResult.outcome}`,
-              dispatchedCount: 0,
-            };
-          }
+          forcedWhatsAppDispatches.push({ phone: targetPhone, body: waBody });
         }
 
         dispatchedCount++;
+      }
+
+      // OUTSIDE ALL LOOPS: single batch dispatch for all teachers
+      if (teacherAgendasToDispatch.length > 0) {
+        await this.notifications.sendBatch(teacherAgendasToDispatch);
+      }
+
+      // Handle explicit forced direct WhatsApp deliveries (e.g. admin manual test)
+      for (const forced of forcedWhatsAppDispatches) {
+        const waResult = await this.whatsapp.sendTrackedProtectedMessage(forced.phone, forced.body);
+        this.logger.log(
+          `[TeacherSchedule] Direct WhatsApp dispatch to ${forced.phone}: outcome=${waResult.outcome}, reason=${waResult.failureReason || 'OK'}`,
+        );
+        if (waResult.outcome !== 'sent') {
+          return {
+            success: false,
+            message: `تعذر إرسال رسالة الواتساب: ${waResult.failureReason || waResult.outcome}`,
+            dispatchedCount: 0,
+          };
+        }
       }
 
       return {
@@ -683,25 +709,27 @@ export class SchedulersService implements OnModuleInit {
             })
           : [];
 
-      const sentTeacherSet = new Set(
+      const visitedTeacherSessions = new Set<string>(
         sentTeacherReminders.map((n) => `${n.recipientId}:${n.referenceEntityId}`),
       );
+      const teacherRemindersToDispatch: SendNotificationDto[] = [];
 
       for (const session of targetSessions) {
         const teacher = session.group.teacher;
-        const teacherUser = teacher.user;
+        const teacherUser = teacher?.user;
+        if (!teacherUser?.id) continue;
 
-        // Deduplicate: avoid sending twice for the same session
+        // Visited Set pattern: avoid sending twice for the same session
         const dedupKey = `${teacherUser.id}:${session.id}`;
-        if (sentTeacherSet.has(dedupKey)) continue;
-        sentTeacherSet.add(dedupKey);
+        if (visitedTeacherSessions.has(dedupKey)) continue;
+        visitedTeacherSessions.add(dedupKey);
 
         const channels: NotificationChannel[] = [
           NotificationChannel.IN_APP,
           NotificationChannel.WEB_PUSH,
         ];
 
-        await this.notifications.sendNotification({
+        teacherRemindersToDispatch.push({
           recipientId: teacherUser.id,
           notificationType: NotificationType.TEACHER_SESSION_REMINDER,
           type: 'TEACHER_SESSION_REMINDER',
@@ -717,6 +745,11 @@ export class SchedulersService implements OnModuleInit {
             startTime: session.startTime,
           },
         });
+      }
+
+      // OUTSIDE ALL LOOPS: single batch dispatch for all teacher session reminders
+      if (teacherRemindersToDispatch.length > 0) {
+        await this.notifications.sendBatch(teacherRemindersToDispatch);
       }
     } catch (error) {
       this.logger.error('[TeacherReminder] Error in cron job', error);
@@ -835,13 +868,10 @@ export class SchedulersService implements OnModuleInit {
       }
 
       if (allRecordsToCreate.length > 0) {
-        const CHUNK_SIZE = 500;
-        for (let i = 0; i < allRecordsToCreate.length; i += CHUNK_SIZE) {
-          await this.prisma.attendanceRecord.createMany({
-            data: allRecordsToCreate.slice(i, i + CHUNK_SIZE),
-            skipDuplicates: true,
-          });
-        }
+        await this.prisma.attendanceRecord.createMany({
+          data: allRecordsToCreate,
+          skipDuplicates: true,
+        });
       }
 
       totalMarked = allRecordsToCreate.length;

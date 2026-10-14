@@ -199,6 +199,100 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     return createdRecord;
   }
 
+  /**
+   * Batch enqueues multiple WhatsApp messages using a single createMany query.
+   * Preserves exact message ordering, spintax rendering, and validation.
+   */
+  async enqueueNotificationsBatch(notifications: QueueNotification[]): Promise<number> {
+    if (!notifications || notifications.length === 0) return 0;
+
+    // Check WhatsApp channel permission once
+    const firstType = notifications[0].notificationType ?? notifications[0].type;
+    const isAllowed = await this.settingsService.isChannelAllowed(
+      NotificationChannel.WHATSAPP,
+      firstType,
+    );
+
+    if (!isAllowed) {
+      this.logger.debug('Skipping batch WhatsApp enqueue: suppressed by notification settings');
+      return 0;
+    }
+
+    const logsData: Array<{
+      recipientPhone: string;
+      recipientName: string;
+      recipientRole: UserRole;
+      templateType: string;
+      messageBody: string;
+      status: WhatsAppStatus;
+      failureReason?: string | null;
+      scheduledFor: Date;
+    }> = [];
+
+    for (const notification of notifications) {
+      // Disable WhatsApp messages for session time reminders
+      if (
+        notification.notificationType === NotificationType.SESSION_REMINDER_STUDENT ||
+        notification.notificationType === NotificationType.TEACHER_SESSION_REMINDER ||
+        notification.type === 'SESSION_REMINDER_STUDENT' ||
+        notification.type === 'TEACHER_SESSION_REMINDER'
+      ) {
+        continue;
+      }
+
+      const data = notification.data as Record<string, unknown> | null;
+      const rawBody = this.buildMessageBody(notification);
+      const rawPhone = data?.phone;
+
+      if (typeof rawPhone !== 'string' || !rawPhone.trim()) {
+        logsData.push({
+          recipientPhone: '',
+          recipientName: notification.recipient.fullName,
+          recipientRole: notification.recipient.role,
+          templateType: notification.notificationType ?? notification.type,
+          messageBody: rawBody,
+          status: WhatsAppStatus.PERMANENT_FAIL,
+          failureReason: 'Recipient phone is missing',
+          scheduledFor: notification.scheduledFor,
+        });
+        continue;
+      }
+
+      let recipientPhone: string;
+      try {
+        recipientPhone = this.formatToWhatsAppInternational(rawPhone);
+        logsData.push({
+          recipientPhone,
+          recipientName: notification.recipient.fullName,
+          recipientRole: notification.recipient.role,
+          templateType: notification.notificationType ?? notification.type,
+          messageBody: rawBody,
+          status: WhatsAppStatus.QUEUED,
+          scheduledFor: notification.scheduledFor,
+        });
+      } catch (error) {
+        logsData.push({
+          recipientPhone: rawPhone.replace(/\D/g, ''),
+          recipientName: notification.recipient.fullName,
+          recipientRole: notification.recipient.role,
+          templateType: notification.notificationType ?? notification.type,
+          messageBody: rawBody,
+          status: WhatsAppStatus.PERMANENT_FAIL,
+          failureReason: this.errorMessage(error),
+          scheduledFor: notification.scheduledFor,
+        });
+      }
+    }
+
+    if (logsData.length === 0) return 0;
+
+    await this.prisma.whatsAppMessageLog.createMany({
+      data: logsData,
+    });
+
+    return logsData.length;
+  }
+
   /** Receipts can call this method when a provider delivery acknowledgement arrives. */
   async markDelivered(providerMessageId: string): Promise<void> {
     await this.prisma.whatsAppMessageLog.updateMany({

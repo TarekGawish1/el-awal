@@ -119,19 +119,14 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
               alreadySentSet = new Set<string>();
             }
           } else if (typeof this.prisma.notification?.findFirst === 'function') {
-            for (const uid of candidateUserIds) {
-              const sent = await this.prisma.notification.findFirst({
-                where: {
-                  recipientId: uid,
-                  notificationType,
-                  referenceEntityId: assessment.id,
-                  createdAt: {
-                    gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-                  },
-                },
-              });
-              if (sent) alreadySentSet.add(uid);
-            }
+            const sent = await this.prisma.notification.findFirst({
+              where: {
+                recipientId: { in: candidateUserIds },
+                notificationType,
+                referenceEntityId: assessment.id,
+              },
+            });
+            if (sent?.recipientId) alreadySentSet.add(sent.recipientId);
           }
         }
 

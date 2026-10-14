@@ -1597,15 +1597,18 @@ export class StudentsService {
       const parentLinks = await tx.parentStudentLink.findMany({ where: { studentId: id } });
       await tx.parentStudentLink.deleteMany({ where: { studentId: id } });
       if (parentLinks.length > 0) {
-        await Promise.all(
-          parentLinks.map(async (link) => {
-            const remainingLinks = await tx.parentStudentLink.count({ where: { parentId: link.parentId } });
-            if (remainingLinks === 0) {
-              await tx.parentProfile.deleteMany({ where: { id: link.parentId } });
-              await tx.user.deleteMany({ where: { id: link.parentId, role: UserRole.PARENT } });
-            }
-          }),
-        );
+        const parentIds = Array.from(new Set(parentLinks.map((l) => l.parentId)));
+        const remainingLinks = await tx.parentStudentLink.findMany({
+          where: { parentId: { in: parentIds } },
+          select: { parentId: true },
+        });
+        const remainingParentIdSet = new Set(remainingLinks.map((l) => l.parentId));
+        const orphanedParentIds = parentIds.filter((pid) => !remainingParentIdSet.has(pid));
+
+        if (orphanedParentIds.length > 0) {
+          await tx.parentProfile.deleteMany({ where: { id: { in: orphanedParentIds } } });
+          await tx.user.deleteMany({ where: { id: { in: orphanedParentIds }, role: UserRole.PARENT } });
+        }
       }
 
       // 2. Academic Group enrollments

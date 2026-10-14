@@ -20,6 +20,29 @@ export interface PushPayload {
   data?: Record<string, unknown>;
 }
 
+export interface SubscriptionDeliveryOutcome {
+  endpoint: string;
+  userId?: string;
+  status: 'SENT' | 'FAILED' | 'EXPIRED';
+  statusCode?: number;
+  error?: string;
+}
+
+export interface WebPushBatchResult {
+  totalSubscriptions: number;
+  successCount: number;
+  failureCount: number;
+  expiredCount: number;
+  successfulUserIds: string[];
+  failedUserIds: string[];
+  partialUserIds: string[];
+  deviceOutcomes: SubscriptionDeliveryOutcome[];
+}
+
+export interface SendBatchOptions {
+  concurrencyLimit?: number;
+}
+
 /**
  * WebPushService — handles VAPID-authenticated Web Push notifications.
  *
@@ -101,8 +124,152 @@ export class WebPushService implements OnModuleInit {
   }
 
   /**
+   * Dispatches a Web Push notification payload to multiple subscriptions with bounded concurrency.
+   * Auto-removes 404/410 expired subscriptions in a single batch query.
+   *
+   * External push delivery concurrency is strictly bounded by `concurrencyLimit` (default 15).
+   */
+  async sendBatchSubscriptions(
+    subscriptions: Array<{
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+      userId?: string;
+    }>,
+    payload: PushPayload,
+    options?: SendBatchOptions,
+  ): Promise<WebPushBatchResult> {
+    if (!subscriptions || subscriptions.length === 0) {
+      return {
+        totalSubscriptions: 0,
+        successCount: 0,
+        failureCount: 0,
+        expiredCount: 0,
+        successfulUserIds: [],
+        failedUserIds: [],
+        partialUserIds: [],
+        deviceOutcomes: [],
+      };
+    }
+
+    const concurrencyLimit = Math.max(1, options?.concurrencyLimit ?? 15);
+
+    const pushPayload = JSON.stringify({
+      title: payload.title,
+      body: payload.body,
+      icon: payload.icon || '/icons/icon-192x192.png',
+      badge: payload.badge || '/icons/badge-72x72.png',
+      url: payload.url || this.appUrl,
+      data: payload.data || {},
+    });
+
+    const expiredEndpoints: string[] = [];
+    const successfulUserIdsSet = new Set<string>();
+    const failedUserIdsSet = new Set<string>();
+    const deviceOutcomes: SubscriptionDeliveryOutcome[] = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Bounded concurrency pool: at most `concurrencyLimit` active promises in flight
+    let currentIndex = 0;
+    const workerCount = Math.min(concurrencyLimit, subscriptions.length);
+
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (currentIndex < subscriptions.length) {
+        const index = currentIndex++;
+        const sub = subscriptions[index];
+
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            pushPayload,
+          );
+          successCount++;
+          if (sub.userId) {
+            successfulUserIdsSet.add(sub.userId);
+          }
+          deviceOutcomes.push({
+            endpoint: sub.endpoint,
+            userId: sub.userId,
+            status: 'SENT',
+            statusCode: 201,
+          });
+        } catch (error) {
+          failureCount++;
+          const err = error as { statusCode?: number; message?: string };
+          const statusCode = err.statusCode;
+          if (statusCode === 404 || statusCode === 410) {
+            expiredEndpoints.push(sub.endpoint);
+            deviceOutcomes.push({
+              endpoint: sub.endpoint,
+              userId: sub.userId,
+              status: 'EXPIRED',
+              statusCode,
+              error: 'Subscription expired or unregistered by browser gateway',
+            });
+          } else {
+            this.logger.warn(
+              `Push failed for endpoint [${sub.endpoint.slice(0, 50)}...]: ${statusCode}`,
+            );
+            deviceOutcomes.push({
+              endpoint: sub.endpoint,
+              userId: sub.userId,
+              status: 'FAILED',
+              statusCode,
+              error: err.message,
+            });
+          }
+          if (sub.userId) {
+            failedUserIdsSet.add(sub.userId);
+          }
+        }
+      }
+    });
+
+    await Promise.all(workers);
+
+    // Prune expired endpoints in one batch
+    if (expiredEndpoints.length > 0) {
+      await this.prisma.pushSubscription
+        .deleteMany({
+          where: { endpoint: { in: expiredEndpoints } },
+        })
+        .catch((err) => this.logger.error('Failed to prune expired subscriptions', err));
+
+      this.logger.log(
+        `🗑️ Removed ${expiredEndpoints.length} expired push subscription(s) in batch`,
+      );
+    }
+
+    this.logger.log(
+      `📩 Web Push batch complete: ${successCount} sent, ${failureCount} failed (${expiredEndpoints.length} expired) across ${subscriptions.length} subscriptions`,
+    );
+
+    const successfulUserIds = Array.from(successfulUserIdsSet);
+    const partialUserIds = successfulUserIds.filter((uid) => failedUserIdsSet.has(uid));
+    const failedWithoutAnySuccess = Array.from(failedUserIdsSet).filter(
+      (uid) => !successfulUserIdsSet.has(uid),
+    );
+
+    return {
+      totalSubscriptions: subscriptions.length,
+      successCount,
+      failureCount,
+      expiredCount: expiredEndpoints.length,
+      successfulUserIds,
+      failedUserIds: failedWithoutAnySuccess,
+      partialUserIds,
+      deviceOutcomes,
+    };
+  }
+
+  /**
    * Sends a push notification to ALL active subscriptions for a given user.
    * Auto-removes subscriptions that return 404/410 (expired/revoked).
+   * Reuses sendBatchSubscriptions with bounded concurrency (default 5 for single user).
    *
    * @returns number of successful sends
    */
@@ -116,56 +283,9 @@ export class WebPushService implements OnModuleInit {
       return 0;
     }
 
-    const pushPayload = JSON.stringify({
-      title: payload.title,
-      body: payload.body,
-      icon: payload.icon || '/icons/icon-192x192.png',
-      badge: payload.badge || '/icons/badge-72x72.png',
-      url: payload.url || this.appUrl,
-      data: payload.data || {},
+    const result = await this.sendBatchSubscriptions(subscriptions, payload, {
+      concurrencyLimit: 5,
     });
-
-    let successCount = 0;
-    const expiredEndpoints: string[] = [];
-
-    await Promise.allSettled(
-      subscriptions.map(async (sub) => {
-        try {
-          await webpush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth },
-            },
-            pushPayload,
-          );
-          successCount++;
-        } catch (error) {
-          const err = error as { statusCode?: number };
-          if (err.statusCode === 404 || err.statusCode === 410) {
-            // Subscription expired or was revoked by the browser
-            expiredEndpoints.push(sub.endpoint);
-          } else {
-            this.logger.warn(
-              `Push failed for endpoint [${sub.endpoint.slice(0, 50)}...]: ${err.statusCode}`,
-            );
-          }
-        }
-      }),
-    );
-
-    // Clean up expired subscriptions
-    if (expiredEndpoints.length > 0) {
-      await this.prisma.pushSubscription.deleteMany({
-        where: { endpoint: { in: expiredEndpoints } },
-      });
-      this.logger.log(
-        `🗑️ Removed ${expiredEndpoints.length} expired push subscription(s) for user [${userId}]`,
-      );
-    }
-
-    this.logger.log(
-      `📩 Push sent to ${successCount}/${subscriptions.length} subscriptions for user [${userId}]`,
-    );
-    return successCount;
+    return result.successCount;
   }
 }

@@ -28,7 +28,10 @@ describe('DeadlineReminderCron', () => {
       studentProfile: {
         findMany: jest.fn().mockResolvedValue([{ id: 'user-pending' }, { id: 'user-already-notified' }]),
       },
-      notification: { findFirst },
+      notification: {
+        findFirst,
+        findMany: jest.fn().mockResolvedValue([{ recipientId: 'user-already-notified' }]),
+      },
     };
     const cron = new DeadlineReminderCron(prisma, { dispatchToUsers } as any);
 

@@ -14,15 +14,32 @@ export async function generateUniqueStudentCode(
   const year = new Date().getFullYear();
   const count = await tx.studentProfile.count();
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const sequenceNumber = count + 1 + attempt;
-    const candidate = `STU${year}${String(sequenceNumber).padStart(5, '0')}`;
-    const existing = await tx.studentProfile.findUnique({
-      where: { studentCode: candidate },
-      select: { id: true },
+  if (typeof tx.studentProfile.findMany === 'function') {
+    const candidates = Array.from(
+      { length: 5 },
+      (_, i) => `STU${year}${String(count + 1 + i).padStart(5, '0')}`,
+    );
+    const existing = await tx.studentProfile.findMany({
+      where: { studentCode: { in: candidates } },
+      select: { studentCode: true },
     });
-    if (!existing) {
-      return candidate;
+    const existingSet = new Set(existing.map((e) => e.studentCode));
+    for (const candidate of candidates) {
+      if (!existingSet.has(candidate)) {
+        return candidate;
+      }
+    }
+  } else {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const sequenceNumber = count + 1 + attempt;
+      const candidate = `STU${year}${String(sequenceNumber).padStart(5, '0')}`;
+      const existing = await tx.studentProfile.findUnique({
+        where: { studentCode: candidate },
+        select: { id: true },
+      });
+      if (!existing) {
+        return candidate;
+      }
     }
   }
 
