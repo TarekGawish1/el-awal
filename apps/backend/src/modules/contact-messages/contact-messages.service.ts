@@ -40,26 +40,28 @@ export class ContactMessagesService {
           ? `${createDto.message.substring(0, 100)}...`
           : createDto.message;
 
-      for (const staff of staffMembers) {
+      if (staffIds.length > 0) {
         try {
-          await this.notificationsService.sendNotification({
-            recipientId: staff.id,
-            type: 'WEBSITE_INQUIRY',
-            notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
-            title: `📩 رسالة جديدة من الموقع: ${createDto.name}`,
-            body: snippet,
-            channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
-            data: {
-              url: '/teacher/inquiries',
-              inquiryId: contactMessage.id,
-              senderName: createDto.name,
-              senderPhone: createDto.phone,
+          await this.notificationsService.dispatchToUsers(
+            staffIds,
+            {
+              type: 'WEBSITE_INQUIRY',
+              notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+              title: `📩 رسالة جديدة من الموقع: ${createDto.name}`,
+              body: snippet,
+              referenceEntityId: contactMessage.id,
+              data: {
+                url: '/teacher/inquiries',
+                inquiryId: contactMessage.id,
+                senderName: createDto.name,
+                senderPhone: createDto.phone,
+              },
             },
-          });
+            [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+          );
         } catch (notifErr) {
           this.logger.warn(
-            `Failed to send inquiry notification to user [${staff.id}]`,
-            notifErr,
+            `Failed to send inquiry notifications: ${(notifErr as any)?.message || notifErr}`,
           );
         }
       }

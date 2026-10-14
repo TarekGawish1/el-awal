@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { NotificationChannel, NotificationType } from '@prisma/client';
-import { NotificationsService } from '../services/notifications.service';
+import { NotificationsService, SendNotificationDto } from '../services/notifications.service';
 import * as cron from 'node-cron';
 
 @Injectable()
@@ -65,6 +65,8 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
           group: { select: { name: true } },
         },
       });
+
+      const remindersToDispatch: SendNotificationDto[] = [];
 
       for (const assessment of assessments) {
         if (!assessment.groupId) continue;
@@ -141,13 +143,15 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
         });
         const groupName = assessment.group?.name || 'مجموعتك الدراسية';
 
-        await this.notifications.dispatchToUsers(
-          pendingUserIds,
-          {
+        for (const uid of pendingUserIds) {
+          remindersToDispatch.push({
+            recipientId: uid,
+            type: notificationType,
             notificationType,
             title: `⏰ تذكير: متبقي 24 ساعة فقط على تسليم ${assessment.title}`,
             body: `تذكير بموعد تسليم ${assessment.title} لمجموعة ${groupName}. يرجى رفع الحل قبل انتهاء الوقت غداً الساعة ${time}.`,
             referenceEntityId: assessment.id,
+            channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
             data: {
               assessmentId: assessment.id,
               groupId: assessment.groupId,
@@ -155,9 +159,22 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
               deadline: deadline.toISOString(),
               priority: 'high',
             },
-          },
-          [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
-        );
+          });
+        }
+      }
+
+      // OUTSIDE ALL LOOPS: single batch dispatch
+      if (remindersToDispatch.length > 0) {
+        if (typeof this.notifications.sendBatch === 'function') {
+          await this.notifications.sendBatch(remindersToDispatch);
+        } else if (typeof this.notifications.dispatchToUsers === 'function') {
+          const uids = remindersToDispatch.map((r) => r.recipientId);
+          await this.notifications.dispatchToUsers(
+            uids,
+            remindersToDispatch[0] as any,
+            [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+          );
+        }
       }
     } catch (error) {
       this.logger.error('Deadline reminder cron failed', error);
