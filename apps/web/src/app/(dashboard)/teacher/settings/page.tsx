@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { Settings as SettingsIcon, Save, Phone, User } from 'lucide-react';
 import { useTeacherProfile } from '@/features/teachers/hooks/useTeacherProfile';
-import { ServerClusterCard } from '@/components/admin/ServerClusterCard';
 import toast from 'react-hot-toast';
 
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
@@ -57,11 +56,8 @@ export default function TeacherSettingsPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12 animate-fade-in">
-      {/* 1. Server Cluster & Exam Mode Engine */}
-      <ServerClusterCard />
-
-      {/* 2. Teacher Profile Info */}
-      <div className="flex flex-col gap-2 pt-4">
+      {/* Teacher Profile Info */}
+      <div className="flex flex-col gap-2 pt-2">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-primary-100 rounded-xl">
             <SettingsIcon className="w-6 h-6 text-primary-600" />

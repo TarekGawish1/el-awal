@@ -3,8 +3,16 @@ import { Logger } from '@nestjs/common';
 
 const logger = new Logger('ClusterMaster');
 
+interface WorkerMetrics {
+  rss: number;
+  heapUsed: number;
+  heapTotal: number;
+  updatedAt: number;
+}
+
 interface ClusterState {
   workers: Map<string, Worker>;
+  workerMetrics: Map<string, WorkerMetrics>;
   examModeActive: boolean;
   examModeTimer: NodeJS.Timeout | null;
   examModeExpiresAt: string | null;
@@ -12,6 +20,7 @@ interface ClusterState {
 
 const state: ClusterState = {
   workers: new Map(),
+  workerMetrics: new Map(),
   examModeActive: false,
   examModeTimer: null,
   examModeExpiresAt: null,
@@ -44,6 +53,7 @@ export function startClusterMaster(): void {
       if (w.id === worker.id) {
         exitedWorkerId = id;
         state.workers.delete(id);
+        state.workerMetrics.delete(id);
         break;
       }
     }
@@ -63,6 +73,11 @@ export function startClusterMaster(): void {
       spawnWorker('2');
     }
   });
+
+  // 4. Periodic cluster state sync (every 5 seconds)
+  setInterval(() => {
+    broadcastClusterState();
+  }, 5000);
 
   // 4. Graceful primary shutdown
   const handleShutdown = (signal: string) => {

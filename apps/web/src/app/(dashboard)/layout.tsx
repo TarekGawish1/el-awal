@@ -113,6 +113,7 @@ export default function DashboardLayout({
       '/teacher/assistants': 'إدارة المساعدين',
       '/teacher/activity-log': 'سجل النشاطات وتتبع العمليات',
       '/teacher/analytics': 'إحصائيات المنصة والزوار',
+      '/teacher/performance': 'سرعة وأداء المنصة',
       '/teacher/settings': 'بيانات المدرس',
       '/student/dashboard': 'لوحة تحكم الطالب',
       '/student/homework': 'الواجبات المنزلية',

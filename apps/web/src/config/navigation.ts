@@ -17,6 +17,7 @@ import {
   BarChart3,
   MessageSquareHeart,
   Settings,
+  Gauge,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -83,6 +84,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
       { label: 'إدارة المساعدين', href: '/teacher/assistants', icon: Users, onlineOnly: true, roleRequirement: 'TEACHER' },
       { label: 'سجل النشاطات', href: '/teacher/activity-log', icon: History, onlineOnly: true, roleRequirement: 'TEACHER' },
       { label: 'إحصائيات المنصة والزوار', href: '/teacher/analytics', icon: BarChart3, onlineOnly: true, roleRequirement: 'TEACHER' },
+      { label: 'سرعة وأداء المنصة', href: '/teacher/performance', icon: Gauge, onlineOnly: true, roleRequirement: 'TEACHER' },
       { label: 'بيانات المدرس', href: '/teacher/settings', icon: Settings, onlineOnly: true, roleRequirement: 'TEACHER' },
       {
         label: 'ربط وإدارة الواتساب',

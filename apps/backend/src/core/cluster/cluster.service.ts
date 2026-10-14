@@ -173,7 +173,7 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
     if (!this.isClustered() || typeof process.send !== 'function') {
       return {
         success: false,
-        message: 'Application is running in standalone single-process mode (clustering disabled).',
+        message: 'خاصية تسريع المنصة تعمل تلقائياً على الخادم السحابي الرئيسي.',
       };
     }
 
@@ -192,7 +192,7 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
 
     return {
       success: true,
-      message: `تم تشغيل النسخة الثانية (Worker 2) بنجاح لوضع الامتحانات والذروة (${reason}) لمدة ${durationMinutes} دقيقة.`,
+      message: `تم تفعيل أقصى طاقة وسرعة للمنصة بنجاح لمدة ${durationMinutes} دقيقة.`,
     };
   }
 
@@ -203,7 +203,7 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
     if (!this.isClustered() || typeof process.send !== 'function') {
       return {
         success: false,
-        message: 'Application is running in standalone single-process mode (clustering disabled).',
+        message: 'خاصية تسريع المنصة تعمل تلقائياً على الخادم السحابي الرئيسي.',
       };
     }
 
@@ -219,7 +219,7 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
 
     return {
       success: true,
-      message: 'تم إيقاف النسخة الثانية (Worker 2) بلباقة واسترجاع السيرفر للوضع الاقتصادي.',
+      message: 'تمت العودة للوضع القياسي الطبيعي للمنصة بنجاح.',
     };
   }
 
