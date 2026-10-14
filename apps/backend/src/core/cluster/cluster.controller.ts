@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ClusterService } from './cluster.service';
 import { Roles } from '../security/decorators/roles.decorator';
@@ -47,9 +47,12 @@ export class ClusterController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Spawn secondary instance (Worker 2) for Exam High-Load Mode' })
   @ApiResponse({ status: 200, description: 'Worker 2 spawned successfully' })
-  async scaleUp(@Body() body: ScaleUpDto) {
+  async scaleUp(@Body() body?: ScaleUpDto) {
     const duration = body?.durationMinutes || 120;
     const result = await this.clusterService.scaleUp(duration);
+    if (!result.success) {
+      throw new BadRequestException(result.message);
+    }
     return {
       success: result.success,
       message: result.message,
@@ -64,6 +67,9 @@ export class ClusterController {
   @ApiResponse({ status: 200, description: 'Worker 2 shutdown initiated' })
   async scaleDown() {
     const result = await this.clusterService.scaleDown();
+    if (!result.success) {
+      throw new BadRequestException(result.message);
+    }
     return {
       success: result.success,
       message: result.message,

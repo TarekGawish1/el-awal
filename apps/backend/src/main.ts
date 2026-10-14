@@ -65,11 +65,12 @@ async function bootstrap() {
     // Strip Content-Type: application/json from body-less requests to prevent FST_ERR_CTP_EMPTY_JSON_BODY (400)
     const contentType = request.headers['content-type'];
     const contentLength = request.headers['content-length'];
+    const isChunked = request.headers['transfer-encoding'] === 'chunked';
     if (
       contentType &&
       contentType.includes('application/json') &&
-      (!contentLength || contentLength === '0') &&
-      ['GET', 'DELETE', 'HEAD', 'OPTIONS'].includes(request.method)
+      !isChunked &&
+      (!contentLength || contentLength === '0')
     ) {
       delete request.headers['content-type'];
     }

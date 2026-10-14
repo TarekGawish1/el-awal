@@ -203,8 +203,35 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     Accept: 'application/json',
   };
 
-  // Only set application/json if a body is present and not FormData
-  if (customConfig.body !== undefined && customConfig.body !== null && !(customConfig.body instanceof FormData)) {
+  const isBinaryOrFormData =
+    customConfig.body instanceof FormData ||
+    (typeof Blob !== 'undefined' && customConfig.body instanceof Blob) ||
+    (typeof ArrayBuffer !== 'undefined' && customConfig.body instanceof ArrayBuffer) ||
+    (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(customConfig.body)) ||
+    (typeof URLSearchParams !== 'undefined' && customConfig.body instanceof URLSearchParams) ||
+    (typeof ReadableStream !== 'undefined' && customConfig.body instanceof ReadableStream);
+
+  let requestBody = customConfig.body;
+  if (
+    requestBody !== undefined &&
+    requestBody !== null &&
+    !isBinaryOrFormData &&
+    typeof requestBody === 'object'
+  ) {
+    requestBody = JSON.stringify(requestBody);
+  }
+
+  const rawHeaders = (headers || {}) as Record<string, string>;
+  const hasContentType = Object.keys(rawHeaders).some((k) => k.toLowerCase() === 'content-type');
+
+  // Only set application/json if a non-empty body is present, not binary/FormData, and not already defined
+  if (
+    requestBody !== undefined &&
+    requestBody !== null &&
+    requestBody !== '' &&
+    !isBinaryOrFormData &&
+    !hasContentType
+  ) {
     defaultHeaders['Content-Type'] = 'application/json';
   }
 
@@ -234,11 +261,17 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     method: 'GET',
     headers: {
       ...defaultHeaders,
-      ...(headers as Record<string, string>),
+      ...rawHeaders,
     },
     credentials: isInternalApi ? 'include' : customConfig.credentials || 'same-origin',
     ...customConfig,
   };
+
+  if (requestBody !== undefined && requestBody !== null) {
+    config.body = requestBody as BodyInit;
+  } else {
+    delete config.body;
+  }
 
   try {
     const response = await fetch(url, config);

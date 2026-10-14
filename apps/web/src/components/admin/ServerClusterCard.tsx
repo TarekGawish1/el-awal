@@ -32,14 +32,13 @@ export function ServerClusterCard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState<number>(120);
-
   const fetchStatus = async () => {
     try {
-      const res = await apiClient<{ success: boolean; data: { success: boolean; data: ClusterStatusData } }>(
+      const res = await apiClient<any>(
         '/system/cluster/status',
       );
-      const payload = res?.data?.data || res?.data;
-      if (payload) {
+      const payload = res?.data?.data || res?.data || res;
+      if (payload && (payload.mode || payload.activeWorkersCount !== undefined)) {
         setData(payload as ClusterStatusData);
       }
     } catch (err: any) {
