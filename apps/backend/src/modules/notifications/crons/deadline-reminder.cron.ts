@@ -92,48 +92,33 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
           select: { id: true },
         });
 
+        const candidateUserIds = pendingStudents.map((s) => s.id).filter(Boolean);
+        if (candidateUserIds.length === 0) continue;
+
         const notificationType =
           assessment.assessmentType === 'HOMEWORK' || assessment.type === 'ASSIGNMENT'
             ? NotificationType.HOMEWORK_DEADLINE_REMINDER
             : NotificationType.EXAM_DEADLINE_REMINDER;
 
-        const candidateUserIds = pendingStudents
-          .map((s) => s.id)
-          .filter(Boolean);
-
         let alreadySentSet = new Set<string>();
-        if (candidateUserIds.length > 0) {
-          if (typeof this.prisma.notification?.findMany === 'function') {
-            try {
-              const alreadySentList = await this.prisma.notification.findMany({
-                where: {
-                  recipientId: { in: candidateUserIds },
-                  notificationType,
-                  referenceEntityId: assessment.id,
-                  createdAt: {
-                    gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-                  },
-                },
-                select: { recipientId: true },
-              });
-              alreadySentSet = new Set(alreadySentList.map((n) => n.recipientId));
-            } catch {
-              alreadySentSet = new Set<string>();
-            }
-          } else if (typeof this.prisma.notification?.findFirst === 'function') {
-            const sent = await this.prisma.notification.findFirst({
+        if (typeof this.prisma.notification?.findMany === 'function') {
+          try {
+            const alreadySentList = await this.prisma.notification.findMany({
               where: {
                 recipientId: { in: candidateUserIds },
                 notificationType,
                 referenceEntityId: assessment.id,
+                createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
               },
+              select: { recipientId: true },
             });
-            if (sent?.recipientId) alreadySentSet.add(sent.recipientId);
+            alreadySentSet = new Set(alreadySentList.map((n) => n.recipientId));
+          } catch {
+            alreadySentSet = new Set<string>();
           }
         }
 
         const pendingUserIds = candidateUserIds.filter((uid) => !alreadySentSet.has(uid));
-
         if (pendingUserIds.length === 0) continue;
 
         const time = deadline.toLocaleTimeString('ar-EG', {
