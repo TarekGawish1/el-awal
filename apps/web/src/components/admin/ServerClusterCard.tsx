@@ -83,9 +83,13 @@ export function ServerClusterCard() {
   const isExamActive = Boolean(data?.examModeActive || activeWorkers > 1);
   const isSurgeActive = Boolean(data?.autoScaler?.surgeTriggered);
   const currentRps = data?.currentRps ?? 0;
-  const rssMb = data?.memoryUsage?.rssMb || 220;
-  const totalRamMb = 512;
-  const ramPercent = Math.min(Math.round((rssMb / totalRamMb) * 100), 100);
+  const memory = data?.memoryUsage as any;
+  const rssMb = memory?.rssMb || 260;
+  const totalRamMb = memory?.totalRamMb || 1024;
+  const safetyMargin =
+    typeof memory?.safetyMarginPercent === 'number'
+      ? memory.safetyMarginPercent
+      : Math.max(0, 100 - Math.min(Math.round((rssMb / totalRamMb) * 100), 100));
 
   return (
     <div className="bg-white border border-neutral-200/90 rounded-2xl shadow-sm overflow-hidden transition-all">
@@ -185,19 +189,23 @@ export function ServerClusterCard() {
           <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100">
             <div className="flex items-center justify-between text-neutral-500 text-xs font-bold mb-1">
               <span>استقرار موارد المنصة</span>
-              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <ShieldCheck className={`w-4 h-4 ${safetyMargin < 20 ? 'text-amber-500' : 'text-emerald-500'}`} />
             </div>
             <div className="text-xl font-black text-neutral-800">
-              {100 - ramPercent}%{' '}
+              {safetyMargin}%{' '}
               <span className="text-xs font-medium text-neutral-400">مساحة أمان متوفرة</span>
             </div>
             {/* Progress bar */}
             <div className="w-full bg-neutral-200 h-2 rounded-full mt-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-500 ${
-                  ramPercent > 80 ? 'bg-red-500' : ramPercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                  safetyMargin < 15
+                    ? 'bg-red-500'
+                    : safetyMargin < 35
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
                 }`}
-                style={{ width: `${ramPercent}%` }}
+                style={{ width: `${safetyMargin}%` }}
               />
             </div>
             <p className="text-[11px] text-neutral-400 mt-1">

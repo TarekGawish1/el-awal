@@ -54,6 +54,7 @@ function isCachableResponse(response) {
 // Critical App Shell assets and core dashboard routes to pre-cache on install
 const PRECACHE_URLS = [
   '/',
+  '/app',
   '/login',
   '/teacher/dashboard',
   '/teacher/groups',
@@ -293,6 +294,18 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         const runtimeCache = await caches.open(RUNTIME_CACHE);
         const coreCache = await caches.open(CACHE_NAME);
+
+        // Fast path for PWA launcher '/app': Serve from cache immediately if available for zero-latency launch
+        if (url.pathname === '/app') {
+          const cachedApp = (await coreCache.match('/app')) || (await runtimeCache.match('/app'));
+          if (cachedApp) {
+            // Background revalidate in parallel
+            fetch(request).then((res) => {
+              if (isCachableResponse(res)) runtimeCache.put('/app', res);
+            }).catch(() => {});
+            return cachedApp;
+          }
+        }
 
         // 1. Try network first if online
         if (navigator.onLine) {

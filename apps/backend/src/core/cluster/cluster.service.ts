@@ -254,6 +254,11 @@ export class ClusterService implements OnModuleInit, OnModuleDestroy {
       heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       heapTotalMb: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
       rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      totalRamMb: 1024,
+      safetyMarginPercent: Math.max(
+        0,
+        100 - Math.min(Math.round((process.memoryUsage().rss / 1024 / 1024 / 1024) * 100), 100),
+      ),
     };
 
     return {

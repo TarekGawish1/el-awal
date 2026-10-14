@@ -258,19 +258,41 @@ function getClusterStateSummary() {
     }
   }
 
-  // Calculate aggregated cluster memory across Master and all alive Workers
-  let totalRss = process.memoryUsage().rss;
-  let totalHeapUsed = process.memoryUsage().heapUsed;
-  let totalHeapTotal = process.memoryUsage().heapTotal;
+  // Calculate real memory across active workers
+  // (Excludes master process to avoid double-counting Linux Copy-On-Write shared pages)
+  let totalRss = 0;
+  let totalHeapUsed = 0;
+  let totalHeapTotal = 0;
 
   const now = Date.now();
+  let reportingWorkersCount = 0;
   for (const [id, metrics] of state.workerMetrics.entries()) {
     if (state.workers.has(id) && now - metrics.updatedAt < 15000) {
       totalRss += metrics.rss;
       totalHeapUsed += metrics.heapUsed;
       totalHeapTotal += metrics.heapTotal;
+      reportingWorkersCount++;
     }
   }
+
+  // Fallback if worker heartbeat hasn't arrived yet
+  if (reportingWorkersCount === 0) {
+    const mem = process.memoryUsage();
+    totalRss = mem.rss;
+    totalHeapUsed = mem.heapUsed;
+    totalHeapTotal = mem.heapTotal;
+  }
+
+  const envWebMemory = Number(process.env.WEB_MEMORY);
+  const totalRamMb = envWebMemory && envWebMemory > 0
+    ? envWebMemory
+    : 1024; // Baseline cluster environment capacity (1024 MB)
+
+  const rssMb = Math.round(totalRss / 1024 / 1024);
+  const heapUsedMb = Math.round(totalHeapUsed / 1024 / 1024);
+  const heapTotalMb = Math.round(totalHeapTotal / 1024 / 1024);
+  const usedPercent = Math.min(Math.round((rssMb / totalRamMb) * 100), 100);
+  const safetyMarginPercent = Math.max(0, 100 - usedPercent);
 
   return {
     mode: 'clustered',
@@ -280,9 +302,11 @@ function getClusterStateSummary() {
     examModeActive: state.examModeActive,
     examModeExpiresAt: state.examModeExpiresAt,
     clusterMemory: {
-      rssMb: Math.round(totalRss / 1024 / 1024),
-      heapUsedMb: Math.round(totalHeapUsed / 1024 / 1024),
-      heapTotalMb: Math.round(totalHeapTotal / 1024 / 1024),
+      rssMb,
+      heapUsedMb,
+      heapTotalMb,
+      totalRamMb,
+      safetyMarginPercent,
     },
     timestamp: new Date().toISOString(),
   };

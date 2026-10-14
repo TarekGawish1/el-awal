@@ -2,7 +2,7 @@
   "name": "منصة الأول التعليمية",
   "short_name": "الأول",
   "description": "نظام إدارة التعليم وحصص الحضور الذكي والتقييمات للطلاب والمدرسين",
-  "start_url": "/login",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
