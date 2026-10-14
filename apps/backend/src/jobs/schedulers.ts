@@ -14,6 +14,7 @@ import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
 import { WhatsAppDispatcherService } from '../modules/whatsapp/services/whatsapp-dispatcher.service';
 import { formatTeacherAgendaMessage } from '../utils/spintax';
 import { StorageCleanupService } from '../integrations/storage/storage-cleanup.service';
+import { ClusterService } from '../core/cluster/cluster.service';
 
 /**
  * SchedulersService — automated cron jobs for the El-Awal notification engine.
@@ -106,10 +107,18 @@ export class SchedulersService implements OnModuleInit {
     private readonly whatsapp: WhatsAppService,
     private readonly whatsappDispatcher: WhatsAppDispatcherService,
     @Optional() private readonly storageCleanup?: StorageCleanupService,
+    @Optional() private readonly clusterService?: ClusterService,
   ) {}
 
   onModuleInit() {
-    this.logger.log('⏰ Initializing cron schedulers...');
+    if (this.clusterService && !this.clusterService.isPrimaryWorker()) {
+      this.logger.log(
+        `⏰ [SchedulersService] Running inside secondary worker (Worker ID: ${this.clusterService.getWorkerId()}). Skipping cron schedulers to prevent duplicates.`,
+      );
+      return;
+    }
+
+    this.logger.log('⏰ Initializing cron schedulers (Primary Worker)...');
 
     // 1. Student session reminder (every 15 minutes)
     this.tasks.push(
@@ -361,6 +370,14 @@ export class SchedulersService implements OnModuleInit {
       this.logger.log(
         `[ExamReminder] Found ${exams.length} upcoming exam(s) in window`,
       );
+
+      // Auto-scale up to dual-worker mode on the same server if there are upcoming exams in this window
+      if (exams.length > 0 && this.clusterService) {
+        this.logger.log(
+          `⚡ [ExamReminder] Found ${exams.length} active online exam(s). Priming Worker 2 for peak concurrent throughput...`,
+        );
+        await this.clusterService.scaleUp(120);
+      }
 
       for (const exam of exams) {
         const startTimeStr = exam.startDate?.toLocaleTimeString('ar-EG', {

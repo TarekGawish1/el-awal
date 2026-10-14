@@ -58,11 +58,11 @@ export function simulateStudentExam(data, vuId, iter) {
     // 4. تسليم إجابات الامتحان للتصحيح التلقائي في قاعدة البيانات (Auto-Grading Submit)
     examRequests.add(1);
     start = Date.now();
+    const targetQId = assessment.questions?.[0]?.id || 'e2779ef8-0585-41a0-b457-d84bdbbf8bf4';
     const submitPayload = JSON.stringify({
       answers: [
-        { questionId: 'q-demo-1', answerText: 'أ', selectedOption: 'A' },
+        { questionId: targetQId, answerGiven: 'الإزاحة' },
       ],
-      timeSpentSeconds: 45,
     });
     res = http.post(`${baseUrl}/assessments/${assessment.id}/submit`, submitPayload, { headers });
     examLatency.add(Date.now() - start);

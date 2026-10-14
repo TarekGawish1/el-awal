@@ -5,25 +5,25 @@
     "email": "teacher@elawal.com",
     "phone": "+201021902000",
     "name": "أ. أحمد غريب",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODQ0NDY5LCJleHAiOjE3OTE4NDUzNjl9.peaBlbZTsJWyw_YQDQ9ZZvCfnxzAj8mJascflTQR6ps"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxOTE5ODQ1LCJleHAiOjE3OTE5MjA3NDV9.7IrnrVSUrndR-FUGWFrO0y2N7nkNGCtShrgoQNlN6lE"
   },
   "students": [
     {
-      "id": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
-      "studentProfileId": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
-      "name": "طالب فحص تجريبي",
-      "studentCode": "STU202600062",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYWMxNzI1OC03ZTY5LTQ4MGItYWMwYy02MmY5OThlZDU2Y2UiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTg0NDQ3MSwiZXhwIjoxNzkxODQ1MzcxfQ.SMyFWXy_O1qCx01jwdkBgd4JqLvUSqjko9A7ohAGVrY"
+      "id": "dcc233e2-8cdc-417d-bbac-534905630a29",
+      "studentProfileId": "dcc233e2-8cdc-417d-bbac-534905630a29",
+      "name": "احمد طارق عمر جاويش",
+      "studentCode": "STU202600061",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkY2MyMzNlMi04Y2RjLTQxN2QtYmJhYy01MzQ5MDU2MzBhMjkiLCJwaG9uZSI6IjAxMDY3Nzg5NTc0Iiwicm9sZSI6IlNUVURFTlQiLCJ0eXAiOiJhY2Nlc3MiLCJpYXQiOjE3OTE5MTk4NTEsImV4cCI6MTc5MTkyMDc1MX0.xTdwmEIi95T3Jd2CqPTqD7YVzkuxvAxDaCzJ9SQVjqg"
     }
   ],
   "parents": [
     {
-      "id": "507d290d-9c26-4e6d-b020-acb3bc22de0a",
-      "parentProfileId": "507d290d-9c26-4e6d-b020-acb3bc22de0a",
-      "name": "ولي أمر طالب فحص تجريبي",
-      "phone": "+201099998811",
-      "linkedStudentId": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MDdkMjkwZC05YzI2LTRlNmQtYjAyMC1hY2IzYmMyMmRlMGEiLCJwaG9uZSI6IisyMDEwOTk5OTg4MTEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODQ0NDc1LCJleHAiOjE3OTE4NDUzNzV9.6oklJFC7TNI1QGQWRWx-JbrbISQPUzhJqHrwDWjChkE"
+      "id": "62417ec0-c39c-45c3-bc6d-0ca27769b1e4",
+      "parentProfileId": "62417ec0-c39c-45c3-bc6d-0ca27769b1e4",
+      "name": "طارق عمر جاويش",
+      "phone": "+201016138448",
+      "linkedStudentId": "dcc233e2-8cdc-417d-bbac-534905630a29",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjQxN2VjMC1jMzljLTQ1YzMtYmM2ZC0wY2EyNzc2OWIxZTQiLCJwaG9uZSI6IjAxMDE2MTM4NDQ4Iiwicm9sZSI6IlBBUkVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTkxOTg1MiwiZXhwIjoxNzkxOTIwNzUyfQ.YOAY9Uxzgl0u5LDn07VlXviMjxnRXDIVkUbzC_7kMPs"
     }
   ],
   "groups": [
@@ -98,17 +98,45 @@
   "courses": [],
   "assessments": [
     {
-      "id": "a6b3afec-911a-4c2a-9443-18399066c745",
+      "id": "f16e17ab-6ea7-4ff1-8aa9-ad0adf90f2ea",
       "title": "اختبار دوري: تقييم مهارات مجموعة السبت و الثلاثاء (الساعة 4:00 م) - الصف الثاني الإعدادي",
       "type": "EXAM",
-      "totalScore": 30
+      "totalScore": 30,
+      "questions": [
+        {
+          "id": "e2779ef8-0585-41a0-b457-d84bdbbf8bf4",
+          "questionText": "أي من الكميات التالية تعتبر كمية فيزيائية متجهة؟"
+        },
+        {
+          "id": "3b30d463-6e89-460c-a2b8-5f68bb367907",
+          "questionText": "ضع علامة صح أو خطأ: السرعة اللحظية لجسم هي سرعته عند لحظة زمنية معينة."
+        },
+        {
+          "id": "9b1df8f6-0041-4fe4-a56a-96cb3ab3eafe",
+          "questionText": "مسألة رياضية مقالية: تحرك جسم من السكون بعجلة منتظمة مقدارها 2 م/ث² لمدة 5 ثوانٍ. احسب السرعة النهائية للجسم والمسافة المقطوعة مع كتابة خطوات الحل كاملة. (يمكنك كتابة خطوات الحل أو تصوير ورقة الإجابة ورفعها)"
+        }
+      ]
     },
     {
-      "id": "04699567-34ad-4640-bcf2-0a50f62ef4ac",
-      "title": "واجب: حصة - 2026-10-10",
+      "id": "ccfc562b-2ece-4103-81b8-1cc035aabb14",
+      "title": "واجب: حصة - 2026-10-13",
       "type": "ASSIGNMENT",
-      "totalScore": 20
+      "totalScore": 20,
+      "questions": [
+        {
+          "id": "1a50b65c-b0a6-42bd-9db2-386284ca98dd",
+          "questionText": "اختر الإجابة الصحيحة: ما هي الوحدة الأساسية لقياس القوة في النظام الدولي للوحدات؟"
+        },
+        {
+          "id": "ecff49a2-4ab1-4cde-af30-143497a4a397",
+          "questionText": "ضع علامة صح أو خطأ: لكل فعل رد فعل مساوٍ له في المقدار ومضاد له في الاتجاه."
+        },
+        {
+          "id": "07ae9265-b3d7-4876-bebf-595f25d19894",
+          "questionText": "سؤال مقالي: اذكر نص القانون الأول لنيوتن (قانون القصور الذاتي)، مع ذكر مثال تطبيقي من الحياة اليومية. (يمكنك كتابة الإجابة أو تصوير حلك في الكشكول ورفع الصورة)"
+        }
+      ]
     }
   ],
-  "updatedAt": "2026-10-12T22:34:38.401Z"
+  "updatedAt": "2026-10-13T19:30:58.860Z"
 }

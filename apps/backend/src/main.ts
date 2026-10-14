@@ -9,6 +9,8 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyCompress from '@fastify/compress';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyMultipart from '@fastify/multipart';
+import cluster from 'node:cluster';
+import { startClusterMaster } from './core/cluster/cluster-master';
 
 import { shouldRedirectToCanonicalPlatform } from './core/middleware/canonical-redirect.util';
 
@@ -205,10 +207,19 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
 
-  logger.log(`🚀 NestJS Backend Server running on port ${port} (Environment: ${configService.get<string>('NODE_ENV', 'development')}) - Onsite Homework Delivery & Attendance Sync v1.0.1 ready`);
+  const workerInfo = process.env.WORKER_ID ? `[Worker ${process.env.WORKER_ID} PID: ${process.pid}] ` : '';
+  logger.log(`🚀 ${workerInfo}NestJS Backend Server running on port ${port} (Environment: ${configService.get<string>('NODE_ENV', 'development')}) - Onsite Homework Delivery & Attendance Sync v1.0.1 ready`);
 }
 
-bootstrap().catch((err) => {
-  console.error('BOOTSTRAP ERROR FULL:', err);
-  process.exit(1);
-});
+const isClusterMode =
+  process.env.ENABLE_CLUSTER === 'true' ||
+  (process.env.ENABLE_CLUSTER !== 'false' && process.env.NODE_ENV === 'production');
+
+if (cluster.isPrimary && isClusterMode) {
+  startClusterMaster();
+} else {
+  bootstrap().catch((err) => {
+    console.error('BOOTSTRAP ERROR FULL:', err);
+    process.exit(1);
+  });
+}

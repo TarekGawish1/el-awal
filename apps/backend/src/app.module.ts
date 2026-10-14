@@ -30,9 +30,11 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { TestimonialsModule } from './modules/testimonials/testimonials.module';
 import { SiteSettingsModule } from './modules/site-settings/site-settings.module';
+import { ClusterModule } from './core/cluster/cluster.module';
 
 @Module({
   imports: [
+    ClusterModule,
     // Foundational Core Subsystems (Config, Database, Security, Filters, Interceptors)
     CoreModule,
 
