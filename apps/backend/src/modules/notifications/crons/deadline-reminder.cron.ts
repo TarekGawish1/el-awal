@@ -89,7 +89,7 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
               none: { assessmentId: assessment.id },
             },
           },
-          select: { id: true, userId: true },
+          select: { id: true },
         });
 
         const notificationType =
@@ -98,7 +98,7 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
             : NotificationType.EXAM_DEADLINE_REMINDER;
 
         const candidateUserIds = pendingStudents
-          .map((s) => s.userId || s.id)
+          .map((s) => s.id)
           .filter(Boolean);
 
         let alreadySentSet = new Set<string>();

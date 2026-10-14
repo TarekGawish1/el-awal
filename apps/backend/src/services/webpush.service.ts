@@ -2,13 +2,18 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/database/prisma.service';
 import * as webpush from 'web-push';
+import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
+import { getMessaging, Messaging, MulticastMessage } from 'firebase-admin/messaging';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface PushSubscriptionDto {
   endpoint: string;
-  keys: {
+  keys?: {
     p256dh: string;
     auth: string;
   };
+  userAgent?: string;
 }
 
 export interface PushPayload {
@@ -44,16 +49,19 @@ export interface SendBatchOptions {
 }
 
 /**
- * WebPushService — handles VAPID-authenticated Web Push notifications.
+ * WebPushService — High-performance unified Push Notification Dispatcher.
  *
- * Subscriptions are stored in the push_subscriptions table.
- * Expired subscriptions (HTTP 404/410 from push gateway) are auto-removed
- * to keep the table clean.
+ * Supports:
+ * 1. Firebase Cloud Messaging (FCM) Multicast: Single-request broadcast ($O(1)$) up to 500 tokens per call.
+ * 2. VAPID Web Push fallback: Bounded-concurrency dispatch for legacy browser endpoints.
+ * 3. Batch pruning: Auto-removes unregistered / expired tokens in a single database query.
  */
 @Injectable()
 export class WebPushService implements OnModuleInit {
   private readonly logger = new Logger(WebPushService.name);
   private readonly appUrl: string;
+  private firebaseApp?: App;
+  private messaging?: Messaging;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -63,58 +71,147 @@ export class WebPushService implements OnModuleInit {
   }
 
   onModuleInit() {
+    this.initFirebase();
+    this.initVapid();
+  }
+
+  /**
+   * Initializes Firebase Admin SDK with Service Account credentials.
+   */
+  private initFirebase() {
+    try {
+      if (getApps().length > 0) {
+        this.firebaseApp = getApps()[0];
+        this.messaging = getMessaging(this.firebaseApp);
+        this.logger.log('🔥 Firebase Cloud Messaging connected (existing app)');
+        return;
+      }
+
+      let credentialObj: any = null;
+
+      // 1. From environment variable FIREBASE_SERVICE_ACCOUNT_KEY
+      const rawKey = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_KEY');
+      if (rawKey) {
+        try {
+          credentialObj = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
+        } catch {
+          this.logger.warn('Could not parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string');
+        }
+      }
+
+      // 2. From file system fallback (root workspace)
+      if (!credentialObj) {
+        const candidatePaths = [
+          path.resolve(process.cwd(), 'al-awal-78dae-firebase-adminsdk-fbsvc-cebe73f540.json'),
+          path.resolve(process.cwd(), '..', '..', 'al-awal-78dae-firebase-adminsdk-fbsvc-cebe73f540.json'),
+          path.resolve(__dirname, '..', '..', '..', 'al-awal-78dae-firebase-adminsdk-fbsvc-cebe73f540.json'),
+        ];
+        for (const p of candidatePaths) {
+          if (fs.existsSync(p)) {
+            try {
+              credentialObj = JSON.parse(fs.readFileSync(p, 'utf8'));
+              break;
+            } catch {
+              // ignore and try next
+            }
+          }
+        }
+      }
+
+      if (credentialObj) {
+        const projectId =
+          credentialObj.project_id ||
+          this.config.get<string>('FIREBASE_PROJECT_ID', 'al-awal-78dae');
+
+        this.firebaseApp = initializeApp({
+          credential: cert(credentialObj),
+          projectId,
+        });
+        this.messaging = getMessaging(this.firebaseApp);
+        this.logger.log(`🔥 Firebase Cloud Messaging (FCM) Admin SDK initialized for [${projectId}]`);
+      } else {
+        this.logger.warn('⚠️ No Firebase service account credentials found. FCM disabled.');
+      }
+    } catch (err: any) {
+      this.logger.warn(`Firebase Admin initialization note: ${err.message}`);
+    }
+  }
+
+  /**
+   * Initializes VAPID details for fallback Web Push.
+   */
+  private initVapid() {
     const publicKey = this.config.get<string>('VAPID_PUBLIC_KEY');
     const privateKey = this.config.get<string>('VAPID_PRIVATE_KEY');
     const subject = this.config.get<string>('VAPID_SUBJECT', 'mailto:admin@elawal.com');
 
-    if (!publicKey || !privateKey) {
-      this.logger.warn(
-        '⚠️ VAPID keys not configured. Web Push notifications will be disabled.',
-      );
-      return;
+    if (publicKey && privateKey) {
+      try {
+        webpush.setVapidDetails(subject, publicKey, privateKey);
+        this.logger.log('✅ Web Push (VAPID) initialized');
+      } catch (err: any) {
+        this.logger.warn(`WebPush VAPID note: ${err.message}`);
+      }
     }
-
-    webpush.setVapidDetails(subject, publicKey, privateKey);
-    this.logger.log('✅ Web Push (VAPID) initialized');
   }
 
   /**
-   * Returns the VAPID public key for client-side subscription setup.
+   * Returns the VAPID/Firebase public key for client-side subscription setup.
    */
   getPublicKey(): string {
-    return this.config.get<string>('VAPID_PUBLIC_KEY', '');
+    return (
+      this.config.get<string>('NEXT_PUBLIC_FIREBASE_VAPID_KEY') ||
+      this.config.get<string>('FIREBASE_VAPID_KEY') ||
+      this.config.get<string>('VAPID_PUBLIC_KEY', '')
+    );
   }
 
   /**
-   * Saves or updates a browser push subscription for a user.
-   * Uses the endpoint as the unique identifier (one device per endpoint).
+   * Exposes messaging instance for testing or direct access.
+   */
+  getMessagingInstance(): Messaging | undefined {
+    return this.messaging;
+  }
+
+  /**
+   * Allows setting messaging instance directly (useful in unit tests).
+   */
+  setMessagingInstance(messaging: Messaging | undefined) {
+    this.messaging = messaging;
+  }
+
+  /**
+   * Saves or updates a device push subscription / FCM registration token for a user.
    */
   async subscribe(
     userId: string,
     subscription: PushSubscriptionDto,
     userAgent?: string,
   ): Promise<void> {
+    const p256dh = subscription.keys?.p256dh || 'fcm';
+    const auth = subscription.keys?.auth || 'fcm';
+
     await this.prisma.pushSubscription.upsert({
       where: { endpoint: subscription.endpoint },
       create: {
         userId,
         endpoint: subscription.endpoint,
-        p256dh: subscription.keys.p256dh,
-        auth: subscription.keys.auth,
+        p256dh,
+        auth,
         userAgent,
       },
       update: {
         userId,
-        p256dh: subscription.keys.p256dh,
-        auth: subscription.keys.auth,
+        p256dh,
+        auth,
         userAgent,
       },
     });
-    this.logger.log(`📲 Push subscription saved for user [${userId}]`);
+    this.logger.log(`📲 Push subscription / FCM token saved for user [${userId}]`);
   }
 
   /**
-   * Removes a push subscription by endpoint.
+   * Removes a push subscription by endpoint / token.
    */
   async unsubscribe(userId: string, endpoint: string): Promise<void> {
     await this.prisma.pushSubscription
@@ -124,10 +221,13 @@ export class WebPushService implements OnModuleInit {
   }
 
   /**
-   * Dispatches a Web Push notification payload to multiple subscriptions with bounded concurrency.
-   * Auto-removes 404/410 expired subscriptions in a single batch query.
+   * Dispatches a notification payload to multiple subscriptions.
    *
-   * External push delivery concurrency is strictly bounded by `concurrencyLimit` (default 15).
+   * Automatically groups subscriptions:
+   * - FCM Tokens: Dispatched via Firebase Multicast (`sendEachForMulticast`) in single-request chunks of 500 ($O(1)$).
+   * - Legacy WebPush: Dispatched via bounded concurrency workers.
+   *
+   * Prunes all expired / unregistered tokens in a SINGLE batch database query.
    */
   async sendBatchSubscriptions(
     subscriptions: Array<{
@@ -152,17 +252,6 @@ export class WebPushService implements OnModuleInit {
       };
     }
 
-    const concurrencyLimit = Math.max(1, options?.concurrencyLimit ?? 15);
-
-    const pushPayload = JSON.stringify({
-      title: payload.title,
-      body: payload.body,
-      icon: payload.icon || '/icons/icon-192x192.png',
-      badge: payload.badge || '/icons/badge-72x72.png',
-      url: payload.url || this.appUrl,
-      data: payload.data || {},
-    });
-
     const expiredEndpoints: string[] = [];
     const successfulUserIdsSet = new Set<string>();
     const failedUserIdsSet = new Set<string>();
@@ -170,68 +259,197 @@ export class WebPushService implements OnModuleInit {
     let successCount = 0;
     let failureCount = 0;
 
-    // Bounded concurrency pool: at most `concurrencyLimit` active promises in flight
-    let currentIndex = 0;
-    const workerCount = Math.min(concurrencyLimit, subscriptions.length);
+    // Partition between FCM tokens and legacy HTTP endpoints
+    const fcmSubs: typeof subscriptions = [];
+    const legacySubs: typeof subscriptions = [];
 
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (currentIndex < subscriptions.length) {
-        const index = currentIndex++;
-        const sub = subscriptions[index];
+    for (const sub of subscriptions) {
+      if (
+        this.messaging &&
+        !sub.endpoint.startsWith('http://') &&
+        !sub.endpoint.startsWith('https://')
+      ) {
+        fcmSubs.push(sub);
+      } else {
+        legacySubs.push(sub);
+      }
+    }
+
+    // ── 1. Dispatch FCM Tokens in Multicast Batches of 500 ($O(1) per chunk) ───
+    if (fcmSubs.length > 0 && this.messaging) {
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < fcmSubs.length; i += CHUNK_SIZE) {
+        const chunk = fcmSubs.slice(i, i + CHUNK_SIZE);
+        const tokens = chunk.map((s) => s.endpoint);
+
+        const dataRecord: Record<string, string> = {};
+        if (payload.data) {
+          for (const [key, val] of Object.entries(payload.data)) {
+            dataRecord[key] = typeof val === 'string' ? val : JSON.stringify(val);
+          }
+        }
+        if (payload.url) {
+          dataRecord['url'] = payload.url;
+        }
+
+        const message: MulticastMessage = {
+          tokens,
+          notification: {
+            title: payload.title,
+            body: payload.body,
+          },
+          data: dataRecord,
+          webpush: {
+            notification: {
+              icon: payload.icon || '/icons/icon-192x192.png',
+              badge: payload.badge || '/icons/badge-72x72.png',
+              dir: 'rtl',
+              lang: 'ar',
+            },
+            fcmOptions: {
+              link: payload.url || this.appUrl,
+            },
+          },
+        };
 
         try {
-          await webpush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth },
-            },
-            pushPayload,
-          );
-          successCount++;
-          if (sub.userId) {
-            successfulUserIdsSet.add(sub.userId);
-          }
-          deviceOutcomes.push({
-            endpoint: sub.endpoint,
-            userId: sub.userId,
-            status: 'SENT',
-            statusCode: 201,
+          const response = await this.messaging.sendEachForMulticast(message);
+
+          response.responses.forEach((resp, idx) => {
+            const sub = chunk[idx];
+            if (resp.success) {
+              successCount++;
+              if (sub.userId) {
+                successfulUserIdsSet.add(sub.userId);
+              }
+              deviceOutcomes.push({
+                endpoint: sub.endpoint,
+                userId: sub.userId,
+                status: 'SENT',
+                statusCode: 200,
+              });
+            } else {
+              failureCount++;
+              const errorCode = resp.error?.code || '';
+              const isExpired =
+                errorCode === 'messaging/registration-token-not-registered' ||
+                errorCode === 'messaging/invalid-registration-token';
+
+              if (isExpired) {
+                expiredEndpoints.push(sub.endpoint);
+                deviceOutcomes.push({
+                  endpoint: sub.endpoint,
+                  userId: sub.userId,
+                  status: 'EXPIRED',
+                  statusCode: 404,
+                  error: resp.error?.message || 'Token unregistered or expired',
+                });
+              } else {
+                deviceOutcomes.push({
+                  endpoint: sub.endpoint,
+                  userId: sub.userId,
+                  status: 'FAILED',
+                  statusCode: 500,
+                  error: resp.error?.message || errorCode,
+                });
+              }
+
+              if (sub.userId) {
+                failedUserIdsSet.add(sub.userId);
+              }
+            }
           });
-        } catch (error) {
-          failureCount++;
-          const err = error as { statusCode?: number; message?: string };
-          const statusCode = err.statusCode;
-          if (statusCode === 404 || statusCode === 410) {
-            expiredEndpoints.push(sub.endpoint);
-            deviceOutcomes.push({
-              endpoint: sub.endpoint,
-              userId: sub.userId,
-              status: 'EXPIRED',
-              statusCode,
-              error: 'Subscription expired or unregistered by browser gateway',
-            });
-          } else {
-            this.logger.warn(
-              `Push failed for endpoint [${sub.endpoint.slice(0, 50)}...]: ${statusCode}`,
-            );
+        } catch (fcmError: any) {
+          this.logger.error(`FCM Multicast batch call failed: ${fcmError.message}`);
+          chunk.forEach((sub) => {
+            failureCount++;
+            if (sub.userId) failedUserIdsSet.add(sub.userId);
             deviceOutcomes.push({
               endpoint: sub.endpoint,
               userId: sub.userId,
               status: 'FAILED',
-              statusCode,
-              error: err.message,
+              statusCode: 500,
+              error: fcmError.message,
             });
-          }
-          if (sub.userId) {
-            failedUserIdsSet.add(sub.userId);
-          }
+          });
         }
       }
-    });
+    }
 
-    await Promise.all(workers);
+    // ── 2. Dispatch Legacy WebPush Endpoints (Fallback Bounded Concurrency) ───
+    if (legacySubs.length > 0) {
+      const concurrencyLimit = Math.max(1, options?.concurrencyLimit ?? 15);
+      const pushPayload = JSON.stringify({
+        title: payload.title,
+        body: payload.body,
+        icon: payload.icon || '/icons/icon-192x192.png',
+        badge: payload.badge || '/icons/badge-72x72.png',
+        url: payload.url || this.appUrl,
+        data: payload.data || {},
+      });
 
-    // Prune expired endpoints in one batch
+      let currentIndex = 0;
+      const workerCount = Math.min(concurrencyLimit, legacySubs.length);
+
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (currentIndex < legacySubs.length) {
+          const index = currentIndex++;
+          const sub = legacySubs[index];
+
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              },
+              pushPayload,
+            );
+            successCount++;
+            if (sub.userId) {
+              successfulUserIdsSet.add(sub.userId);
+            }
+            deviceOutcomes.push({
+              endpoint: sub.endpoint,
+              userId: sub.userId,
+              status: 'SENT',
+              statusCode: 201,
+            });
+          } catch (error) {
+            failureCount++;
+            const err = error as { statusCode?: number; message?: string };
+            const statusCode = err.statusCode;
+            if (statusCode === 404 || statusCode === 410) {
+              expiredEndpoints.push(sub.endpoint);
+              deviceOutcomes.push({
+                endpoint: sub.endpoint,
+                userId: sub.userId,
+                status: 'EXPIRED',
+                statusCode,
+                error: 'Subscription expired or unregistered by browser gateway',
+              });
+            } else {
+              this.logger.warn(
+                `Push failed for legacy endpoint [${sub.endpoint.slice(0, 50)}...]: ${statusCode}`,
+              );
+              deviceOutcomes.push({
+                endpoint: sub.endpoint,
+                userId: sub.userId,
+                status: 'FAILED',
+                statusCode,
+                error: err.message,
+              });
+            }
+            if (sub.userId) {
+              failedUserIdsSet.add(sub.userId);
+            }
+          }
+        }
+      });
+
+      await Promise.all(workers);
+    }
+
+    // ── 3. Prune all expired endpoints in ONE single database query ───────────
     if (expiredEndpoints.length > 0) {
       await this.prisma.pushSubscription
         .deleteMany({
@@ -240,12 +458,12 @@ export class WebPushService implements OnModuleInit {
         .catch((err) => this.logger.error('Failed to prune expired subscriptions', err));
 
       this.logger.log(
-        `🗑️ Removed ${expiredEndpoints.length} expired push subscription(s) in batch`,
+        `🗑️ Removed ${expiredEndpoints.length} expired push subscription(s) / FCM token(s) in batch`,
       );
     }
 
     this.logger.log(
-      `📩 Web Push batch complete: ${successCount} sent, ${failureCount} failed (${expiredEndpoints.length} expired) across ${subscriptions.length} subscriptions`,
+      `📩 Push batch complete: ${successCount} sent, ${failureCount} failed (${expiredEndpoints.length} expired) across ${subscriptions.length} subscriptions`,
     );
 
     const successfulUserIds = Array.from(successfulUserIdsSet);
@@ -268,10 +486,6 @@ export class WebPushService implements OnModuleInit {
 
   /**
    * Sends a push notification to ALL active subscriptions for a given user.
-   * Auto-removes subscriptions that return 404/410 (expired/revoked).
-   * Reuses sendBatchSubscriptions with bounded concurrency (default 5 for single user).
-   *
-   * @returns number of successful sends
    */
   async sendToUser(userId: string, payload: PushPayload): Promise<number> {
     const subscriptions = await this.prisma.pushSubscription.findMany({

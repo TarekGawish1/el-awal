@@ -210,5 +210,63 @@ describe('WebPushService — Bounded Concurrency & Batch Delivery', () => {
       expect(laptopOutcome?.statusCode).toBe(500);
     });
   });
+
+  describe('FCM Multicast delivery', () => {
+    it('dispatches FCM tokens in a single multicast call ($O(1)) and prunes expired tokens', async () => {
+      const mockMessaging = {
+        sendEachForMulticast: vi.fn().mockResolvedValue({
+          successCount: 2,
+          failureCount: 1,
+          responses: [
+            { success: true, messageId: 'msg-1' },
+            {
+              success: false,
+              error: { code: 'messaging/registration-token-not-registered', message: 'Token unregistered' },
+            },
+            { success: true, messageId: 'msg-3' },
+          ],
+        }),
+      };
+
+      service.setMessagingInstance(mockMessaging as any);
+
+      const subscriptions = [
+        { endpoint: 'fcm-token-1', p256dh: 'fcm', auth: 'fcm', userId: 'user-1' },
+        { endpoint: 'fcm-token-expired', p256dh: 'fcm', auth: 'fcm', userId: 'user-2' },
+        { endpoint: 'fcm-token-3', p256dh: 'fcm', auth: 'fcm', userId: 'user-3' },
+      ];
+
+      const result = await service.sendBatchSubscriptions(subscriptions, {
+        title: 'إشعار جماعي عبر فايربيس',
+        body: 'تم الإرسال بطلب واحد فقط',
+      });
+
+      expect(mockMessaging.sendEachForMulticast).toHaveBeenCalledTimes(1);
+      expect(mockMessaging.sendEachForMulticast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokens: ['fcm-token-1', 'fcm-token-expired', 'fcm-token-3'],
+          notification: expect.objectContaining({
+            title: 'إشعار جماعي عبر فايربيس',
+            body: 'تم الإرسال بطلب واحد فقط',
+          }),
+        }),
+      );
+
+      expect(result.successCount).toBe(2);
+      expect(result.failureCount).toBe(1);
+      expect(result.expiredCount).toBe(1);
+      expect(result.successfulUserIds).toEqual(['user-1', 'user-3']);
+      expect(result.failedUserIds).toEqual(['user-2']);
+
+      expect(mockPrismaService.pushSubscription.deleteMany).toHaveBeenCalledWith({
+        where: {
+          endpoint: {
+            in: ['fcm-token-expired'],
+          },
+        },
+      });
+    });
+  });
 });
+
 

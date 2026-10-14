@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { getFirebaseMessaging } from '@/lib/firebase/config';
+import { getToken } from 'firebase/messaging';
 
 export type PushPermissionState = 'default' | 'granted' | 'denied';
 
@@ -18,6 +20,7 @@ export interface UseWebPushReturn {
 }
 
 const PUSH_STORAGE_KEY = 'elawal_web_push_subscribed';
+const FCM_TOKEN_STORAGE_KEY = 'elawal_fcm_token';
 
 let globalSubscribedState: boolean | null = null;
 const stateListeners = new Set<(subscribed: boolean) => void>();
@@ -210,6 +213,36 @@ export function useWebPush(): UseWebPushReturn {
 
         if (!registration) return;
 
+        // 1. Try FCM token sync if permission is already granted
+        if (Notification.permission === 'granted') {
+          try {
+            const messaging = await getFirebaseMessaging();
+            const vapidKey =
+              process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+              (await fetchVapidPublicKey().catch(() => ''));
+
+            if (messaging && vapidKey) {
+              const token = await getToken(messaging, {
+                serviceWorkerRegistration: registration,
+                vapidKey,
+              }).catch(() => null);
+
+              if (token && !cancelled) {
+                setGlobalSubscribed(true);
+                setIsSubscribed(true);
+                await postSubscription({
+                  endpoint: token,
+                  keys: { p256dh: 'fcm', auth: 'fcm' },
+                }).catch(() => undefined);
+                return;
+              }
+            }
+          } catch {
+            // FCM check failed, fall through to PushManager check
+          }
+        }
+
+        // 2. Fallback to standard PushManager subscription check
         const subscription = await registration.pushManager.getSubscription();
         if (cancelled) return;
 
@@ -263,11 +296,45 @@ export function useWebPush(): UseWebPushReturn {
       // 2. Ensure Service Worker registration is active
       const registration = await getOrRegisterServiceWorker();
 
-      // 3. Fetch VAPID public key from backend
+      // 3. Try Firebase Cloud Messaging (FCM) first
+      let fcmToken: string | null = null;
+      try {
+        const messaging = await getFirebaseMessaging();
+        const vapidKey =
+          process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+          (await fetchVapidPublicKey().catch(() => ''));
+
+        if (messaging && vapidKey) {
+          fcmToken = await getToken(messaging, {
+            serviceWorkerRegistration: registration,
+            vapidKey,
+          });
+        }
+      } catch (fcmErr) {
+        console.warn('[useWebPush] FCM registration notice, falling back to standard push:', fcmErr);
+      }
+
+      if (fcmToken) {
+        await postSubscription({
+          endpoint: fcmToken,
+          keys: { p256dh: 'fcm', auth: 'fcm' },
+        });
+        try {
+          localStorage.setItem(FCM_TOKEN_STORAGE_KEY, fcmToken);
+        } catch {
+          // ignore storage error
+        }
+        setGlobalSubscribed(true);
+        setIsSubscribed(true);
+        toast.success('تم تفعيل الإشعارات الفورية بنجاح');
+        return true;
+      }
+
+      // 4. Fallback to standard VAPID push if FCM token was not generated
       const vapidKey = await fetchVapidPublicKey();
       const applicationServerKey = urlBase64ToUint8Array(vapidKey);
 
-      // 4. Subscribe via PushManager (reuse existing if already subscribed)
+      // Subscribe via PushManager (reuse existing if already subscribed)
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
@@ -326,6 +393,22 @@ export function useWebPush(): UseWebPushReturn {
           } catch (err) {
             console.warn('[useWebPush] Failed to remove subscription on backend:', err);
           }
+        }
+      }
+
+      let cachedFcmToken: string | null = null;
+      try {
+        cachedFcmToken = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+
+      if (cachedFcmToken) {
+        try {
+          await deleteSubscription(cachedFcmToken);
+          localStorage.removeItem(FCM_TOKEN_STORAGE_KEY);
+        } catch (err) {
+          console.warn('[useWebPush] Failed to remove FCM token on backend:', err);
         }
       }
 

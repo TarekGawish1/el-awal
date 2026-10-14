@@ -650,20 +650,25 @@ self.addEventListener('push', (event) => {
     payload = { title: PUSH_APP_NAME, body: event.data.text() };
   }
 
-  const title = payload.title || PUSH_APP_NAME;
+  const notif = payload.notification || {};
+  const data = payload.data || {};
+
+  const title = notif.title || payload.title || PUSH_APP_NAME;
+  const targetUrl = payload.fcmOptions?.link || data.url || payload.url || '/';
+
   const options = {
-    body: payload.body || '',
-    icon: payload.icon || PUSH_ICON,
-    badge: payload.badge || PUSH_BADGE,
+    body: notif.body || payload.body || '',
+    icon: notif.icon || payload.icon || PUSH_ICON,
+    badge: notif.badge || payload.badge || PUSH_BADGE,
     dir: 'rtl',
     lang: 'ar',
     vibrate: [200, 100, 200],
-    tag: payload.tag || 'el-awal-notification',
+    tag: payload.tag || data.tag || 'el-awal-notification',
     renotify: true,
     requireInteraction: false,
     data: {
-      url: payload.url || '/',
-      ...payload.data,
+      url: targetUrl,
+      ...data,
     },
     actions: [
       { action: 'open', title: 'فتح' },
