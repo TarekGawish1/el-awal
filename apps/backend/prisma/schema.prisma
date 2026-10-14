@@ -401,8 +401,8 @@ model StudentProfile {
   homeworkRecords       HomeworkRecord[]
   testimonials          Testimonial[]
 
-  @@index([qrCodeToken], map: "idx_students_qr_code")
   @@index([gradeLevel], map: "idx_students_grade_level")
+  @@index([academicStatus, createdAt(sort: Desc)], map: "idx_students_status_created")
   @@map("student_profiles")
 }
 
@@ -1195,6 +1195,8 @@ model StudentPaymentRecord {
   @@index([studentId, paymentType, paymentStatus], map: "idx_payments_student_type_status")
   @@index([bookletId], map: "idx_payments_booklet")
   @@index([recordedById, groupId], map: "idx_payments_recorder_group")
+  @@index([groupId, paymentStatus], map: "idx_payments_group_status")
+  @@index([periodYear, periodMonth], map: "idx_payments_period")
   @@map("student_payment_records")
 }
 

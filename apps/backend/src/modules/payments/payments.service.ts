@@ -455,6 +455,164 @@ export class PaymentsService {
     return Object.entries(STAGE_GRADE_LEVELS).find(([, grades]) => grades.includes(gradeLevel))?.[0] || '';
   }
 
+  private calculateGroupFinancialMetrics(params: {
+    groups: any[];
+    students: any[];
+    booklets: any[];
+    payments: any[];
+    billingMonths: number[];
+    isMonthScope: boolean;
+    requestedMonth: number;
+    academicYear: string;
+    useSubscriptionKey?: boolean;
+  }) {
+    const {
+      groups,
+      students,
+      booklets,
+      payments,
+      billingMonths,
+      isMonthScope,
+      requestedMonth,
+      academicYear,
+      useSubscriptionKey = false,
+    } = params;
+
+    const groupIds = new Set(groups.map((group) => group.id));
+    const primaryGroupByStudent = new Map<string, string | null>();
+    const studentCountByGroup = new Map<string, number>();
+    const studentCountByGrade = new Map<string, number>();
+    const tuitionExpectedByGroup = new Map<string, number>();
+    const startYear = parseInt(academicYear.split('-')[0], 10) || new Date().getFullYear();
+
+    for (const student of students) {
+      const enrollmentGroupIds = student.groupEnrollments.map((enrollment: any) => enrollment.groupId);
+      primaryGroupByStudent.set(student.id, enrollmentGroupIds[0] || null);
+      studentCountByGrade.set(student.gradeLevel, (studentCountByGrade.get(student.gradeLevel) || 0) + 1);
+
+      for (const enrollment of student.groupEnrollments) {
+        const groupId = enrollment.groupId;
+        studentCountByGroup.set(groupId, (studentCountByGroup.get(groupId) || 0) + 1);
+
+        const group = groups.find((g) => g.id === groupId);
+        if (group) {
+          const groupFee = Number(group.monthlyFee);
+          let studentExpected = 0;
+          const enrollmentDate = new Date(enrollment.enrolledAt);
+
+          for (const m of billingMonths) {
+            const mYear = m >= 8 ? startYear : startYear + 1;
+            if (enrollment.enrolledAt && isPeriodBeforeEnrollment(enrollmentDate, mYear, m)) {
+              continue;
+            }
+
+            const isJoiningMonth = Boolean(enrollment.enrolledAt && isEnrolledInPeriod(enrollmentDate, mYear, m));
+            const fee = isJoiningMonth
+              ? calculateProratedTuition(groupFee, enrollmentDate).expectedAmount
+              : groupFee;
+            studentExpected += fee;
+          }
+          tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + studentExpected);
+        }
+      }
+    }
+
+    const tuitionCollectedByGroup = new Map<string, number>();
+    const bookletCollectedByGroup = new Map<string, number>();
+    for (const payment of payments) {
+      const attributedGroupId =
+        payment.groupId && groupIds.has(payment.groupId)
+          ? payment.groupId
+          : primaryGroupByStudent.get(payment.studentId) || null;
+      if (!attributedGroupId || !groupIds.has(attributedGroupId)) continue;
+      if (isMonthScope && payment.paymentType === PaymentType.TUITION && Number(payment.periodMonth) !== requestedMonth) continue;
+      const target = payment.paymentType === PaymentType.BOOKLET ? bookletCollectedByGroup : tuitionCollectedByGroup;
+      target.set(attributedGroupId, (target.get(attributedGroupId) || 0) + Number(payment.amountPaid || 0));
+    }
+
+    const groupRows = groups.map((group) => {
+      const studentCount = studentCountByGroup.get(group.id) || 0;
+      const tuitionExpected = round2(tuitionExpectedByGroup.get(group.id) || 0);
+      const bookletsExpected = round2(
+        booklets
+          .filter((booklet) => booklet.gradeLevel === group.gradeLevel && (!booklet.groupId || booklet.groupId === group.id))
+          .reduce((sum, booklet) => sum + Number(booklet.price) * studentCount, 0),
+      );
+      const tuitionCollected = round2(tuitionCollectedByGroup.get(group.id) || 0);
+      const bookletsCollected = round2(bookletCollectedByGroup.get(group.id) || 0);
+      const totalExpected = round2(tuitionExpected + bookletsExpected);
+      const totalCollected = round2(tuitionCollected + bookletsCollected);
+
+      const tuitionMetrics = {
+        expected: tuitionExpected,
+        collected: tuitionCollected,
+        remaining: Math.max(0, round2(tuitionExpected - tuitionCollected)),
+        rate: rate(tuitionCollected, tuitionExpected),
+      };
+
+      const bookletsMetrics = {
+        expected: bookletsExpected,
+        collected: bookletsCollected,
+        remaining: Math.max(0, round2(bookletsExpected - bookletsCollected)),
+        rate: rate(bookletsCollected, bookletsExpected),
+      };
+
+      const totalMetrics = {
+        expected: totalExpected,
+        collected: totalCollected,
+        remaining: Math.max(0, round2(totalExpected - totalCollected)),
+        rate: rate(totalCollected, totalExpected),
+      };
+
+      const row: any = {
+        id: group.id,
+        name: group.name,
+        gradeLevel: group.gradeLevel,
+        stage: this.inferStage(group.gradeLevel),
+        studentCount,
+        booklets: bookletsMetrics,
+        total: totalMetrics,
+      };
+
+      if (useSubscriptionKey) {
+        row.subscription = tuitionMetrics;
+      } else {
+        row.tuition = tuitionMetrics;
+      }
+
+      return row;
+    });
+
+    const overviewTuitionExpected = round2(
+      groupRows.reduce((sum: number, group: any) => sum + (useSubscriptionKey ? group.subscription.expected : group.tuition.expected), 0)
+    );
+    const overviewTuitionCollected = round2(
+      groupRows.reduce((sum: number, group: any) => sum + (useSubscriptionKey ? group.subscription.collected : group.tuition.collected), 0)
+    );
+    const overviewBookletsExpected = round2(
+      booklets.reduce(
+        (sum, booklet) =>
+          sum +
+          Number(booklet.price) *
+            (booklet.groupId ? studentCountByGroup.get(booklet.groupId) || 0 : studentCountByGrade.get(booklet.gradeLevel) || 0),
+        0,
+      )
+    );
+    const overviewBookletsCollected = round2(groupRows.reduce((sum: number, group: any) => sum + group.booklets.collected, 0));
+
+    return {
+      groupRows,
+      studentCountByGroup,
+      studentCountByGrade,
+      overviewTuitionExpected,
+      overviewTuitionCollected,
+      overviewBookletsExpected,
+      overviewBookletsCollected,
+      overviewTotalExpected: round2(overviewTuitionExpected + overviewBookletsExpected),
+      overviewTotalCollected: round2(overviewTuitionCollected + overviewBookletsCollected),
+    };
+  }
+
   async getFinanceAnalytics(user: AuthenticatedUser, query: FinanceAnalyticsQueryDto) {
     if (user.role !== UserRole.TEACHER && user.role !== UserRole.SECRETARIAT) {
       throw new ForbiddenException('Only teachers and secretariat can view the financial analytics');
@@ -554,115 +712,17 @@ export class PaymentsService {
             },
           });
 
-    const groupIds = new Set(groups.map((group) => group.id));
-    const primaryGroupByStudent = new Map<string, string | null>();
-    const studentCountByGroup = new Map<string, number>();
-    const studentCountByGrade = new Map<string, number>();
-    const tuitionExpectedByGroup = new Map<string, number>();
-    const startYear = parseInt(academicYear.split('-')[0], 10) || new Date().getFullYear();
-
-    for (const student of students) {
-      const enrollmentGroupIds = student.groupEnrollments.map((enrollment) => enrollment.groupId);
-      primaryGroupByStudent.set(student.id, enrollmentGroupIds[0] || null);
-      studentCountByGrade.set(student.gradeLevel, (studentCountByGrade.get(student.gradeLevel) || 0) + 1);
-      
-      for (const enrollment of student.groupEnrollments) {
-        const groupId = enrollment.groupId;
-        studentCountByGroup.set(groupId, (studentCountByGroup.get(groupId) || 0) + 1);
-        
-        const group = groups.find(g => g.id === groupId);
-        if (group) {
-          const groupFee = Number(group.monthlyFee);
-          let studentExpected = 0;
-          const enrollmentDate = new Date(enrollment.enrolledAt);
-          const enrollYear = enrollmentDate.getFullYear();
-          const enrollMonth = enrollmentDate.getMonth() + 1;
-          const enrollDay = enrollmentDate.getDate();
-
-          for (const m of billingMonths) {
-            const mYear = m >= 8 ? startYear : startYear + 1;
-            if (enrollment.enrolledAt) {
-              if (isPeriodBeforeEnrollment(enrollmentDate, mYear, m)) {
-                continue;
-              }
-            }
-
-            const isJoiningMonth = Boolean(enrollment.enrolledAt && isEnrolledInPeriod(enrollmentDate, mYear, m));
-            const fee = isJoiningMonth
-              ? calculateProratedTuition(groupFee, enrollmentDate).expectedAmount
-              : groupFee;
-            studentExpected += fee;
-          }
-          tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + studentExpected);
-        }
-      }
-    }
-
-    const tuitionCollectedByGroup = new Map<string, number>();
-    const bookletCollectedByGroup = new Map<string, number>();
-    for (const payment of payments) {
-      const attributedGroupId =
-        payment.groupId && groupIds.has(payment.groupId) ? payment.groupId : primaryGroupByStudent.get(payment.studentId) || null;
-      if (!attributedGroupId || !groupIds.has(attributedGroupId)) continue;
-      if (isMonthScope && payment.paymentType === PaymentType.TUITION && Number(payment.periodMonth) !== requestedMonth) continue;
-      const target = payment.paymentType === PaymentType.BOOKLET ? bookletCollectedByGroup : tuitionCollectedByGroup;
-      target.set(attributedGroupId, (target.get(attributedGroupId) || 0) + Number(payment.amountPaid || 0));
-    }
-
-    const groupRows = groups.map((group) => {
-      const studentCount = studentCountByGroup.get(group.id) || 0;
-      const tuitionExpected = round2(tuitionExpectedByGroup.get(group.id) || 0);
-      const bookletsExpected = round2(
-        booklets
-          .filter((booklet) => booklet.gradeLevel === group.gradeLevel && (!booklet.groupId || booklet.groupId === group.id))
-          .reduce((sum, booklet) => sum + Number(booklet.price) * studentCount, 0),
-      );
-      const tuitionCollected = round2(tuitionCollectedByGroup.get(group.id) || 0);
-      const bookletsCollected = round2(bookletCollectedByGroup.get(group.id) || 0);
-      const totalExpected = round2(tuitionExpected + bookletsExpected);
-      const totalCollected = round2(tuitionCollected + bookletsCollected);
-
-      return {
-        id: group.id,
-        name: group.name,
-        gradeLevel: group.gradeLevel,
-        stage: this.inferStage(group.gradeLevel),
-        studentCount,
-        tuition: {
-          expected: tuitionExpected,
-          collected: tuitionCollected,
-          remaining: Math.max(0, round2(tuitionExpected - tuitionCollected)),
-          rate: rate(tuitionCollected, tuitionExpected),
-        },
-        booklets: {
-          expected: bookletsExpected,
-          collected: bookletsCollected,
-          remaining: Math.max(0, round2(bookletsExpected - bookletsCollected)),
-          rate: rate(bookletsCollected, bookletsExpected),
-        },
-        total: {
-          expected: totalExpected,
-          collected: totalCollected,
-          remaining: Math.max(0, round2(totalExpected - totalCollected)),
-          rate: rate(totalCollected, totalExpected),
-        },
-      };
+    const metrics = this.calculateGroupFinancialMetrics({
+      groups,
+      students,
+      booklets,
+      payments,
+      billingMonths,
+      isMonthScope,
+      requestedMonth,
+      academicYear,
+      useSubscriptionKey: false,
     });
-
-    const overviewTuitionExpected = round2(groupRows.reduce((sum, group) => sum + group.tuition.expected, 0));
-    const overviewTuitionCollected = round2(groupRows.reduce((sum, group) => sum + group.tuition.collected, 0));
-    const overviewBookletsExpected = round2(
-      booklets.reduce(
-        (sum, booklet) =>
-          sum +
-          Number(booklet.price) *
-            (booklet.groupId ? studentCountByGroup.get(booklet.groupId) || 0 : studentCountByGrade.get(booklet.gradeLevel) || 0),
-        0,
-      ),
-    );
-    const overviewBookletsCollected = round2(groupRows.reduce((sum, group) => sum + group.booklets.collected, 0));
-    const overviewTotalExpected = round2(overviewTuitionExpected + overviewBookletsExpected);
-    const overviewTotalCollected = round2(overviewTuitionCollected + overviewBookletsCollected);
 
     return {
       academicYear,
@@ -671,25 +731,25 @@ export class PaymentsService {
       periodMonth: isMonthScope ? requestedMonth : null,
       scope: isMonthScope ? 'MONTH' : 'TERM',
       overview: {
-        totalExpected: overviewTotalExpected,
-        totalCollected: overviewTotalCollected,
-        totalRemaining: Math.max(0, round2(overviewTotalExpected - overviewTotalCollected)),
-        collectionRate: rate(overviewTotalCollected, overviewTotalExpected),
+        totalExpected: metrics.overviewTotalExpected,
+        totalCollected: metrics.overviewTotalCollected,
+        totalRemaining: Math.max(0, round2(metrics.overviewTotalExpected - metrics.overviewTotalCollected)),
+        collectionRate: rate(metrics.overviewTotalCollected, metrics.overviewTotalExpected),
         totalStudents: students.length,
         tuition: {
-          expected: overviewTuitionExpected,
-          collected: overviewTuitionCollected,
-          remaining: Math.max(0, round2(overviewTuitionExpected - overviewTuitionCollected)),
-          collectionRate: rate(overviewTuitionCollected, overviewTuitionExpected),
+          expected: metrics.overviewTuitionExpected,
+          collected: metrics.overviewTuitionCollected,
+          remaining: Math.max(0, round2(metrics.overviewTuitionExpected - metrics.overviewTuitionCollected)),
+          collectionRate: rate(metrics.overviewTuitionCollected, metrics.overviewTuitionExpected),
         },
         booklets: {
-          expected: overviewBookletsExpected,
-          collected: overviewBookletsCollected,
-          remaining: Math.max(0, round2(overviewBookletsExpected - overviewBookletsCollected)),
-          collectionRate: rate(overviewBookletsCollected, overviewBookletsExpected),
+          expected: metrics.overviewBookletsExpected,
+          collected: metrics.overviewBookletsCollected,
+          remaining: Math.max(0, round2(metrics.overviewBookletsExpected - metrics.overviewBookletsCollected)),
+          collectionRate: rate(metrics.overviewBookletsCollected, metrics.overviewBookletsExpected),
         },
       },
-      groups: groupRows,
+      groups: metrics.groupRows,
     };
   }
 
@@ -814,100 +874,18 @@ export class PaymentsService {
             },
           });
 
-    const groupIds = new Set(groups.map((group) => group.id));
-    const primaryGroupByStudent = new Map<string, string | null>();
-    const studentCountByGroup = new Map<string, number>();
-    const studentCountByGrade = new Map<string, number>();
-    const tuitionExpectedByGroup = new Map<string, number>();
-    const startYear = parseInt(academicYear.split('-')[0], 10) || new Date().getFullYear();
-
-    for (const student of students) {
-      const enrollmentGroupIds = student.groupEnrollments.map((enrollment) => enrollment.groupId);
-      primaryGroupByStudent.set(student.id, enrollmentGroupIds[0] || null);
-      studentCountByGrade.set(student.gradeLevel, (studentCountByGrade.get(student.gradeLevel) || 0) + 1);
-
-      for (const enrollment of student.groupEnrollments) {
-        const groupId = enrollment.groupId;
-        studentCountByGroup.set(groupId, (studentCountByGroup.get(groupId) || 0) + 1);
-
-        const group = groups.find((g) => g.id === groupId);
-        if (group) {
-          const groupFee = Number(group.monthlyFee);
-          let studentExpected = 0;
-          const enrollmentDate = new Date(enrollment.enrolledAt);
-          const enrollYear = enrollmentDate.getFullYear();
-          const enrollMonth = enrollmentDate.getMonth() + 1;
-          const enrollDay = enrollmentDate.getDate();
-
-          for (const m of billingMonths) {
-            const mYear = m >= 8 ? startYear : startYear + 1;
-            if (enrollment.enrolledAt) {
-              if (isPeriodBeforeEnrollment(enrollmentDate, mYear, m)) {
-                continue;
-              }
-            }
-
-            const isJoiningMonth = Boolean(enrollment.enrolledAt && isEnrolledInPeriod(enrollmentDate, mYear, m));
-            const fee = isJoiningMonth
-              ? calculateProratedTuition(groupFee, enrollmentDate).expectedAmount
-              : groupFee;
-            studentExpected += fee;
-          }
-          tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + studentExpected);
-        }
-      }
-    }
-
-    const tuitionCollectedByGroup = new Map<string, number>();
-    const bookletCollectedByGroup = new Map<string, number>();
-    for (const payment of payments) {
-      const attributedGroupId =
-        payment.groupId && groupIds.has(payment.groupId) ? payment.groupId : primaryGroupByStudent.get(payment.studentId) || null;
-      if (!attributedGroupId || !groupIds.has(attributedGroupId)) continue;
-      if (isMonthScope && payment.paymentType === PaymentType.TUITION && Number(payment.periodMonth) !== requestedMonth) continue;
-      const target = payment.paymentType === PaymentType.BOOKLET ? bookletCollectedByGroup : tuitionCollectedByGroup;
-      target.set(attributedGroupId, (target.get(attributedGroupId) || 0) + Number(payment.amountPaid || 0));
-    }
-
-    const groupRows = groups.map((group) => {
-      const studentCount = studentCountByGroup.get(group.id) || 0;
-      const tuitionExpected = round2(tuitionExpectedByGroup.get(group.id) || 0);
-      const bookletsExpected = round2(
-        booklets
-          .filter((booklet) => booklet.gradeLevel === group.gradeLevel && (!booklet.groupId || booklet.groupId === group.id))
-          .reduce((sum, booklet) => sum + Number(booklet.price) * studentCount, 0),
-      );
-      const tuitionCollected = round2(tuitionCollectedByGroup.get(group.id) || 0);
-      const bookletsCollected = round2(bookletCollectedByGroup.get(group.id) || 0);
-      const totalExpected = round2(tuitionExpected + bookletsExpected);
-      const totalCollected = round2(tuitionCollected + bookletsCollected);
-
-      return {
-        id: group.id,
-        name: group.name,
-        gradeLevel: group.gradeLevel,
-        stage: this.inferStage(group.gradeLevel),
-        studentCount,
-        subscription: {
-          expected: tuitionExpected,
-          collected: tuitionCollected,
-          remaining: Math.max(0, round2(tuitionExpected - tuitionCollected)),
-          rate: rate(tuitionCollected, tuitionExpected),
-        },
-        booklets: {
-          expected: bookletsExpected,
-          collected: bookletsCollected,
-          remaining: Math.max(0, round2(bookletsExpected - bookletsCollected)),
-          rate: rate(bookletsCollected, bookletsExpected),
-        },
-        total: {
-          expected: totalExpected,
-          collected: totalCollected,
-          remaining: Math.max(0, round2(totalExpected - totalCollected)),
-          rate: rate(totalCollected, totalExpected),
-        },
-      };
+    const metrics = this.calculateGroupFinancialMetrics({
+      groups,
+      students,
+      booklets,
+      payments,
+      billingMonths,
+      isMonthScope,
+      requestedMonth,
+      academicYear,
+      useSubscriptionKey: true,
     });
+    const groupRows = metrics.groupRows;
 
     // Calculate Online Courses Breakdown
     let totalCoursesExpected = 0;
@@ -948,21 +926,13 @@ export class PaymentsService {
       };
     });
 
-    const overviewSubscriptionsExpected = round2(groupRows.reduce((sum, group) => sum + group.subscription.expected, 0));
-    const overviewSubscriptionsCollected = round2(groupRows.reduce((sum, group) => sum + group.subscription.collected, 0));
+    const overviewSubscriptionsExpected = metrics.overviewTuitionExpected;
+    const overviewSubscriptionsCollected = metrics.overviewTuitionCollected;
     const overviewSubscriptionsRemaining = Math.max(0, round2(overviewSubscriptionsExpected - overviewSubscriptionsCollected));
     const overviewSubscriptionsRate = rate(overviewSubscriptionsCollected, overviewSubscriptionsExpected);
 
-    const overviewBookletsExpected = round2(
-      booklets.reduce(
-        (sum, booklet) =>
-          sum +
-          Number(booklet.price) *
-            (booklet.groupId ? studentCountByGroup.get(booklet.groupId) || 0 : studentCountByGrade.get(booklet.gradeLevel) || 0),
-        0,
-      ),
-    );
-    const overviewBookletsCollected = round2(groupRows.reduce((sum, group) => sum + group.booklets.collected, 0));
+    const overviewBookletsExpected = metrics.overviewBookletsExpected;
+    const overviewBookletsCollected = metrics.overviewBookletsCollected;
     const overviewBookletsRemaining = Math.max(0, round2(overviewBookletsExpected - overviewBookletsCollected));
     const overviewBookletsRate = rate(overviewBookletsCollected, overviewBookletsExpected);
 

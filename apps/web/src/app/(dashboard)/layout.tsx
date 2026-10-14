@@ -176,11 +176,19 @@ export default function DashboardLayout({
               '/teacher/students',
               '/teacher/finance',
             ];
-      offlineRoutes.forEach((route) => {
-        try {
-          router.prefetch(route);
-        } catch {}
-      });
+      const schedulePrefetch = () => {
+        offlineRoutes.forEach((route) => {
+          try {
+            router.prefetch(route);
+          } catch {}
+        });
+      };
+
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(schedulePrefetch, { timeout: 3000 });
+      } else {
+        setTimeout(schedulePrefetch, 1500);
+      }
     }
   }, [isMounted, isOnline, isAuthenticated, user?.role, router]);
 
@@ -438,7 +446,6 @@ export default function DashboardLayout({
                         <Link
                           key={item.href}
                           href={item.href}
-                          prefetch={true}
                           onClick={() => setIsMobileSidebarOpen(false)}
                           className={`flex items-center gap-3 px-3.5 py-2.5 rounded-md text-sm font-medium transition-all ${
                             isActive

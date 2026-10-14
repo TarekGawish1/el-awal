@@ -1062,28 +1062,129 @@ export class SyncService {
       return result;
     }
 
+    const MAX_SYNC_BATCH = 500;
+    const operations = dto.operations.slice(0, MAX_SYNC_BATCH);
     const recorderId = user.id;
 
-    for (const op of dto.operations) {
+    // Batch Prefetch Optimization: Pre-fetch referenced sessions, students, enrollments, and existing records in bulk
+    const sessionIds = Array.from(new Set(operations.map((op) => op.sessionId).filter(Boolean)));
+    let sessions: any[] = [];
+    try {
+      if (sessionIds.length > 0 && typeof this.prisma.lessonSession?.findMany === 'function') {
+        const fetched = await this.prisma.lessonSession.findMany({
+          where: { id: { in: sessionIds } },
+          include: { group: true },
+        });
+        if (Array.isArray(fetched)) sessions = fetched;
+      }
+    } catch {
+      sessions = [];
+    }
+    const sessionMap = new Map(sessions.map((s) => [s.id, s]));
+
+    const tokensToLookup = new Set<string>();
+    const candidateUuids = new Set<string>();
+    for (const op of operations) {
+      const sId = op.studentId;
+      const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sId || '');
+      if (isTargetUuid) {
+        candidateUuids.add(sId!);
+      }
+      const token = (op.qrCodeToken || sId || '').trim();
+      if (token) {
+        tokensToLookup.add(token);
+      }
+    }
+
+    const orClauses: any[] = [];
+    if (tokensToLookup.size > 0) {
+      const tokenArr = Array.from(tokensToLookup);
+      orClauses.push({ qrCodeToken: { in: tokenArr } });
+      orClauses.push({ studentCode: { in: tokenArr } });
+    }
+    if (candidateUuids.size > 0) {
+      orClauses.push({ id: { in: Array.from(candidateUuids) } });
+    }
+
+    let preloadedStudents: any[] = [];
+    try {
+      if (orClauses.length > 0 && typeof this.prisma.studentProfile?.findMany === 'function') {
+        const fetched = await this.prisma.studentProfile.findMany({
+          where: { OR: orClauses },
+        });
+        if (Array.isArray(fetched)) preloadedStudents = fetched;
+      }
+    } catch {
+      preloadedStudents = [];
+    }
+
+    const studentTokenMap = new Map<string, any>();
+    for (const st of preloadedStudents) {
+      if (st.qrCodeToken) studentTokenMap.set(st.qrCodeToken, st);
+      if (st.studentCode) studentTokenMap.set(st.studentCode, st);
+      studentTokenMap.set(st.id, st);
+    }
+
+    const studentIdsFound = preloadedStudents.map((s) => s.id);
+    let preloadedEnrollments: any[] = [];
+    try {
+      if (studentIdsFound.length > 0 && typeof this.prisma.groupEnrollment?.findMany === 'function') {
+        const fetched = await this.prisma.groupEnrollment.findMany({
+          where: {
+            studentId: { in: studentIdsFound },
+            status: GroupEnrollmentStatus.ACTIVE,
+          },
+        });
+        if (Array.isArray(fetched)) preloadedEnrollments = fetched;
+      }
+    } catch {
+      preloadedEnrollments = [];
+    }
+    const activeEnrollmentSet = new Set(preloadedEnrollments.map((e) => `${e.groupId}:${e.studentId}`));
+    const anyActiveStudentSet = new Set(preloadedEnrollments.map((e) => e.studentId));
+
+    let preloadedAttendance: any[] = [];
+    try {
+      if (sessionIds.length > 0 && studentIdsFound.length > 0 && typeof this.prisma.attendanceRecord?.findMany === 'function') {
+        const fetched = await this.prisma.attendanceRecord.findMany({
+          where: {
+            sessionId: { in: sessionIds },
+            studentId: { in: studentIdsFound },
+          },
+          select: { sessionId: true, studentId: true },
+        });
+        if (Array.isArray(fetched)) preloadedAttendance = fetched;
+      }
+    } catch {
+      preloadedAttendance = [];
+    }
+    const existingAttendanceSet = new Set(preloadedAttendance.map((a) => `${a.sessionId}:${a.studentId}`));
+
+    for (const op of operations) {
       try {
         await this.prisma.$transaction(async (tx) => {
-          // 1. Verify session existence
-          const session = await tx.lessonSession.findUnique({
-            where: { id: op.sessionId },
-            include: { group: true },
-          });
+          // 1. Verify session existence (using preloaded cache when available)
+          const session =
+            sessionMap.get(op.sessionId) ||
+            (await tx.lessonSession.findUnique({
+              where: { id: op.sessionId },
+              include: { group: true },
+            }));
 
           if (!session) {
             throw new NotFoundException(`Session [${op.sessionId}] not found`);
           }
 
-          // 2. Resolve target student
+          // 2. Resolve target student (using preloaded dictionary lookup when available)
           let resolvedStudentId = op.studentId;
           const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedStudentId || '');
           if ((!resolvedStudentId || !isTargetUuid) && (op.qrCodeToken || resolvedStudentId)) {
             const tokenToLookup = (op.qrCodeToken || resolvedStudentId).trim();
             const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenToLookup);
-            if (tx.studentProfile?.findFirst) {
+            const cachedStudent = studentTokenMap.get(tokenToLookup);
+            if (cachedStudent) {
+              resolvedStudentId = cachedStudent.id;
+            } else if (tx.studentProfile?.findFirst) {
               const student = await tx.studentProfile.findFirst({
                 where: {
                   OR: [
@@ -1149,14 +1250,19 @@ export class SyncService {
           }
 
           // 4. Check for duplicate attendance record
-          const existingRecord = await tx.attendanceRecord.findUnique({
-            where: {
-              sessionId_studentId: {
-                sessionId: op.sessionId,
-                studentId: resolvedStudentId,
+          let existingRecord: any = null;
+          if (existingAttendanceSet.size > 0 && existingAttendanceSet.has(`${op.sessionId}:${resolvedStudentId}`)) {
+            existingRecord = true;
+          } else if (tx.attendanceRecord?.findUnique) {
+            existingRecord = await tx.attendanceRecord.findUnique({
+              where: {
+                sessionId_studentId: {
+                  sessionId: op.sessionId,
+                  studentId: resolvedStudentId,
+                },
               },
-            },
-          });
+            });
+          }
 
           if (existingRecord) {
             result.duplicatesIgnored++;
@@ -1238,9 +1344,79 @@ export class SyncService {
       return result;
     }
 
+    const MAX_SYNC_BATCH = 500;
+    const operations = dto.operations.slice(0, MAX_SYNC_BATCH);
     const recorderId = user.id;
 
-    for (const op of dto.operations) {
+    // Batch Prefetch Optimization: Pre-fetch referenced students, groups, booklets, and existing operations
+    const studentIds = Array.from(new Set(operations.map((op) => op.studentId).filter(Boolean)));
+    let preloadedStudents: any[] = [];
+    try {
+      if (studentIds.length > 0 && typeof this.prisma.studentProfile?.findMany === 'function') {
+        const fetched = await this.prisma.studentProfile.findMany({
+          where: { id: { in: studentIds } },
+          include: { groupEnrollments: true },
+        });
+        if (Array.isArray(fetched)) preloadedStudents = fetched;
+      }
+    } catch {
+      preloadedStudents = [];
+    }
+    const studentMap = new Map(preloadedStudents.map((s) => [s.id, s]));
+
+    const candidateGroupIds = new Set<string>();
+    for (const op of operations) {
+      if (op.groupId) candidateGroupIds.add(op.groupId);
+    }
+    for (const st of preloadedStudents) {
+      for (const ge of st.groupEnrollments || []) {
+        if (ge.groupId) candidateGroupIds.add(ge.groupId);
+      }
+    }
+
+    let preloadedGroups: any[] = [];
+    try {
+      if (candidateGroupIds.size > 0 && typeof this.prisma.academicGroup?.findMany === 'function') {
+        const fetched = await this.prisma.academicGroup.findMany({
+          where: { id: { in: Array.from(candidateGroupIds) } },
+          select: { id: true, teacherId: true, monthlyFee: true },
+        });
+        if (Array.isArray(fetched)) preloadedGroups = fetched;
+      }
+    } catch {
+      preloadedGroups = [];
+    }
+    const groupMap = new Map(preloadedGroups.map((g) => [g.id, g]));
+
+    const bookletIds = Array.from(new Set(operations.map((op) => op.bookletId).filter(Boolean)));
+    let preloadedBooklets: any[] = [];
+    try {
+      if (bookletIds.length > 0 && typeof this.prisma.booklet?.findMany === 'function') {
+        const fetched = await this.prisma.booklet.findMany({
+          where: { id: { in: bookletIds } },
+        });
+        if (Array.isArray(fetched)) preloadedBooklets = fetched;
+      }
+    } catch {
+      preloadedBooklets = [];
+    }
+    const bookletMap = new Map(preloadedBooklets.map((b) => [b.id, b]));
+
+    const opIds = operations.map((op) => op.id || op.clientTempId).filter(Boolean) as string[];
+    let preloadedExistingOps: any[] = [];
+    try {
+      if (opIds.length > 0 && typeof this.prisma.studentPaymentRecord?.findMany === 'function') {
+        const fetched = await this.prisma.studentPaymentRecord.findMany({
+          where: { operationId: { in: opIds } },
+        });
+        if (Array.isArray(fetched)) preloadedExistingOps = fetched;
+      }
+    } catch {
+      preloadedExistingOps = [];
+    }
+    const existingOpMap = new Map(preloadedExistingOps.map((p) => [p.operationId!, p]));
+
+    for (const op of operations) {
       const opId = op.id || op.clientTempId || randomUUID();
 
       if (op.type === 'DELETE_PAYMENT') {
@@ -1317,11 +1493,13 @@ export class SyncService {
 
       try {
         await this.prisma.$transaction(async (tx) => {
-          // Verify student existence
-          const student = await tx.studentProfile.findUnique({
-            where: { id: op.studentId },
-            include: { groupEnrollments: true },
-          });
+          // Verify student existence (use preloaded cache when available)
+          const student =
+            studentMap.get(op.studentId) ||
+            (await tx.studentProfile.findUnique({
+              where: { id: op.studentId },
+              include: { groupEnrollments: true },
+            }));
 
           if (!student) {
             result.conflicts.push({
@@ -1355,10 +1533,12 @@ export class SyncService {
 
           let authoritativeMonthlyFee: number | null = null;
           if (resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
-            const targetGroup = await tx.academicGroup.findUnique({
-              where: { id: resolvedGroupId },
-              select: { id: true, teacherId: true, monthlyFee: true },
-            });
+            const targetGroup =
+              groupMap.get(resolvedGroupId) ||
+              (await tx.academicGroup.findUnique({
+                where: { id: resolvedGroupId },
+                select: { id: true, teacherId: true, monthlyFee: true },
+              }));
 
             if (!targetGroup) {
               result.conflicts.push({
@@ -1391,10 +1571,12 @@ export class SyncService {
           let savedPaymentRecord: any = null;
 
           if (isBookletOp && op.bookletId) {
-            // Flow A: Ingest Booklet Payment
-            const booklet = await tx.booklet.findUnique({
-              where: { id: op.bookletId },
-            });
+            // Flow A: Ingest Booklet Payment (use preloaded booklet when available)
+            const booklet =
+              bookletMap.get(op.bookletId) ||
+              (await tx.booklet.findUnique({
+                where: { id: op.bookletId },
+              }));
 
             let authoritativeExpected = booklet && Number(booklet.price) > 0 ? Number(booklet.price) : clientExpected;
             let amountPaid = incomingAmountPaid !== undefined ? incomingAmountPaid : authoritativeExpected;
@@ -1439,9 +1621,11 @@ export class SyncService {
               },
             });
 
-            const existingOp = await tx.studentPaymentRecord.findUnique({
-              where: { operationId: opId },
-            });
+            const existingOp =
+              existingOpMap.get(opId) ||
+              (await tx.studentPaymentRecord.findUnique({
+                where: { operationId: opId },
+              }));
             if (existingOp) {
               result.duplicatesIgnored++;
               result.processedOperationIds.push(opId);
@@ -1570,9 +1754,11 @@ export class SyncService {
               });
             }
 
-            const existingOp = await tx.studentPaymentRecord.findUnique({
-              where: { operationId: opId },
-            });
+            const existingOp =
+              existingOpMap.get(opId) ||
+              (await tx.studentPaymentRecord.findUnique({
+                where: { operationId: opId },
+              }));
             if (existingOp) {
               result.duplicatesIgnored++;
               result.processedOperationIds.push(opId);
@@ -1666,14 +1852,15 @@ export class SyncService {
             });
           }
 
+          const finalRecordId = savedPaymentRecord?.id || op.id || randomUUID();
           if (result.idMappings && op.clientTempId) {
-            result.idMappings[op.clientTempId] = savedPaymentRecord.id;
+            result.idMappings[op.clientTempId] = finalRecordId;
           } else if (result.idMappings && op.id) {
-            result.idMappings[op.id] = savedPaymentRecord.id;
+            result.idMappings[op.id] = finalRecordId;
           }
 
           result.processedPayments?.push({
-            id: savedPaymentRecord.id,
+            id: finalRecordId,
             studentId: op.studentId,
             groupId: resolvedGroupId,
             periodYear,

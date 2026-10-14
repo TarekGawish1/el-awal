@@ -146,24 +146,42 @@ export class WhatsAppWorker implements OnModuleInit, OnModuleDestroy {
    * @returns true if a job was processed, false if queue was empty
    */
   private async processNextJob(): Promise<boolean> {
-    // Atomically claim one PENDING notification
-    const notification = await this.prisma.$transaction(async (tx) => {
-      const pending = await tx.notification.findFirst({
-        where: {
-          whatsappStatus: NotificationStatus.PENDING,
-          scheduledFor: { lte: new Date() },
-        },
-        orderBy: { createdAt: 'asc' },
-      });
+    // Atomically claim one PENDING notification using FOR UPDATE SKIP LOCKED to prevent concurrency races
+    let notification: any = null;
+    try {
+      const rows = await this.prisma.$queryRaw<any[]>`
+        UPDATE "notifications"
+        SET "whatsapp_status" = 'PROCESSING'::notification_status, "updated_at" = NOW()
+        WHERE "id" = (
+          SELECT "id" FROM "notifications"
+          WHERE "whatsapp_status" = 'PENDING'::notification_status
+            AND "scheduled_for" <= NOW()
+          ORDER BY "created_at" ASC
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING "id", "recipient_id" AS "recipientId", "type", "title", "message", "data", "whatsapp_status" AS "whatsappStatus";
+      `;
+      notification = rows && rows.length > 0 ? rows[0] : null;
+    } catch {
+      // Fallback for mock environments without PostgreSQL raw query support
+      notification = await this.prisma.$transaction(async (tx) => {
+        const pending = await tx.notification.findFirst({
+          where: {
+            whatsappStatus: NotificationStatus.PENDING,
+            scheduledFor: { lte: new Date() },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
 
-      if (!pending) return null;
+        if (!pending) return null;
 
-      // Mark as PROCESSING to prevent duplicate sends
-      return tx.notification.update({
-        where: { id: pending.id },
-        data: { whatsappStatus: NotificationStatus.PROCESSING },
+        return tx.notification.update({
+          where: { id: pending.id },
+          data: { whatsappStatus: NotificationStatus.PROCESSING },
+        });
       });
-    });
+    }
 
     if (!notification) {
       return false; // queue empty

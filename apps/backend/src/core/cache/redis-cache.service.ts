@@ -97,10 +97,15 @@ export class RedisCacheService implements OnModuleInit {
     this.memoryFallback.clear();
     if (this.isRedisHealthy && this.redis) {
       try {
-        const keys = await this.redis.keys(pattern);
-        if (keys && keys.length > 0) {
-          await this.redis.del(...keys);
-        }
+        let cursor = '0';
+        do {
+          const res = await this.redis.scan(cursor, { match: pattern, count: 100 });
+          cursor = String(res[0]);
+          const keys = res[1];
+          if (keys && keys.length > 0) {
+            await this.redis.del(...keys);
+          }
+        } while (cursor !== '0');
       } catch (err: any) {
         this.logger.warn(`Redis DEL PATTERN error for [${pattern}]: ${err?.message}`);
       }

@@ -176,6 +176,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
   private isFlushing = false;
   private readonly FLUSH_INTERVAL_MS = 20_000; // 20 seconds buffer flush
   private readonly MAX_BUFFER_SIZE = 50; // trigger immediate async flush at 50 items
+  private readonly BUFFER_CAP = 1000; // max allowed items in buffer to prevent memory leaks
 
   // In-memory cache for user roles to avoid DB lookup on every page view
   private readonly userRoleCache = new Map<string, { role: UserRole; expiresAt: number }>();
@@ -239,12 +240,14 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
       );
     } catch (err: any) {
       this.logger.warn(`Failed to flush analytics batch: ${err?.message}`);
-      // Re-queue items if memory limit permits
-      if (this.pageViewBuffer.length < 500) {
-        this.pageViewBuffer.unshift(...pageViewsToInsert);
+      // Re-queue items up to BUFFER_CAP to prevent unbounded memory growth
+      const availablePvSlots = Math.max(0, this.BUFFER_CAP - this.pageViewBuffer.length);
+      if (availablePvSlots > 0 && pageViewsToInsert.length > 0) {
+        this.pageViewBuffer.unshift(...pageViewsToInsert.slice(0, availablePvSlots));
       }
-      if (this.landingVisitBuffer.length < 500) {
-        this.landingVisitBuffer.unshift(...landingVisitsToInsert);
+      const availableLvSlots = Math.max(0, this.BUFFER_CAP - this.landingVisitBuffer.length);
+      if (availableLvSlots > 0 && landingVisitsToInsert.length > 0) {
+        this.landingVisitBuffer.unshift(...landingVisitsToInsert.slice(0, availableLvSlots));
       }
     } finally {
       this.isFlushing = false;
@@ -335,8 +338,8 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         },
       );
 
-      // Buffer landing visits
-      if (isLanding) {
+      // Buffer landing visits with cap
+      if (isLanding && this.landingVisitBuffer.length < this.BUFFER_CAP) {
         this.landingVisitBuffer.push({
           visitorHash,
           path: (params.path || "/").slice(0, 500),
@@ -345,21 +348,23 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
-      // Buffer page views
-      this.pageViewBuffer.push({
-        path: (params.path || "/").slice(0, 500),
-        referrer: params.referrer ? params.referrer.slice(0, 500) : null,
-        userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
-        visitorHash,
-        isLandingPage: isLanding,
-        tenantId: params.tenantId || null,
-        userId: params.userId || null,
-        metadata: {
-          ...(params.metadata || {}),
-          country: geo.country,
-          city: geo.city,
-        },
-      });
+      // Buffer page views with cap
+      if (this.pageViewBuffer.length < this.BUFFER_CAP) {
+        this.pageViewBuffer.push({
+          path: (params.path || "/").slice(0, 500),
+          referrer: params.referrer ? params.referrer.slice(0, 500) : null,
+          userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
+          visitorHash,
+          isLandingPage: isLanding,
+          tenantId: params.tenantId || null,
+          userId: params.userId || null,
+          metadata: {
+            ...(params.metadata || {}),
+            country: geo.country,
+            city: geo.city,
+          },
+        });
+      }
 
       // If buffer exceeds threshold, trigger immediate asynchronous flush
       if (this.pageViewBuffer.length >= this.MAX_BUFFER_SIZE) {
@@ -977,6 +982,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
             visitorHash: true,
             metadata: true,
           },
+          take: 10000,
         }),
       ]);
 
@@ -1315,6 +1321,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         isLandingPage: true,
       },
       orderBy: { createdAt: "asc" },
+      take: 20000,
     });
 
     const isToday = range === "today";

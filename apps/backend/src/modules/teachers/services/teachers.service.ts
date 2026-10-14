@@ -260,9 +260,9 @@ export class TeachersService {
     const pendingGradingList = Array.from(pendingAssessmentsMap.values());
     const pendingGradingAssessmentsCount = pendingGradingList.length;
 
-    // 6. At Risk Students
+    // 6. At Risk Students (True consecutive absences calculation)
     const atRiskStudents: any[] = [];
-    const allRecentAbsences = await this.prisma.attendanceRecord.findMany({
+    const candidateAbsences = await this.prisma.attendanceRecord.findMany({
       where: {
         session: { groupId: { in: groupIds } },
         status: AttendanceStatus.ABSENT,
@@ -281,41 +281,98 @@ export class TeachersService {
         },
       },
       orderBy: { recordedAt: 'desc' },
-      take: 50,
+      take: 30,
     });
 
+    const candidateStudentIds = Array.from(new Set(candidateAbsences.map((a) => a.studentId)));
+    const studentRecentHistory =
+      candidateStudentIds.length > 0
+        ? await this.prisma.attendanceRecord.findMany({
+            where: {
+              studentId: { in: candidateStudentIds },
+              session: { groupId: { in: groupIds } },
+            },
+            select: {
+              studentId: true,
+              status: true,
+              recordedAt: true,
+            },
+            orderBy: { recordedAt: 'desc' },
+          })
+        : [];
+
+    const historyByStudent = new Map<string, AttendanceStatus[]>();
+    for (const h of studentRecentHistory) {
+      if (!historyByStudent.has(h.studentId)) {
+        historyByStudent.set(h.studentId, []);
+      }
+      historyByStudent.get(h.studentId)!.push(h.status);
+    }
+
     const studentAbsenceMap = new Map<string, any>();
-    for (const rec of allRecentAbsences) {
+    for (const rec of candidateAbsences) {
       if (!studentAbsenceMap.has(rec.studentId)) {
-        studentAbsenceMap.set(rec.studentId, {
-          id: rec.id,
-          studentId: rec.studentId,
-          studentName: rec.student.user.fullName,
-          groupId: rec.session.group.id,
-          groupName: rec.session.group.name,
-          consecutiveAbsences: 1,
-          lastAttendedDate: rec.recordedAt.toISOString().split('T')[0],
-          parentPhone:
-            rec.student.emergencyPhone ||
-            rec.student.parentLinks[0]?.parent.user.phone ||
-            rec.student.user.phone,
-        });
-      } else {
-        const item = studentAbsenceMap.get(rec.studentId);
-        item.consecutiveAbsences += 1;
+        const statuses = historyByStudent.get(rec.studentId) || [];
+        let consecutive = 0;
+        for (const st of statuses) {
+          if (st === AttendanceStatus.ABSENT) {
+            consecutive += 1;
+          } else {
+            break; // An attendance record (PRESENT/LATE/EXCUSED) breaks the streak
+          }
+        }
+
+        if (consecutive > 0) {
+          studentAbsenceMap.set(rec.studentId, {
+            id: rec.id,
+            studentId: rec.studentId,
+            studentName: rec.student.user.fullName,
+            groupId: rec.session.group.id,
+            groupName: rec.session.group.name,
+            consecutiveAbsences: consecutive,
+            lastAttendedDate: rec.recordedAt.toISOString().split('T')[0],
+            parentPhone:
+              rec.student.emergencyPhone ||
+              rec.student.parentLinks[0]?.parent.user.phone ||
+              rec.student.user.phone,
+          });
+        }
       }
     }
-    atRiskStudents.push(...Array.from(studentAbsenceMap.values()).slice(0, 5));
+
+    const sortedAtRisk = Array.from(studentAbsenceMap.values())
+      .sort((a, b) => b.consecutiveAbsences - a.consecutiveAbsences)
+      .slice(0, 5);
+    atRiskStudents.push(...sortedAtRisk);
 
     // 7. Group Performance
     let groupPerformance = [];
     
     if (query.layout !== 'home') {
+      const sessionCountMap = new Map<string, number>();
+      if (groupIds.length > 0 && typeof this.prisma.lessonSession?.groupBy === 'function') {
+        try {
+          const sessionCounts = await this.prisma.lessonSession.groupBy({
+            by: ['groupId'],
+            where: { groupId: { in: groupIds } },
+            _count: { id: true },
+          });
+          for (const sc of sessionCounts) {
+            sessionCountMap.set(sc.groupId, sc._count.id);
+          }
+        } catch {
+          // Fallback to individual count if groupBy is unmocked in tests
+        }
+      }
+
       groupPerformance = await Promise.all(
         teacherGroups.map(async (group) => {
-          const totalGroupSessions = await this.prisma.lessonSession.count({
-            where: { groupId: group.id },
-          });
+          let totalGroupSessions = sessionCountMap.get(group.id);
+          if (totalGroupSessions === undefined) {
+            totalGroupSessions = await this.prisma.lessonSession.count({
+              where: { groupId: group.id },
+            });
+          }
 
           const totalGroupPresent = await this.prisma.attendanceRecord.count({
             where: {

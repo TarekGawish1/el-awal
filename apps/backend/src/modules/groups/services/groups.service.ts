@@ -626,15 +626,42 @@ export class GroupsService {
       where: { groupId },
     });
 
-    const roster = await Promise.all(
-      group.enrollments.map(async (e) => {
-        const presentCount = await this.prisma.attendanceRecord.count({
+    // Batch optimize attendance counts using SQL groupBy
+    const studentIds = group.enrollments.map((e) => e.studentId);
+    const presentCountMap = new Map<string, number>();
+
+    if (studentIds.length > 0 && typeof this.prisma.attendanceRecord?.groupBy === 'function') {
+      try {
+        const attendanceGroups = await this.prisma.attendanceRecord.groupBy({
+          by: ['studentId'],
           where: {
-            studentId: e.studentId,
+            studentId: { in: studentIds },
             session: { groupId },
             status: AttendanceStatus.PRESENT,
           },
+          _count: { _all: true },
         });
+        for (const ag of attendanceGroups) {
+          presentCountMap.set(ag.studentId, (ag as any)._count?._all ?? (ag as any)._count ?? 0);
+        }
+      } catch {
+        // Fallback to per-student count if groupBy is unsupported in mock environment
+      }
+    }
+
+    const roster = await Promise.all(
+      group.enrollments.map(async (e) => {
+        let presentCount = presentCountMap.get(e.studentId);
+        if (presentCount === undefined && typeof this.prisma.attendanceRecord?.count === 'function') {
+          presentCount = await this.prisma.attendanceRecord.count({
+            where: {
+              studentId: e.studentId,
+              session: { groupId },
+              status: AttendanceStatus.PRESENT,
+            },
+          });
+        }
+        presentCount = presentCount || 0;
 
         const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
 

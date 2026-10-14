@@ -93,15 +93,6 @@ export class PrismaService
         await new Promise((res) => setTimeout(res, 2000));
       }
     }
-
-    try {
-      await this.$executeRawUnsafe(`
-        ALTER TABLE "lesson_sessions" ADD COLUMN IF NOT EXISTS "end_time" VARCHAR(10);
-      `);
-      this.logger.log('✅ Verified/Updated lesson_sessions schema columns.');
-    } catch (schemaErr: any) {
-      this.logger.warn(`Schema check warning: ${schemaErr?.message || schemaErr}`);
-    }
   }
 
   async onModuleDestroy() {

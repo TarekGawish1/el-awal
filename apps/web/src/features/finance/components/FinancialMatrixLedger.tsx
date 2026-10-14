@@ -239,11 +239,20 @@ export function FinancialMatrixLedger({ groups = [], initialStage = '', initialG
   const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
   const [groupId, setGroupId] = useState(initialGroupId);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [excludedMonths, setExcludedMonths] = useState<number[]>([]);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15);
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
   const [paymentToCancel, setPaymentToCancel] = useState<PaymentSummaryInfo | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const { data: billingConfig } = useBillingConfiguration(academicYear, academicTerm);
   const { mutate: updateBillingConfig } = useUpdateBillingConfiguration();
@@ -276,7 +285,17 @@ export function FinancialMatrixLedger({ groups = [], initialStage = '', initialG
     if (billingConfig) setExcludedMonths(billingConfig.excludedMonths || []);
   }, [billingConfig]);
 
-  const query = { gradeLevel: gradeLevel || undefined, academicPeriodId: `${academicYear}:${academicTerm}`, academicYear, academicTerm, groupId: groupId || undefined, stage: stage || undefined, search: search || undefined, page, limit };
+  const query = {
+    gradeLevel: gradeLevel || undefined,
+    academicPeriodId: `${academicYear}:${academicTerm}`,
+    academicYear,
+    academicTerm,
+    groupId: groupId || undefined,
+    stage: stage || undefined,
+    search: debouncedSearch.trim() || undefined,
+    page,
+    limit,
+  };
   const { data: ledger, isLoading, isError } = useMatrixLedger(query);
   useEffect(() => {
     if (!billingConfig && ledger?.excludedMonths) setExcludedMonths(ledger.excludedMonths);

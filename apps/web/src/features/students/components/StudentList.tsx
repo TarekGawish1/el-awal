@@ -47,7 +47,17 @@ const getStageName = (gradeLevel?: string, academicStage?: string) => {
 
 export function StudentList() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCursor(undefined);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
@@ -135,8 +145,9 @@ export function StudentList() {
     []
   );
 
-  // Fetch students (fetch comprehensive list for seamless client-side multi-filtering)
+  // Fetch students (with search pushed to backend/offline store and cursor pagination support)
   const { data, isLoading, isError } = useStudents({
+    search: debouncedSearch.trim() || undefined,
     cursor,
     limit: 100,
   });
@@ -726,16 +737,45 @@ export function StudentList() {
         </div>
 
         {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredStudents.length}
-              pageSize={PAGE_SIZE}
-              onPageChange={setCurrentPage}
-              itemLabel="طالب"
-            />
+        {(totalPages > 1 || data?.meta?.hasMore || cursor) && (
+          <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            {totalPages > 1 ? (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredStudents.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setCurrentPage}
+                itemLabel="طالب"
+              />
+            ) : <div />}
+            {/* Cursor Batch Traversal */}
+            {(data?.meta?.hasMore || cursor) && (
+              <div className="flex items-center gap-2 text-xs">
+                {cursor && (
+                  <button
+                    onClick={() => {
+                      setCursor(undefined);
+                      setCurrentPage(1);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors"
+                  >
+                    العودة للدفعة الأولى
+                  </button>
+                )}
+                {data?.meta?.hasMore && data.meta.nextCursor && (
+                  <button
+                    onClick={() => {
+                      setCursor(data.meta.nextCursor!);
+                      setCurrentPage(1);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-medium shadow-sm transition-colors"
+                  >
+                    عرض الدفعة التالية (الـ 100 طالب التالية) &larr;
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

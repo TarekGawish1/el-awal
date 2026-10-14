@@ -430,9 +430,35 @@ class OfflineDatabase {
           }
         };
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        request.onblocked = () => {
+          console.warn('[OfflineDB] Database open blocked: another tab is using an older database version');
+          this.dbPromise = null;
+          reject(new Error('IndexedDB open blocked by another open tab'));
+        };
+
+        request.onsuccess = () => {
+          const db = request.result;
+
+          db.onversionchange = () => {
+            console.warn('[OfflineDB] Database version change detected, closing connection');
+            db.close();
+            this.dbPromise = null;
+          };
+
+          db.onclose = () => {
+            console.warn('[OfflineDB] Database connection closed unexpectedly');
+            this.dbPromise = null;
+          };
+
+          resolve(db);
+        };
+
+        request.onerror = () => {
+          this.dbPromise = null;
+          reject(request.error || new Error('Failed to open IndexedDB'));
+        };
       } catch (e) {
+        this.dbPromise = null;
         reject(e);
       }
     });

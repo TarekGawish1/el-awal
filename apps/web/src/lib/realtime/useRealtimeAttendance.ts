@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth';
 import { getRealtimeSocket } from './socket';
@@ -8,13 +8,13 @@ import { syncEngine } from '@/lib/offline/sync-engine';
 
 /**
  * Subscribes to backend realtime WebSocket channels for attendance and homework updates.
- * When another machine (e.g. phone) uploads attendance or homework, this hook
- * immediately invalidates query caches and triggers an instant delta pull into
- * IndexedDB so all machines reflect the updates seamlessly without delay.
+ * Debounced to prevent invalidation storms during high-frequency classroom roll-call bursts.
  */
 export function useRealtimeAttendance(enabled = true) {
   const queryClient = useQueryClient();
   const { isAuthenticated, user } = useAuth();
+  const attendanceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const homeworkTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!enabled || !isAuthenticated || !user?.id) return;
@@ -23,29 +23,35 @@ export function useRealtimeAttendance(enabled = true) {
     if (!socket) return;
 
     const handleAttendanceChange = () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
-      if (typeof queryClient.refetchQueries === 'function') {
-        queryClient.refetchQueries({ type: 'active' });
+      if (attendanceTimerRef.current) {
+        clearTimeout(attendanceTimerRef.current);
       }
-      syncEngine.checkAndSync({ skipCooldown: true }).catch(() => {});
+      attendanceTimerRef.current = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['attendance'] });
+        queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
+        syncEngine.checkAndSync().catch(() => {});
+      }, 2000);
     };
 
     const handleHomeworkChange = () => {
-      queryClient.invalidateQueries({ queryKey: ['homework-records'] });
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
-      if (typeof queryClient.refetchQueries === 'function') {
-        queryClient.refetchQueries({ type: 'active' });
+      if (homeworkTimerRef.current) {
+        clearTimeout(homeworkTimerRef.current);
       }
-      syncEngine.checkAndSync({ skipCooldown: true }).catch(() => {});
+      homeworkTimerRef.current = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['homework-records'] });
+        queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
+        syncEngine.checkAndSync().catch(() => {});
+      }, 2000);
     };
 
     socket.on('attendance:changed', handleAttendanceChange);
     socket.on('homework:changed', handleHomeworkChange);
 
     return () => {
+      if (attendanceTimerRef.current) clearTimeout(attendanceTimerRef.current);
+      if (homeworkTimerRef.current) clearTimeout(homeworkTimerRef.current);
       socket.off('attendance:changed', handleAttendanceChange);
       socket.off('homework:changed', handleHomeworkChange);
     };
