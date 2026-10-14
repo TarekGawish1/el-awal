@@ -388,23 +388,57 @@ export class TeachersService {
         presentCountByGroupMap.set(gid, 0);
       }
 
-      if (groupIds.length > 0 && typeof this.prisma.attendanceRecord?.findMany === 'function') {
-        try {
-          const presentRecords = await this.prisma.attendanceRecord.findMany({
-            where: {
-              session: { groupId: { in: groupIds } },
-              status: AttendanceStatus.PRESENT,
-            },
-            select: { session: { select: { groupId: true } } },
-          });
-          for (const pr of presentRecords) {
-            const gId = pr.session?.groupId;
-            if (gId) {
-              presentCountByGroupMap.set(gId, (presentCountByGroupMap.get(gId) || 0) + 1);
+      if (groupIds.length > 0) {
+        let aggregated = false;
+        if (typeof this.prisma.attendanceRecord?.groupBy === 'function' && typeof this.prisma.lessonSession?.findMany === 'function') {
+          try {
+            const presentBySession = await this.prisma.attendanceRecord.groupBy({
+              by: ['sessionId'],
+              where: {
+                session: { groupId: { in: groupIds } },
+                status: AttendanceStatus.PRESENT,
+              },
+              _count: { _all: true },
+            });
+            if (presentBySession.length > 0) {
+              const sessionIds = presentBySession.map((p) => p.sessionId);
+              const sessionGroupPairs = await this.prisma.lessonSession.findMany({
+                where: { id: { in: sessionIds } },
+                select: { id: true, groupId: true },
+              });
+              const sessionToGroupMap = new Map(sessionGroupPairs.map((s) => [s.id, s.groupId]));
+              for (const ps of presentBySession) {
+                const gId = sessionToGroupMap.get(ps.sessionId);
+                if (gId) {
+                  const count = (ps as any)._count?._all ?? (ps as any)._count?.id ?? 0;
+                  presentCountByGroupMap.set(gId, (presentCountByGroupMap.get(gId) || 0) + count);
+                }
+              }
             }
+            aggregated = true;
+          } catch {
+            aggregated = false;
           }
-        } catch {
-          // Retain default 0 counts
+        }
+
+        if (!aggregated && typeof this.prisma.attendanceRecord?.findMany === 'function') {
+          try {
+            const presentRecords = await this.prisma.attendanceRecord.findMany({
+              where: {
+                session: { groupId: { in: groupIds } },
+                status: AttendanceStatus.PRESENT,
+              },
+              select: { session: { select: { groupId: true } } },
+            });
+            for (const pr of presentRecords) {
+              const gId = pr.session?.groupId;
+              if (gId) {
+                presentCountByGroupMap.set(gId, (presentCountByGroupMap.get(gId) || 0) + 1);
+              }
+            }
+          } catch {
+            // Retain default 0 counts
+          }
         }
       }
 

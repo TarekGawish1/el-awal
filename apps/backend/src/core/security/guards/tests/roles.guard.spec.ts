@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 import { RolesGuard } from '../roles.guard';
 import { ROLES_KEY } from '../../decorators/roles.decorator';
 import { AuthenticatedUser } from '../../decorators/current-user.decorator';
+import { vi } from 'vitest';
 
 describe('RolesGuard Active-Role Security Hardening (F-20)', () => {
   let guard: RolesGuard;

@@ -67,13 +67,16 @@ describe('CoursesService', () => {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       upsert: jest.fn(),
       deleteMany: jest.fn(),
     },
     courseAccess: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
       update: jest.fn(),
       updateMany: jest.fn(),
       upsert: jest.fn(),
@@ -88,7 +91,11 @@ describe('CoursesService', () => {
     courseProgress: {
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
+      groupBy: jest.fn().mockResolvedValue([]),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    assessment: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     assessmentSubmission: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -1157,4 +1164,123 @@ describe('CoursesService', () => {
       });
     });
   });
+
+  describe('Batch Query Optimization & Aggregation Regression Suite', () => {
+    it('getMyCourses should compute progress percentage via batch queries without N+1 loops', async () => {
+      mockPrismaService.courseEnrollment.findMany.mockResolvedValue([
+        {
+          courseId: 'c-101',
+          status: CourseEnrollmentStatus.ACTIVE,
+          enrolledAt: new Date(),
+          course: {
+            id: 'c-101',
+            title: 'كورس الرياضيات المتقدمة',
+            teacher: { user: { fullName: 'أستاذ أحمد غريب' } },
+            _count: { modules: 2 },
+          },
+        },
+        {
+          courseId: 'c-102',
+          status: CourseEnrollmentStatus.ACTIVE,
+          enrolledAt: new Date(),
+          course: {
+            id: 'c-102',
+            title: 'كورس الإحصاء',
+            teacher: { user: { fullName: 'أستاذ أحمد غريب' } },
+            _count: { modules: 1 },
+          },
+        },
+      ]);
+
+      mockPrismaService.courseLesson.findMany.mockResolvedValue([
+        { id: 'les-1', module: { courseId: 'c-101' } },
+        { id: 'les-2', module: { courseId: 'c-101' } },
+        { id: 'les-3', module: { courseId: 'c-101' } },
+        { id: 'les-4', module: { courseId: 'c-101' } },
+        { id: 'les-5', module: { courseId: 'c-102' } },
+        { id: 'les-6', module: { courseId: 'c-102' } },
+      ]);
+
+      mockPrismaService.courseProgress.groupBy.mockResolvedValue([
+        { courseId: 'c-101', _count: { _all: 2 } },
+        { courseId: 'c-102', _count: { _all: 2 } },
+      ]);
+
+      const courses = await service.getMyCourses('student-uuid-42');
+
+      expect(courses).toHaveLength(2);
+      expect(courses[0].courseId).toBe('c-101');
+      expect(courses[0].totalLessons).toBe(4);
+      expect(courses[0].completedLessons).toBe(2);
+      expect(courses[0].progressPercentage).toBe(50);
+      expect(courses[0].isCompleted).toBe(false);
+
+      expect(courses[1].courseId).toBe('c-102');
+      expect(courses[1].totalLessons).toBe(2);
+      expect(courses[1].completedLessons).toBe(2);
+      expect(courses[1].progressPercentage).toBe(100);
+      expect(courses[1].isCompleted).toBe(true);
+
+      expect(mockPrismaService.courseLesson.findMany).toHaveBeenCalledWith({
+        where: { module: { courseId: { in: ['c-101', 'c-102'] } } },
+        select: { id: true, module: { select: { courseId: true } } },
+      });
+    });
+
+    it('enrollStudentsBatch should provision new and reactivate existing enrollments in bulk', async () => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'c-bulk-1',
+        title: 'كورس المراجعة النهائية',
+        teacherId: 'teacher-1',
+      });
+
+      mockPrismaService.courseEnrollment.findMany
+        .mockResolvedValueOnce([
+          { id: 'enr-old', studentId: 'stu-existing-inactive', status: CourseEnrollmentStatus.DROPPED },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'enr-old', studentId: 'stu-existing-inactive' },
+          { id: 'enr-new', studentId: 'stu-new' },
+        ]);
+
+      mockPrismaService.courseAccess.findMany.mockResolvedValue([
+        { enrollmentId: 'enr-old' },
+      ]);
+
+      const result = await service.enrollStudentsBatch('c-bulk-1', 'teacher-1', false, {
+        studentIds: [
+          'stu-existing-inactive',
+          'stu-new',
+          'stu-new', // duplicates should be deduplicated
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.enrolledCount).toBe(2);
+      expect(mockPrismaService.courseEnrollment.updateMany).toHaveBeenCalledWith({
+        where: { courseId: 'c-bulk-1', studentId: { in: ['stu-existing-inactive'] } },
+        data: { status: CourseEnrollmentStatus.ACTIVE },
+      });
+      expect(mockPrismaService.courseEnrollment.createMany).toHaveBeenCalledWith({
+        data: [{ courseId: 'c-bulk-1', studentId: 'stu-new', status: CourseEnrollmentStatus.ACTIVE }],
+        skipDuplicates: true,
+      });
+      expect(mockPrismaService.courseAccess.updateMany).toHaveBeenCalledWith({
+        where: { enrollmentId: { in: ['enr-old'] } },
+        data: { accessStatus: CourseAccessStatus.ACTIVE },
+      });
+      expect(mockPrismaService.courseAccess.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            enrollmentId: 'enr-new',
+            studentId: 'stu-new',
+            courseId: 'c-bulk-1',
+            accessStatus: CourseAccessStatus.ACTIVE,
+          },
+        ],
+        skipDuplicates: true,
+      });
+    });
+  });
 });
+
