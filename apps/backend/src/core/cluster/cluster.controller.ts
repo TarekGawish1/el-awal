@@ -5,7 +5,15 @@ import { Roles } from '../security/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { Public } from '../security/decorators/public.decorator';
 
+import { IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+
 export class ScaleUpDto {
+  @ApiPropertyOptional({ description: 'Duration in minutes to keep Worker 2 active', example: 120, default: 120 })
+  @IsOptional()
+  @IsNumber()
+  @Min(5)
+  @Max(720)
   durationMinutes?: number;
 }
 
