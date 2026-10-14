@@ -45,6 +45,7 @@ import { useRealtimeNotifications } from '@/lib/realtime/useRealtimeNotification
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
+import { useWebPush } from '@/hooks/useWebPush';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
 import { isRouteAllowedForRole, getRoleLandingRoute, getAvailableRoles, getRoleLabel as getRoleLabelUtil } from '@/features/auth/utils/role-routing';
 import { switchRoleRequest, fetchCurrentUser } from '@/features/auth/api/auth.api';
@@ -311,6 +312,7 @@ export default function DashboardLayout({
   useRealtimeAttendance(isReservationsRole && isOnline);
   useRealtimeInquiries(isReservationsRole && isOnline);
   useRealtimeNotifications(isOnline);
+  useWebPush();
 
   // Hydration-safe initial loading screen before auth initialization & client mount
   if (!isMounted || !isInitialized) {

@@ -59,8 +59,10 @@ function getInitialSubscribed(): boolean {
       return globalSubscribedState;
     }
     const cached = localStorage.getItem(PUSH_STORAGE_KEY) === 'true';
-    globalSubscribedState = cached;
-    return cached;
+    const cachedToken = Boolean(localStorage.getItem(FCM_TOKEN_STORAGE_KEY));
+    const isSub = cached || cachedToken;
+    globalSubscribedState = isSub;
+    return isSub;
   } catch {
     return false;
   }
@@ -149,6 +151,59 @@ async function deleteSubscription(endpoint: string): Promise<void> {
 }
 
 /**
+ * Silently auto-repairs subscription without showing prompts if permission is already granted.
+ */
+async function subscribeSilently(registration: ServiceWorkerRegistration): Promise<boolean> {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+
+    // 1. Try FCM
+    const messaging = await getFirebaseMessaging();
+    const vapidKey =
+      process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+      (await fetchVapidPublicKey().catch(() => ''));
+
+    if (messaging && vapidKey) {
+      const fcmToken = await getToken(messaging, {
+        serviceWorkerRegistration: registration,
+        vapidKey,
+      }).catch(() => null);
+
+      if (fcmToken) {
+        await postSubscription({
+          endpoint: fcmToken,
+          keys: { p256dh: 'fcm', auth: 'fcm' },
+        }).catch(() => undefined);
+        try {
+          localStorage.setItem(FCM_TOKEN_STORAGE_KEY, fcmToken);
+        } catch {}
+        setGlobalSubscribed(true);
+        return true;
+      }
+    }
+
+    // 2. Fallback to standard VAPID
+    const standardVapidKey = await fetchVapidPublicKey();
+    const applicationServerKey = urlBase64ToUint8Array(standardVapidKey);
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey as unknown as BufferSource,
+      });
+    }
+    if (subscription) {
+      await postSubscription(subscription.toJSON()).catch(() => undefined);
+      setGlobalSubscribed(true);
+      return true;
+    }
+  } catch (err) {
+    console.debug('[useWebPush] Silent auto-repair subscription notice:', err);
+  }
+  return false;
+}
+
+/**
  * useWebPush — React hook for managing Web Push subscription lifecycle.
  *
  * Handles:
@@ -156,7 +211,7 @@ async function deleteSubscription(endpoint: string): Promise<void> {
  * - Permission state tracking
  * - Subscribe: requests permission → SW registration → VAPID key → PushManager → backend sync
  * - Unsubscribe: removes from browser + backend
- * - Persistent caching: avoids visual flicker/reset when drawer opens
+ * - Persistent caching & Auto-repair: avoids visual flicker/accidental turn-off
  */
 export function useWebPush(): UseWebPushReturn {
   const [isSupported, setIsSupported] = useState(false);
@@ -197,68 +252,97 @@ export function useWebPush(): UseWebPushReturn {
 
     let cancelled = false;
 
-    // PwaRegister can still be registering the worker when this hook mounts.
-    // Wait briefly for that registration before checking the persisted browser subscription.
+    // Synchronize and auto-repair existing subscription
     const syncExistingSubscription = async () => {
       try {
-        const existingRegistration = await navigator.serviceWorker.getRegistration();
-        const registration =
-          existingRegistration ||
-          (await Promise.race([
-            navigator.serviceWorker.ready,
-            new Promise<ServiceWorkerRegistration | null>((resolve) =>
-              setTimeout(() => resolve(null), 3000),
-            ),
-          ]));
+        const hasCachedSub =
+          localStorage.getItem(PUSH_STORAGE_KEY) === 'true' ||
+          Boolean(localStorage.getItem(FCM_TOKEN_STORAGE_KEY));
 
-        if (!registration) return;
-
-        // 1. Try FCM token sync if permission is already granted
-        if (Notification.permission === 'granted') {
-          try {
-            const messaging = await getFirebaseMessaging();
-            const vapidKey =
-              process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
-              (await fetchVapidPublicKey().catch(() => ''));
-
-            if (messaging && vapidKey) {
-              const token = await getToken(messaging, {
-                serviceWorkerRegistration: registration,
-                vapidKey,
-              }).catch(() => null);
-
-              if (token && !cancelled) {
-                setGlobalSubscribed(true);
-                setIsSubscribed(true);
-                await postSubscription({
-                  endpoint: token,
-                  keys: { p256dh: 'fcm', auth: 'fcm' },
-                }).catch(() => undefined);
-                return;
-              }
-            }
-          } catch {
-            // FCM check failed, fall through to PushManager check
-          }
+        // If permission was revoked or denied in browser settings, cleanly mark as unsubscribed
+        if (Notification.permission === 'denied' || Notification.permission !== 'granted') {
+          setGlobalSubscribed(false);
+          setIsSubscribed(false);
+          return;
         }
 
-        // 2. Fallback to standard PushManager subscription check
+        // Permission is GRANTED:
+        // If the user previously had an active subscription, maintain that state!
+        if (hasCachedSub) {
+          setGlobalSubscribed(true);
+          setIsSubscribed(true);
+        }
+
+        // If cached FCM token exists, keep backend record alive immediately
+        const cachedFcmToken = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
+        if (cachedFcmToken) {
+          postSubscription({
+            endpoint: cachedFcmToken,
+            keys: { p256dh: 'fcm', auth: 'fcm' },
+          }).catch(() => undefined);
+        }
+
+        const registration = await getOrRegisterServiceWorker();
+        if (!registration || cancelled) return;
+
+        // 1. Try FCM token sync
+        let fcmSuccess = false;
+        try {
+          const messaging = await getFirebaseMessaging();
+          const vapidKey =
+            process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+            (await fetchVapidPublicKey().catch(() => ''));
+
+          if (messaging && vapidKey) {
+            const token = await getToken(messaging, {
+              serviceWorkerRegistration: registration,
+              vapidKey,
+            }).catch(() => null);
+
+            if (token && !cancelled) {
+              fcmSuccess = true;
+              setGlobalSubscribed(true);
+              setIsSubscribed(true);
+              try {
+                localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
+              } catch {}
+              await postSubscription({
+                endpoint: token,
+                keys: { p256dh: 'fcm', auth: 'fcm' },
+              }).catch(() => undefined);
+              return;
+            }
+          }
+        } catch {
+          // FCM check notice, fall through to PushManager check
+        }
+
+        // 2. Check standard PushManager subscription
         const subscription = await registration.pushManager.getSubscription();
         if (cancelled) return;
 
-        const hasSub = Boolean(subscription);
-        setGlobalSubscribed(hasSub);
-        setIsSubscribed(hasSub);
-
-        // Keep the backend record alive if the browser retained the subscription.
         if (subscription) {
+          setGlobalSubscribed(true);
+          setIsSubscribed(true);
           await postSubscription(subscription.toJSON()).catch(() => undefined);
+          return;
         }
-      } catch {
-        if (!cancelled && Notification.permission !== 'granted') {
+
+        // 3. Self-Healing / Auto-Repair:
+        // If permission is 'granted' AND the user previously opted-in, but the browser
+        // subscription was temporarily missing or recycled, DO NOT turn off notifications!
+        // Automatically re-establish the subscription silently in the background.
+        if (hasCachedSub && !fcmSuccess) {
+          console.debug('[useWebPush] Active permission detected; auto-repairing subscription in background...');
+          void subscribeSilently(registration);
+        } else if (!hasCachedSub) {
+          // User has never subscribed on this browser
           setGlobalSubscribed(false);
           setIsSubscribed(false);
         }
+      } catch (err) {
+        console.warn('[useWebPush] Subscription sync note:', err);
+        // Do not arbitrarily disable notifications on transient network errors
       }
     };
 
