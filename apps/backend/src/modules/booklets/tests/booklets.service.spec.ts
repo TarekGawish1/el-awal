@@ -19,6 +19,9 @@ describe('BookletsService', () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
+    teacherAssistant: {
+      findFirst: jest.fn(),
+    },
     academicGroup: {
       findUnique: jest.fn(),
     },
@@ -159,6 +162,49 @@ describe('BookletsService', () => {
         where: { id: 'bkt-1' },
         data: { isActive: false },
       });
+    });
+  });
+
+  describe('Assistant Authorization & Cross-Tenant Security', () => {
+    it('should resolve linked teacher when assistant has active TeacherAssistant link', async () => {
+      const mockAssistantUser: AuthenticatedUser = {
+        id: 'assistant-user-1',
+        role: UserRole.SECRETARIAT,
+      };
+
+      mockPrismaService.teacherProfile.findFirst.mockResolvedValue(null);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue({
+        id: 'link-1',
+        teacherId: 'teacher-profile-alpha',
+        assistantId: 'assistant-user-1',
+        status: 'ACTIVE',
+      });
+
+      mockPrismaService.booklet.findMany.mockResolvedValue([]);
+
+      const result = await service.findAll(mockAssistantUser, {});
+      expect(result).toEqual([]);
+      expect(mockPrismaService.teacherAssistant.findFirst).toHaveBeenCalledWith({
+        where: { assistantId: 'assistant-user-1', status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      expect(mockPrismaService.booklet.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ teacherProfileId: 'teacher-profile-alpha' }),
+        }),
+      );
+    });
+
+    it('should throw ForbiddenException if assistant has no active linkage', async () => {
+      const unlinkedAssistant: AuthenticatedUser = {
+        id: 'unlinked-assistant',
+        role: UserRole.SECRETARIAT,
+      };
+
+      mockPrismaService.teacherProfile.findFirst.mockResolvedValue(null);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue(null);
+
+      await expect(service.findAll(unlinkedAssistant, {})).rejects.toThrow();
     });
   });
 });

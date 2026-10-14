@@ -128,9 +128,14 @@ export class GroupsService {
 
     let effectiveTeacherId = teacherId;
     if (!teacherProfile) {
-      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-      if (primaryTeacher) {
-        effectiveTeacherId = primaryTeacher.id;
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: teacherId, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      if (link) {
+        effectiveTeacherId = link.teacherId;
+      } else {
+        throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
       }
     }
 
@@ -184,23 +189,25 @@ export class GroupsService {
    */
   async getTeacherGroups(teacherId: string, academicYear?: string, academicTerm?: string) {
     let effectiveTeacherId = teacherId;
-    if (typeof this.prisma.teacherProfile?.findFirst === 'function') {
-      const teacherProfile = await this.prisma.teacherProfile.findFirst({
-        where: {
-          OR: [
-            { id: teacherId },
-            { user: { id: teacherId } },
-            { id: teacherId },
-          ],
-        },
+    const teacherProfile = await this.prisma.teacherProfile.findFirst({
+      where: {
+        OR: [
+          { id: teacherId },
+          { user: { id: teacherId } },
+        ],
+      },
+    });
+    if (teacherProfile) {
+      effectiveTeacherId = teacherProfile.id;
+    } else {
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: teacherId, status: 'ACTIVE' },
+        select: { teacherId: true },
       });
-      if (teacherProfile) {
-        effectiveTeacherId = teacherProfile.id;
+      if (link) {
+        effectiveTeacherId = link.teacherId;
       } else {
-        const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-        if (primaryTeacher) {
-          effectiveTeacherId = primaryTeacher.id;
-        }
+        throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
       }
     }
 

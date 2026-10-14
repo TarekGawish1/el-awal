@@ -158,6 +158,11 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
         parentId: 'parent-profile-1',
         studentId: 'student-profile-1',
       }),
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'link-1',
+        parentId: 'parent-profile-1',
+        studentId: 'student-profile-1',
+      }),
       findMany: jest.fn().mockResolvedValue([
         {
           id: 'link-1',

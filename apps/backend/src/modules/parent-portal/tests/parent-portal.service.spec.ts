@@ -11,6 +11,7 @@ describe('ParentPortalService', () => {
   const mockPrismaService = {
     parentStudentLink: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
     },
     studentProfile: {
@@ -57,7 +58,7 @@ describe('ParentPortalService', () => {
     const studentId = 'student-1';
 
     it('should throw ForbiddenException if parent is not linked to student', async () => {
-      mockPrismaService.parentStudentLink.findUnique.mockResolvedValue(null);
+      mockPrismaService.parentStudentLink.findFirst.mockResolvedValue(null);
 
       await expect(
         service.getStudentOverview(parentId, studentId),
@@ -65,7 +66,7 @@ describe('ParentPortalService', () => {
     });
 
     it('should calculate accurate KPI metrics when parent is linked', async () => {
-      mockPrismaService.parentStudentLink.findUnique.mockResolvedValue({
+      mockPrismaService.parentStudentLink.findFirst.mockResolvedValue({
         id: 'link-1',
         parentId,
         studentId,

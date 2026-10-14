@@ -33,9 +33,14 @@ export class BookletsService {
       return teacher.id;
     }
 
-    const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-    if (primaryTeacher) {
-      return primaryTeacher.id;
+    if (user.role === UserRole.SECRETARIAT) {
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: user.id, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      if (link) {
+        return link.teacherId;
+      }
     }
 
     throw new ForbiddenException('No active teacher profile found for this operation');
@@ -108,16 +113,11 @@ export class BookletsService {
    * Retrieves booklets filtered by academic period, grade level, and group with sales stats.
    */
   async findAll(user: AuthenticatedUser, query: BookletQueryDto) {
-    let teacherProfileId: string | null = null;
-    try {
-      teacherProfileId = await this.resolveTeacherProfileId(user);
-    } catch {
-      // For student/parent, teacher profile might not be directly attached
-    }
-
     const where: any = {};
+    let teacherProfileId: string | null = null;
 
-    if (teacherProfileId && (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT)) {
+    if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT) {
+      teacherProfileId = await this.resolveTeacherProfileId(user);
       where.teacherProfileId = teacherProfileId;
     }
 

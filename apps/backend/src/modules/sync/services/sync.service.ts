@@ -136,6 +136,18 @@ export class SyncService {
           select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
         });
       }
+      if (!teacherProfile && user.role === UserRole.SECRETARIAT && typeof this.prisma.teacherAssistant?.findFirst === 'function') {
+        const link = await this.prisma.teacherAssistant.findFirst({
+          where: { assistantId: user.id, status: 'ACTIVE' },
+          select: { teacherId: true },
+        });
+        if (link && typeof this.prisma.teacherProfile?.findUnique === 'function') {
+          teacherProfile = await this.prisma.teacherProfile.findUnique({
+            where: { id: link.teacherId },
+            select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+          });
+        }
+      }
       if (!teacherProfile && typeof this.prisma.teacherProfile?.findFirst === 'function') {
         teacherProfile = await this.prisma.teacherProfile.findFirst({
           where: { id: user.id },
@@ -154,7 +166,7 @@ export class SyncService {
       if (typeof this.prisma.academicGroup?.findMany === 'function') {
         groups = await this.prisma.academicGroup.findMany({
           where: {
-            ...(user.role === UserRole.TEACHER && effectiveTeacherId
+            ...((user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT) && effectiveTeacherId
               ? {
                   OR: [
                     { teacherId: effectiveTeacherId },
@@ -324,10 +336,17 @@ export class SyncService {
         });
       }
 
-      if (!teacherProfile && user.role === UserRole.TEACHER && typeof this.prisma.teacherProfile?.findFirst === 'function') {
-        teacherProfile = await this.prisma.teacherProfile.findFirst({
-          select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+      if (!teacherProfile && user.role === UserRole.SECRETARIAT && typeof this.prisma.teacherAssistant?.findFirst === 'function') {
+        const link = await this.prisma.teacherAssistant.findFirst({
+          where: { assistantId: user.id, status: 'ACTIVE' },
+          select: { teacherId: true },
         });
+        if (link && typeof this.prisma.teacherProfile?.findUnique === 'function') {
+          teacherProfile = await this.prisma.teacherProfile.findUnique({
+            where: { id: link.teacherId },
+            select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+          });
+        }
       }
     } catch (err) {
       this.logger.warn('Failed to resolve teacher profile for bootstrap snapshot:', err);
@@ -349,7 +368,7 @@ export class SyncService {
     try {
       const allGroups = await this.prisma.academicGroup.findMany({
         where: {
-          ...(user.role === UserRole.TEACHER && effectiveTeacherId
+          ...((user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT) && effectiveTeacherId
             ? {
                 OR: [
                   { teacherId: effectiveTeacherId },
@@ -1863,7 +1882,15 @@ export class SyncService {
     if ((dto.groups && dto.groups.length > 0) || (dto.students && dto.students.length > 0)) {
       await this.prisma.$transaction(async (tx) => {
         let effectiveTeacherId = user.teacherProfileId || user.id;
-        if (typeof tx.teacherProfile?.findFirst === 'function') {
+        if (user.role === UserRole.SECRETARIAT && typeof tx.teacherAssistant?.findFirst === 'function') {
+          const link = await tx.teacherAssistant.findFirst({
+            where: { assistantId: user.id, status: 'ACTIVE' },
+            select: { teacherId: true },
+          });
+          if (link) {
+            effectiveTeacherId = link.teacherId;
+          }
+        } else if (typeof tx.teacherProfile?.findFirst === 'function') {
           const teacherProfile = await tx.teacherProfile.findFirst({
             where: {
               OR: [

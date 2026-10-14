@@ -582,25 +582,32 @@ export class SchedulesService {
       search?: string;
     },
   ) {
-    let teacherProfile = user.teacherProfileId
-      ? await this.prisma.teacherProfile.findUnique({ where: { id: user.teacherProfileId } })
-      : await this.prisma.teacherProfile.findFirst({ where: { user: { id: user.id } } });
-
-    if (!teacherProfile && user.role === UserRole.TEACHER) {
-      teacherProfile = await this.prisma.teacherProfile.findFirst();
+    let effectiveTeacherProfileId = user.teacherProfileId;
+    if (user.role === UserRole.SECRETARIAT) {
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: user.id, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      if (link) {
+        effectiveTeacherProfileId = link.teacherId;
+      } else {
+        throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
+      }
+    } else if (!effectiveTeacherProfileId) {
+      const teacher = await this.prisma.teacherProfile.findFirst({
+        where: { OR: [{ id: user.id }, { user: { id: user.id } }] },
+        select: { id: true },
+      });
+      effectiveTeacherProfileId = teacher?.id || user.id;
     }
 
-    const effectiveTeacherProfileId = teacherProfile?.id || user.teacherProfileId || user.id;
-    const teacherWhereCondition =
-      user.role === UserRole.SECRETARIAT
-        ? {}
-        : {
-            OR: [
-              { teacherId: effectiveTeacherProfileId },
-              { teacher: { id: effectiveTeacherProfileId } },
-              { teacher: { user: { id: user.id } } },
-            ],
-          };
+    const teacherWhereCondition = {
+      OR: [
+        { teacherId: effectiveTeacherProfileId },
+        { teacher: { id: effectiveTeacherProfileId } },
+        { teacher: { user: { id: effectiveTeacherProfileId } } },
+      ],
+    };
 
     const {
       groupId,

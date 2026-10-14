@@ -16,6 +16,13 @@ describe('GroupsService', () => {
   let prisma: PrismaService;
 
   const mockPrismaService = {
+    teacherProfile: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    teacherAssistant: {
+      findFirst: jest.fn(),
+    },
     academicGroup: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -347,6 +354,105 @@ describe('GroupsService', () => {
 
       expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
       expect(mockNotificationsService.sendNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Assistant Authorization & Cross-Tenant Isolation (F-19 Hardening)', () => {
+    it('resolves linked teacher when assistant with active TeacherAssistant creates group', async () => {
+      mockPrismaService.teacherProfile.findUnique.mockResolvedValue(null);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue({
+        id: 'link-1',
+        teacherId: 'teacher-owner-1',
+        assistantId: 'assistant-user-1',
+        status: 'ACTIVE',
+      });
+      mockPrismaService.academicGroup.findMany.mockResolvedValue([]);
+      mockPrismaService.academicGroup.create.mockResolvedValue({
+        id: 'new-group-1',
+        name: 'مجموعة الأحد',
+        teacherId: 'teacher-owner-1',
+      });
+
+      const result = await service.createGroup(
+        'assistant-user-1',
+        {
+          name: 'مجموعة الأحد',
+          gradeLevel: 'الصف الأول الثانوي',
+          monthlyFee: 150,
+          maxCapacity: 30,
+          academicYear: '2026-2027',
+          academicTerm: 'FIRST_TERM',
+          schedules: [],
+        },
+        {
+          id: 'assistant-user-1',
+          role: UserRole.SECRETARIAT,
+          fullName: 'المساعد أحمد',
+        } as any,
+      );
+
+      expect(mockPrismaService.teacherAssistant.findFirst).toHaveBeenCalledWith({
+        where: { assistantId: 'assistant-user-1', status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      expect(mockPrismaService.academicGroup.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ teacherId: 'teacher-owner-1' }),
+        }),
+      );
+    });
+
+    it('throws ForbiddenException when unlinked user tries to create group', async () => {
+      mockPrismaService.teacherProfile.findUnique.mockResolvedValue(null);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createGroup(
+          'unlinked-assistant',
+          {
+            name: 'مجموعة',
+            gradeLevel: 'الصف الأول الثانوي',
+            monthlyFee: 150,
+            maxCapacity: 30,
+            academicYear: '2026-2027',
+            academicTerm: 'FIRST_TERM',
+            schedules: [],
+          },
+          { id: 'unlinked-assistant', role: UserRole.SECRETARIAT } as any,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('resolves linked teacher groups when active assistant queries getTeacherGroups', async () => {
+      mockPrismaService.teacherProfile.findFirst.mockResolvedValue(null);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue({
+        id: 'link-1',
+        teacherId: 'teacher-owner-2',
+        assistantId: 'assistant-user-2',
+        status: 'ACTIVE',
+      });
+      mockPrismaService.academicGroup.findMany.mockResolvedValue([
+        { id: 'group-2', name: 'مجموعة 2', teacherId: 'teacher-owner-2' },
+      ]);
+
+      const groups = await service.getTeacherGroups('assistant-user-2');
+      expect(groups).toHaveLength(1);
+      expect(mockPrismaService.academicGroup.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([{ teacherId: 'teacher-owner-2' }]),
+          }),
+        }),
+      );
+    });
+
+    it('throws ForbiddenException when unlinked user queries getTeacherGroups', async () => {
+      mockPrismaService.teacherProfile.findFirst.mockResolvedValue(null);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue(null);
+
+      await expect(service.getTeacherGroups('unlinked-user-3')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, Optional, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
 import { AttendanceStatus, GroupEnrollmentStatus, SubmissionStatus, CourseEnrollmentStatus } from '@prisma/client';
@@ -18,6 +18,35 @@ export class TeachersService {
     @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
+  async resolveEffectiveTeacherId(teacherIdOrUserId: string): Promise<string> {
+    const directProfile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherIdOrUserId },
+      select: { id: true },
+    });
+    if (directProfile) {
+      return directProfile.id;
+    }
+
+    const byUserRelation = await this.prisma.teacherProfile.findFirst({
+      where: { user: { id: teacherIdOrUserId } },
+      select: { id: true },
+    });
+    if (byUserRelation) {
+      return byUserRelation.id;
+    }
+
+    // Check if the caller is an assistant actively linked to a teacher
+    const link = await this.prisma.teacherAssistant.findFirst({
+      where: { assistantId: teacherIdOrUserId, status: 'ACTIVE' },
+      select: { teacherId: true },
+    });
+    if (link) {
+      return link.teacherId;
+    }
+
+    throw new ForbiddenException('لا يوجد ملف معلم مرتبط أو ارتباط نشط كمعاون');
+  }
+
   async getDashboardOverview(teacherId: string, query: DashboardOverviewQueryDto) {
     const cacheKey = `teacher:dashboard:overview:${teacherId}:${JSON.stringify(query)}`;
     if (this.redisCache) {
@@ -27,18 +56,8 @@ export class TeachersService {
 
     const isSpecificGroup = query.groupId && query.groupId !== 'ALL';
 
-    // Resolve teacher ID (if user is secretariat, fallback to primary teacher profile)
-    const teacherProfile = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
-    });
-
-    let effectiveTeacherId = teacherId;
-    if (!teacherProfile) {
-      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-      if (primaryTeacher) {
-        effectiveTeacherId = primaryTeacher.id;
-      }
-    }
+    // Resolve teacher ID securely (direct profile, teacher user, or active assistant link)
+    const effectiveTeacherId = await this.resolveEffectiveTeacherId(teacherId);
 
     // 1. Fetch teacher groups
     const groupWhere: any = { teacherId: effectiveTeacherId, isActive: true };
@@ -361,16 +380,7 @@ export class TeachersService {
       this.getAcademicPeriod(teacherId),
     ]);
 
-    const teacherProfile = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
-    });
-    let effectiveTeacherId = teacherId;
-    if (!teacherProfile) {
-      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-      if (primaryTeacher) {
-        effectiveTeacherId = primaryTeacher.id;
-      }
-    }
+    const effectiveTeacherId = await this.resolveEffectiveTeacherId(teacherId);
 
     const [rawGroups, pendingEnrollments] = await Promise.all([
       this.prisma.academicGroup.findMany({
@@ -468,25 +478,14 @@ export class TeachersService {
   async getAcademicPeriod(teacherId?: string) {
     const cacheKey = `academic_period:${teacherId || 'default'}`;
     return this.academicPeriodCache.getOrSet(cacheKey, async () => {
-      let profile = null;
-      if (teacherId) {
-        profile = await this.prisma.teacherProfile.findUnique({
-          where: { id: teacherId },
-          select: {
-            activeAcademicYear: true,
-            activeAcademicTerm: true,
-          },
-        });
-      }
-
-      if (!profile) {
-        profile = await this.prisma.teacherProfile.findFirst({
-          select: {
-            activeAcademicYear: true,
-            activeAcademicTerm: true,
-          },
-        });
-      }
+      const effectiveTeacherId = await this.resolveEffectiveTeacherId(teacherId);
+      const profile = await this.prisma.teacherProfile.findUnique({
+        where: { id: effectiveTeacherId },
+        select: {
+          activeAcademicYear: true,
+          activeAcademicTerm: true,
+        },
+      });
 
       return {
         activeAcademicYear: profile?.activeAcademicYear || '2026-2027',
@@ -500,26 +499,9 @@ export class TeachersService {
     dto: { activeAcademicYear: string; activeAcademicTerm: string },
   ) {
     this.academicPeriodCache.clear();
-    // 1. Globally update all teacher profiles in the database so all teachers and assistants stay synchronized
-    await this.prisma.teacherProfile.updateMany({
-      data: {
-        activeAcademicYear: dto.activeAcademicYear,
-        activeAcademicTerm: dto.activeAcademicTerm,
-      },
-    });
+    const targetId = await this.resolveEffectiveTeacherId(teacherId);
 
-    const existing = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
-    });
-
-    let targetId = teacherId;
-    if (!existing) {
-      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-      if (primaryTeacher) {
-        targetId = primaryTeacher.id;
-      }
-    }
-
+    // 1. Update teacher profile period
     const updated = await this.prisma.teacherProfile.upsert({
       where: { id: targetId },
       create: {
@@ -538,40 +520,24 @@ export class TeachersService {
     });
 
     this.logger.log(
-      `Academic period updated globally to [${dto.activeAcademicYear} - ${dto.activeAcademicTerm}] by user [${teacherId}]`,
+      `Academic period updated to [${dto.activeAcademicYear} - ${dto.activeAcademicTerm}] for teacher [${targetId}] by caller [${teacherId}]`,
     );
 
     return updated;
   }
 
   async getSavedLocations(teacherId: string): Promise<string[]> {
+    const effectiveTeacherId = await this.resolveEffectiveTeacherId(teacherId);
     const teacherProfile = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
+      where: { id: effectiveTeacherId },
       select: { savedLocations: true },
     });
 
-    if (!teacherProfile) {
-      const primaryTeacher = await this.prisma.teacherProfile.findFirst({ select: { savedLocations: true } });
-      return primaryTeacher?.savedLocations || [];
-    }
-
-    return teacherProfile.savedLocations || [];
+    return teacherProfile?.savedLocations || [];
   }
 
   async updateSavedLocations(teacherId: string, locations: string[]): Promise<string[]> {
-    let targetId = teacherId;
-    const existing = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
-    });
-
-    if (!existing) {
-      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-      if (primaryTeacher) {
-        targetId = primaryTeacher.id;
-      } else {
-        throw new Error('Teacher profile not found');
-      }
-    }
+    const targetId = await this.resolveEffectiveTeacherId(teacherId);
 
     const updated = await this.prisma.teacherProfile.update({
       where: { id: targetId },
@@ -604,8 +570,19 @@ export class TeachersService {
     });
 
     if (!profile) {
-      const primaryTeacher = await this.prisma.user.findFirst({
-        where: { role: 'TEACHER' },
+      throw new NotFoundException('User profile not found');
+    }
+
+    if (profile.role === 'SECRETARIAT') {
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: teacherId, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      if (!link) {
+        throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
+      }
+      const linkedTeacher = await this.prisma.user.findUnique({
+        where: { id: link.teacherId },
         select: {
           id: true,
           fullName: true,
@@ -623,36 +600,14 @@ export class TeachersService {
           },
         },
       });
-      if (!primaryTeacher) {
-        throw new NotFoundException('Teacher profile not found');
+      if (!linkedTeacher) {
+        throw new NotFoundException('Linked teacher profile not found');
       }
-      profile = primaryTeacher;
+      return linkedTeacher;
     }
 
     if (profile.role !== 'TEACHER') {
-      const primaryTeacher = await this.prisma.user.findFirst({
-        where: { role: 'TEACHER' },
-        select: {
-          id: true,
-          fullName: true,
-          phone: true,
-          email: true,
-          role: true,
-          teacherProfile: {
-            select: {
-              id: true,
-              specialty: true,
-              bio: true,
-              activeAcademicYear: true,
-              activeAcademicTerm: true,
-            },
-          },
-        },
-      });
-      if (!primaryTeacher) {
-        throw new NotFoundException('Teacher profile not found');
-      }
-      return primaryTeacher;
+      throw new ForbiddenException('الحساب المطلوب ليس حساب معلم أو معاون مرتبط');
     }
 
     return profile;
@@ -671,17 +626,10 @@ export class TeachersService {
       select: { id: true, role: true },
     });
 
-    let targetId = teacherId;
     if (!existing || existing.role !== 'TEACHER') {
-      const primaryTeacher = await this.prisma.user.findFirst({
-        where: { role: 'TEACHER' },
-        select: { id: true },
-      });
-      if (!primaryTeacher) {
-        throw new NotFoundException('Teacher profile not found');
-      }
-      targetId = primaryTeacher.id;
+      throw new ForbiddenException('فقط المعلم يملك صلاحية تعديل بيانات حسابه الأساسية');
     }
+    const targetId = teacherId;
 
     const data: { fullName?: string; phone?: string } = {};
     if (dto.fullName !== undefined) {
