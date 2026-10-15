@@ -1,7 +1,37 @@
-import { IsOptional, IsString, IsUUID, IsEnum } from 'class-validator';
+import {
+  registerDecorator,
+  ValidationOptions,
+  ValidationArguments,
+  IsOptional,
+  IsString,
+  IsEnum,
+  isUUID,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { StudentAcademicStatus } from '@prisma/client';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
+
+export function IsUUIDOrUnassigned(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'isUUIDOrUnassigned',
+      target: object.constructor,
+      propertyName: propertyName,
+      options: {
+        message: `${propertyName} must be a valid UUID or UNASSIGNED`,
+        ...validationOptions,
+      },
+      validator: {
+        validate(value: any, _args: ValidationArguments) {
+          if (value === 'UNASSIGNED') {
+            return true;
+          }
+          return typeof value === 'string' && isUUID(value, 'all');
+        },
+      },
+    });
+  };
+}
 
 export class StudentQueryDto extends CursorPaginationDto {
   @ApiPropertyOptional({ description: 'Text search matching student name, phone or code' })
@@ -19,9 +49,13 @@ export class StudentQueryDto extends CursorPaginationDto {
   @IsString()
   academicStage?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by enrolled physical group ID or UNASSIGNED' })
+  @ApiPropertyOptional({
+    description: 'Filter by enrolled physical group ID (UUID) or UNASSIGNED',
+    example: 'UNASSIGNED',
+  })
   @IsOptional()
   @IsString()
+  @IsUUIDOrUnassigned()
   groupId?: string;
 
   @ApiPropertyOptional({ enum: StudentAcademicStatus, description: 'Filter by academic status' })
