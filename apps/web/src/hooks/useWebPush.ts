@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import { getFirebaseMessaging } from '@/lib/firebase/config';
-import { getToken } from 'firebase/messaging';
+import { getFirebaseMessaging, getFcmToken } from '@/lib/firebase/config';
 
 export type PushPermissionState = 'default' | 'granted' | 'denied';
 
@@ -164,7 +163,7 @@ async function subscribeSilently(registration: ServiceWorkerRegistration): Promi
       (await fetchVapidPublicKey().catch(() => ''));
 
     if (messaging && vapidKey) {
-      const fcmToken = await getToken(messaging, {
+      const fcmToken = await getFcmToken(messaging, {
         serviceWorkerRegistration: registration,
         vapidKey,
       }).catch(() => null);
@@ -294,7 +293,7 @@ export function useWebPush(): UseWebPushReturn {
             (await fetchVapidPublicKey().catch(() => ''));
 
           if (messaging && vapidKey) {
-            const token = await getToken(messaging, {
+            const token = await getFcmToken(messaging, {
               serviceWorkerRegistration: registration,
               vapidKey,
             }).catch(() => null);
@@ -389,7 +388,7 @@ export function useWebPush(): UseWebPushReturn {
           (await fetchVapidPublicKey().catch(() => ''));
 
         if (messaging && vapidKey) {
-          fcmToken = await getToken(messaging, {
+          fcmToken = await getFcmToken(messaging, {
             serviceWorkerRegistration: registration,
             vapidKey,
           });
