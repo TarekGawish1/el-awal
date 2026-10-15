@@ -15,6 +15,7 @@ import { RequestOtpDto, VerifyOtpDto } from '../dto/otp.dto';
 import { RequestPasswordResetDto, ConfirmPasswordResetDto } from '../dto/password-reset.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
+import { UserRole } from '@prisma/client';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -114,7 +115,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Request a 6-digit WhatsApp OTP for passwordless login' })
   @ApiResponse({ status: 200, description: 'OTP dispatched successfully via WhatsApp' })
   async requestOtp(@Body() dto: RequestOtpDto) {
-    return this.authVerificationService.requestLoginOtp(dto.phone);
+    return this.authVerificationService.requestLoginOtp(dto.phone, dto.role);
   }
 
   @Public()
@@ -128,8 +129,9 @@ export class AuthController {
     @Res({ passthrough: true }) res: any,
     @Req() req: any,
   ): Promise<AuthTokensResponseDto> {
-    const user = await this.authVerificationService.verifyLoginOtp(dto.phone, dto.code);
-    const result = await this.authService.issueTokens(user as any);
+    const user = await this.authVerificationService.verifyLoginOtp(dto.phone, dto.code, dto.role);
+    const targetRole = (dto.role as UserRole) || (user.role as UserRole);
+    const result = await this.authService.issueTokens(user as any, targetRole);
     if (result?.refreshToken) {
       this.setRefreshTokenCookie(res, result.refreshToken, req);
     }
@@ -143,7 +145,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Request a secure password reset link dispatched via WhatsApp' })
   @ApiResponse({ status: 200, description: 'Password reset link dispatched via WhatsApp' })
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
-    return this.authVerificationService.requestPasswordReset(dto.phone);
+    return this.authVerificationService.requestPasswordReset(dto.phone, dto.role);
   }
 
   @Public()

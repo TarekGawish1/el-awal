@@ -132,11 +132,70 @@ export class AuthVerificationService implements OnModuleInit {
   }
 
   /**
-   * Finds active user by Egyptian phone variants
+   * Finds active user by Egyptian phone variants or student linkage for parents
    */
-  private async findUserByPhone(phone: string) {
+  private async findUserByPhone(phone: string, targetRole?: string) {
     const phoneVariants = getPhoneVariants(phone);
 
+    // If targetRole is PARENT, check parent user first!
+    if (targetRole === 'PARENT') {
+      const parentUser = await this.prisma.user.findFirst({
+        where: {
+          phone: { in: phoneVariants },
+          OR: [
+            { role: 'PARENT' },
+            { parentProfile: { isNot: null } },
+          ],
+          isActive: true,
+          deletedAt: null,
+        },
+        include: {
+          teacherProfile: { select: { id: true } },
+          studentProfile: { select: { id: true, tempAccessPin: true, pinExpiresAt: true } },
+          parentProfile: { select: { id: true } },
+          secretariatProfile: { select: { id: true } },
+        },
+      });
+
+      if (parentUser) return parentUser;
+
+      // Check linked student by phone, emergencyPhone, or studentCode
+      const linkedStudent = await this.prisma.studentProfile.findFirst({
+        where: {
+          OR: [
+            { user: { phone: { in: phoneVariants }, isActive: true, deletedAt: null } },
+            { emergencyPhone: { in: phoneVariants } },
+            { studentCode: phone },
+          ],
+        },
+        select: {
+          parentLinks: {
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: {
+              parent: {
+                select: {
+                  user: {
+                    include: {
+                      teacherProfile: { select: { id: true } },
+                      studentProfile: { select: { id: true } },
+                      parentProfile: { select: { id: true } },
+                      secretariatProfile: { select: { id: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (linkedStudent?.parentLinks?.[0]?.parent?.user) {
+        return linkedStudent.parentLinks[0].parent.user;
+      }
+    }
+
+    // Default search for user
     const user = await this.prisma.user.findFirst({
       where: {
         phone: { in: phoneVariants },
@@ -159,6 +218,7 @@ export class AuthVerificationService implements OnModuleInit {
         OR: [
           { emergencyPhone: { in: phoneVariants } },
           { user: { phone: { in: phoneVariants }, isActive: true, deletedAt: null } },
+          { studentCode: phone },
         ],
       },
       select: {
@@ -192,19 +252,53 @@ export class AuthVerificationService implements OnModuleInit {
   /**
    * Requests a 6-digit WhatsApp OTP code for quick login
    */
-  async requestLoginOtp(rawPhone: string): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
+  async requestLoginOtp(
+    rawPhone: string,
+    role?: string,
+  ): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
     const trimmed = (rawPhone || '').trim();
     if (!trimmed) {
-      throw new BadRequestException('رقم الهاتف مطلوب');
-    }
-    if (!isEgyptianPhone(trimmed)) {
-      throw new BadRequestException('يرجى إدخال رقم هاتف محمول مصري صحيح (مثال: 01012345678)');
+      throw new BadRequestException('رقم الهاتف أو كود الطالب مطلوب');
     }
 
-    const normalizedPhone = normalizeEgyptianPhone(trimmed);
-    const user = await this.findUserByPhone(normalizedPhone);
+    let normalizedPhone: string;
+    let user: any = null;
+
+    if (isEgyptianPhone(trimmed)) {
+      normalizedPhone = normalizeEgyptianPhone(trimmed);
+      user = await this.findUserByPhone(normalizedPhone, role);
+    } else {
+      user = await this.findUserByPhone(trimmed, role);
+      if (user?.phone && isEgyptianPhone(user.phone)) {
+        normalizedPhone = normalizeEgyptianPhone(user.phone);
+      } else {
+        const student = await this.prisma.studentProfile.findFirst({
+          where: { studentCode: trimmed },
+          select: {
+            emergencyPhone: true,
+            user: { select: { phone: true } },
+            parentLinks: {
+              take: 1,
+              select: { parent: { select: { user: { select: { phone: true } } } } },
+            },
+          },
+        });
+        const candidate =
+          student?.parentLinks?.[0]?.parent?.user?.phone ||
+          student?.emergencyPhone ||
+          student?.user?.phone;
+        if (candidate && isEgyptianPhone(candidate)) {
+          normalizedPhone = normalizeEgyptianPhone(candidate);
+        } else {
+          throw new BadRequestException(
+            'يرجى إدخال رقم هاتف محمول مصري صحيح (مثال: 01012345678) أو كود طالب مسجل به رقم هاتف',
+          );
+        }
+      }
+    }
+
     if (!user) {
-      throw new NotFoundException('رقم الهاتف المدخل غير مسجل لدينا في أي حساب نشط');
+      throw new NotFoundException('البيانات المدخلة غير مسجلة لدينا في أي حساب نشط');
     }
 
     await this.checkAndRecordRateLimit(normalizedPhone, 'OTP');
@@ -223,7 +317,7 @@ export class AuthVerificationService implements OnModuleInit {
     const sendResult = await this.whatsappService.sendTrackedProtectedMessage(normalizedPhone, messageText);
 
     if (sendResult.outcome === 'not_registered') {
-      throw new BadRequestException('رقم الهاتف المدخل غير مسجل على تطبيق واتساب');
+      throw new BadRequestException('رقم الهاتف غير مسجل على تطبيق واتساب');
     }
 
     if (sendResult.outcome === 'not_connected') {
@@ -238,10 +332,10 @@ export class AuthVerificationService implements OnModuleInit {
       throw new ServiceUnavailableException('تعذر إرسال رمز التحقق عبر واتساب حالياً. يرجى المحاولة لاحقاً');
     }
 
-    // Invalidate prior unused OTPs for this phone
+    // Invalidate prior unused OTPs for this phone and identifier
     await this.prisma.authVerificationToken.updateMany({
       where: {
-        identifier: normalizedPhone,
+        identifier: { in: [normalizedPhone, trimmed] },
         tokenType: 'LOGIN_OTP',
         usedAt: null,
       },
@@ -270,7 +364,7 @@ export class AuthVerificationService implements OnModuleInit {
   /**
    * Verifies the 6-digit OTP code and returns the authenticated user
    */
-  async verifyLoginOtp(rawPhone: string, rawCode: string) {
+  async verifyLoginOtp(rawPhone: string, rawCode: string, role?: string) {
     const trimmedPhone = (rawPhone || '').trim();
     const trimmedCode = (rawCode || '').trim();
 
@@ -278,17 +372,45 @@ export class AuthVerificationService implements OnModuleInit {
       throw new BadRequestException('رقم الهاتف ورمز التحقق مطلوبان');
     }
 
-    const normalizedPhone = normalizeEgyptianPhone(trimmedPhone);
+    const normalizedPhone = isEgyptianPhone(trimmedPhone)
+      ? normalizeEgyptianPhone(trimmedPhone)
+      : trimmedPhone;
     const tokenHash = this.hashToken(trimmedCode);
 
-    const activeToken = await this.prisma.authVerificationToken.findFirst({
+    let activeToken = await this.prisma.authVerificationToken.findFirst({
       where: {
-        identifier: normalizedPhone,
+        identifier: { in: [normalizedPhone, trimmedPhone] },
         tokenType: 'LOGIN_OTP',
         usedAt: null,
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (!activeToken && !isEgyptianPhone(trimmedPhone)) {
+      const student = await this.prisma.studentProfile.findFirst({
+        where: { studentCode: trimmedPhone },
+        select: {
+          emergencyPhone: true,
+          user: { select: { phone: true } },
+          parentLinks: { take: 1, select: { parent: { select: { user: { select: { phone: true } } } } } },
+        },
+      });
+      const candidatePhone =
+        student?.parentLinks?.[0]?.parent?.user?.phone ||
+        student?.emergencyPhone ||
+        student?.user?.phone;
+      if (candidatePhone && isEgyptianPhone(candidatePhone)) {
+        const normCandidate = normalizeEgyptianPhone(candidatePhone);
+        activeToken = await this.prisma.authVerificationToken.findFirst({
+          where: {
+            identifier: normCandidate,
+            tokenType: 'LOGIN_OTP',
+            usedAt: null,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
 
     if (!activeToken) {
       throw new UnauthorizedException('رمز التحقق غير صحيح أو انتهت صلاحيته. يرجى طلب رمز جديد');
@@ -325,7 +447,7 @@ export class AuthVerificationService implements OnModuleInit {
       data: { usedAt: new Date() },
     });
 
-    const user = await this.findUserByPhone(normalizedPhone);
+    const user = await this.findUserByPhone(activeToken.identifier, role);
     if (!user) {
       throw new UnauthorizedException('لم يتم العثور على الحساب المرتبط بهذا الرقم');
     }
@@ -336,19 +458,53 @@ export class AuthVerificationService implements OnModuleInit {
   /**
    * Dispatches a secure password reset link via WhatsApp
    */
-  async requestPasswordReset(rawPhone: string): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
+  async requestPasswordReset(
+    rawPhone: string,
+    role?: string,
+  ): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
     const trimmed = (rawPhone || '').trim();
     if (!trimmed) {
-      throw new BadRequestException('رقم الهاتف مطلوب');
-    }
-    if (!isEgyptianPhone(trimmed)) {
-      throw new BadRequestException('يرجى إدخال رقم هاتف محمول مصري صحيح');
+      throw new BadRequestException('رقم الهاتف أو كود الطالب مطلوب');
     }
 
-    const normalizedPhone = normalizeEgyptianPhone(trimmed);
-    const user = await this.findUserByPhone(normalizedPhone);
+    let normalizedPhone: string;
+    let user: any = null;
+
+    if (isEgyptianPhone(trimmed)) {
+      normalizedPhone = normalizeEgyptianPhone(trimmed);
+      user = await this.findUserByPhone(normalizedPhone, role);
+    } else {
+      user = await this.findUserByPhone(trimmed, role);
+      if (user?.phone && isEgyptianPhone(user.phone)) {
+        normalizedPhone = normalizeEgyptianPhone(user.phone);
+      } else {
+        const student = await this.prisma.studentProfile.findFirst({
+          where: { studentCode: trimmed },
+          select: {
+            emergencyPhone: true,
+            user: { select: { phone: true } },
+            parentLinks: {
+              take: 1,
+              select: { parent: { select: { user: { select: { phone: true } } } } },
+            },
+          },
+        });
+        const candidate =
+          student?.parentLinks?.[0]?.parent?.user?.phone ||
+          student?.emergencyPhone ||
+          student?.user?.phone;
+        if (candidate && isEgyptianPhone(candidate)) {
+          normalizedPhone = normalizeEgyptianPhone(candidate);
+        } else {
+          throw new BadRequestException(
+            'يرجى إدخال رقم هاتف محمول مصري صحيح (مثال: 01012345678) أو كود طالب مسجل به رقم هاتف',
+          );
+        }
+      }
+    }
+
     if (!user) {
-      throw new NotFoundException('رقم الهاتف المدخل غير مسجل لدينا في أي حساب نشط');
+      throw new NotFoundException('البيانات المدخلة غير مسجلة لدينا في أي حساب نشط');
     }
 
     await this.checkAndRecordRateLimit(normalizedPhone, 'RESET');
@@ -370,7 +526,7 @@ export class AuthVerificationService implements OnModuleInit {
     const sendResult = await this.whatsappService.sendTrackedProtectedMessage(normalizedPhone, messageText);
 
     if (sendResult.outcome === 'not_registered') {
-      throw new BadRequestException('رقم الهاتف المدخل غير مسجل على تطبيق واتساب');
+      throw new BadRequestException('رقم الهاتف غير مسجل على تطبيق واتساب');
     }
 
     if (sendResult.outcome === 'not_connected') {
@@ -388,7 +544,7 @@ export class AuthVerificationService implements OnModuleInit {
     // Invalidate prior unused reset tokens
     await this.prisma.authVerificationToken.updateMany({
       where: {
-        identifier: normalizedPhone,
+        identifier: { in: [`USER:${user.id}:${normalizedPhone}`, normalizedPhone, trimmed] },
         tokenType: 'PASSWORD_RESET',
         usedAt: null,
       },
@@ -400,7 +556,7 @@ export class AuthVerificationService implements OnModuleInit {
     // Create fresh password reset token (15-minute TTL)
     await this.prisma.authVerificationToken.create({
       data: {
-        identifier: normalizedPhone,
+        identifier: `USER:${user.id}:${normalizedPhone}`,
         tokenHash,
         tokenType: 'PASSWORD_RESET',
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
@@ -450,7 +606,19 @@ export class AuthVerificationService implements OnModuleInit {
       throw new BadRequestException('انتهت صلاحية رابط الاستعادة (صالح لمدة 15 دقيقة فقط). يرجى طلب رابط جديد');
     }
 
-    const user = await this.findUserByPhone(activeToken.identifier);
+    let user: any = null;
+    if (activeToken.identifier.startsWith('USER:')) {
+      const parts = activeToken.identifier.split(':');
+      const userId = parts[1];
+      user = await this.prisma.user.findUnique({
+        where: { id: userId, isActive: true, deletedAt: null },
+      });
+    }
+
+    if (!user) {
+      user = await this.findUserByPhone(activeToken.identifier);
+    }
+
     if (!user) {
       throw new BadRequestException('الحساب المرتبط برابط الاستعادة غير موجود أو تم تعطيله');
     }

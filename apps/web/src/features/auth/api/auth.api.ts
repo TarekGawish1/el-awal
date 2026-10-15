@@ -50,22 +50,33 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthToke
 /**
  * Requests a 6-digit WhatsApp OTP code for quick login via POST /api/v1/auth/otp/request
  */
-export async function requestLoginOtp(phone: string): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
+export async function requestLoginOtp(
+  phone: string,
+  role?: string,
+): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
   return apiClient<{ success: boolean; message: string; cooldownSeconds: number }>(API_ENDPOINTS.AUTH.OTP_REQUEST, {
     method: 'POST',
-    body: JSON.stringify({ phone: phone.trim() }),
+    body: JSON.stringify({
+      phone: phone.trim(),
+      ...(role ? { role } : {}),
+    }),
   });
 }
 
 /**
  * Verifies 6-digit WhatsApp OTP code and logs in user via POST /api/v1/auth/otp/verify
  */
-export async function verifyLoginOtp(phone: string, code: string): Promise<AuthTokensResponse> {
+export async function verifyLoginOtp(
+  phone: string,
+  code: string,
+  role?: string,
+): Promise<AuthTokensResponse> {
   const session = await apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.OTP_VERIFY, {
     method: 'POST',
     body: JSON.stringify({
       phone: phone.trim(),
       code: code.trim(),
+      ...(role ? { role } : {}),
     }),
   });
 
@@ -75,10 +86,16 @@ export async function verifyLoginOtp(phone: string, code: string): Promise<AuthT
 /**
  * Requests a secure password reset link sent via WhatsApp via POST /api/v1/auth/password-reset/request
  */
-export async function requestPasswordReset(phone: string): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
+export async function requestPasswordReset(
+  phone: string,
+  role?: string,
+): Promise<{ success: boolean; message: string; cooldownSeconds: number }> {
   return apiClient<{ success: boolean; message: string; cooldownSeconds: number }>(API_ENDPOINTS.AUTH.PASSWORD_RESET_REQUEST, {
     method: 'POST',
-    body: JSON.stringify({ phone: phone.trim() }),
+    body: JSON.stringify({
+      phone: phone.trim(),
+      ...(role ? { role } : {}),
+    }),
   });
 }
 

@@ -154,7 +154,7 @@ export function useAuth() {
   });
 
   const loginOtpMutation = useMutation({
-    mutationFn: ({ phone, code }: { phone: string; code: string }) => verifyLoginOtp(phone, code),
+    mutationFn: ({ phone, code, role }: { phone: string; code: string; role?: string }) => verifyLoginOtp(phone, code, role),
     onSuccess: (data: AuthTokensResponse) => handleAuthSuccess(data),
   });
 

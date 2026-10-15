@@ -10,9 +10,10 @@ interface ForgotPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPhone?: string;
+  role?: string;
 }
 
-export function ForgotPasswordModal({ isOpen, onClose, initialPhone = '' }: ForgotPasswordModalProps) {
+export function ForgotPasswordModal({ isOpen, onClose, initialPhone = '', role }: ForgotPasswordModalProps) {
   const [phone, setPhone] = useState(initialPhone);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,7 @@ export function ForgotPasswordModal({ isOpen, onClose, initialPhone = '' }: Forg
     e.preventDefault();
     const trimmed = phone.trim();
     if (!trimmed) {
-      setError('يرجى إدخال رقم الهاتف المسجل');
+      setError(role === 'PARENT' ? 'يرجى إدخال رقم الهاتف أو كود الطالب' : 'يرجى إدخال رقم الهاتف المسجل');
       return;
     }
 
@@ -47,7 +48,7 @@ export function ForgotPasswordModal({ isOpen, onClose, initialPhone = '' }: Forg
     setError(null);
 
     try {
-      const res = await requestPasswordReset(trimmed);
+      const res = await requestPasswordReset(trimmed, role);
       setIsSuccess(true);
       setCooldown(res.cooldownSeconds || 60);
     } catch (err: unknown) {
@@ -154,15 +155,17 @@ export function ForgotPasswordModal({ isOpen, onClose, initialPhone = '' }: Forg
           /* Input Form */
           <form onSubmit={handleSend} className="space-y-4">
             <p className="text-xs text-neutral-600 leading-relaxed">
-              أدخل رقم الهاتف المسجل به في المنصة، وسنرسل لك رابطاً مشفراً لتعيين كلمة مرور جديدة لحسابك فوراً.
+              {role === 'PARENT'
+                ? 'أدخل رقم هاتف الطالب أو ولي الأمر المسجل، وسنرسل لك رابطاً مشفراً عبر واتساب لتعيين كلمة مرور جديدة فوراً.'
+                : 'أدخل رقم الهاتف المسجل به في المنصة، وسنرسل لك رابطاً مشفراً لتعيين كلمة مرور جديدة لحسابك فوراً.'}
             </p>
 
             <Input
               id="forgot-password-phone"
               name="phone"
-              type="tel"
-              label="رقم الهاتف المسجل"
-              placeholder="010XXXXXXXX"
+              type="text"
+              label={role === 'PARENT' ? 'رقم الهاتف أو كود الطالب' : 'رقم الهاتف المسجل'}
+              placeholder={role === 'PARENT' ? 'أدخل رقم الهاتف أو كود الطالب' : '010XXXXXXXX'}
               value={phone}
               onChange={(e) => {
                 setPhone(e.target.value);
