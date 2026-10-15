@@ -10,7 +10,6 @@ import {
   UpdateContentPayload,
   GroupSessionOption,
 } from '../types/content.types';
-import { createBunnyTusUpload } from '@/features/courses/utils/bunny-tus-uploader';
 
 export type UploadProgressCallback = (progress: number, loadedBytes: number, totalBytes: number) => void;
 
@@ -122,26 +121,32 @@ export function uploadVideoToBunny(
     credentials.videoId &&
     credentials.authorizationExpire
   ) {
-    return new Promise((resolve, reject) => {
-      const tusUpload = createBunnyTusUpload({
-        file,
-        videoId: credentials.videoId!,
-        libraryId: credentials.libraryId!,
-        authorizationSignature: credentials.authorizationSignature!,
-        authorizationExpire: credentials.authorizationExpire!,
-        title: file.name,
-        onProgress: (percent, loaded, total) => {
-          onProgress?.(percent, loaded, total);
-        },
-        onSuccess: () => {
-          resolve();
-        },
-        onError: (err) => {
-          console.warn('[ContentAPI] TUS upload failed, attempting direct fallback:', err);
-          fallbackUpload().then(resolve).catch(reject);
-        },
-      });
-      tusUpload.start();
+    return new Promise(async (resolve, reject) => {
+      try {
+        const { createBunnyTusUpload } = await import('@/features/courses/utils/bunny-tus-uploader');
+        const tusUpload = createBunnyTusUpload({
+          file,
+          videoId: credentials.videoId!,
+          libraryId: credentials.libraryId!,
+          authorizationSignature: credentials.authorizationSignature!,
+          authorizationExpire: credentials.authorizationExpire!,
+          title: file.name,
+          onProgress: (percent, loaded, total) => {
+            onProgress?.(percent, loaded, total);
+          },
+          onSuccess: () => {
+            resolve();
+          },
+          onError: (err) => {
+            console.warn('[ContentAPI] TUS upload failed, attempting direct fallback:', err);
+            fallbackUpload().then(resolve).catch(reject);
+          },
+        });
+        tusUpload.start();
+      } catch (err) {
+        console.warn('[ContentAPI] Failed to load tus uploader, attempting direct fallback:', err);
+        fallbackUpload().then(resolve).catch(reject);
+      }
     });
   }
 
