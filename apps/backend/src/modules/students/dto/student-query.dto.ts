@@ -19,9 +19,9 @@ export class StudentQueryDto extends CursorPaginationDto {
   @IsString()
   academicStage?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by enrolled physical group ID' })
+  @ApiPropertyOptional({ description: 'Filter by enrolled physical group ID or UNASSIGNED' })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   groupId?: string;
 
   @ApiPropertyOptional({ enum: StudentAcademicStatus, description: 'Filter by academic status' })

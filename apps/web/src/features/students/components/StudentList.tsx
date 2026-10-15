@@ -169,9 +169,9 @@ export function StudentList() {
     return selectedGrades[0];
   }, [selectedGrades]);
 
-  // Pass single physical group filter to server (excluding UNASSIGNED which is handled locally)
+  // Pass single physical group filter to server (including UNASSIGNED)
   const groupQuery = useMemo(() => {
-    if (selectedGroups.length !== 1 || selectedGroups[0] === 'UNASSIGNED') return undefined;
+    if (selectedGroups.length !== 1) return undefined;
     return selectedGroups[0];
   }, [selectedGroups]);
 

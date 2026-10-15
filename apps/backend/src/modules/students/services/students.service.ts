@@ -1274,14 +1274,22 @@ export class StudentsService {
       academicStatus: query.academicStatus || 'ACTIVE',
       user: { isActive: true },
       ...(query.groupId
-        ? {
-            groupEnrollments: {
-              some: {
-                groupId: query.groupId,
-                status: GroupEnrollmentStatus.ACTIVE,
+        ? query.groupId === 'UNASSIGNED'
+          ? {
+              groupEnrollments: {
+                none: {
+                  status: GroupEnrollmentStatus.ACTIVE,
+                },
               },
-            },
-          }
+            }
+          : {
+              groupEnrollments: {
+                some: {
+                  groupId: query.groupId,
+                  status: GroupEnrollmentStatus.ACTIVE,
+                },
+              },
+            }
         : {}),
     };
 
