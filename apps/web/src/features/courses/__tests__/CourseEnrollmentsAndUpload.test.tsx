@@ -11,6 +11,9 @@ import { CreateStudentEnrollModal } from '../components/CreateStudentEnrollModal
 import { LessonEditorModal } from '../components/LessonEditorModal';
 import { coursesApi } from '../api/courses.api';
 import { apiClient } from '@/lib/api/client';
+import { useStudents } from '@/features/students/hooks/use-students';
+import { useGroups } from '@/features/groups/hooks/useGroups';
+import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -251,6 +254,29 @@ describe('Course DRM, Direct Upload & Hybrid Enrollment Suite', () => {
 
       expect(onCloseMock).toHaveBeenCalled();
     });
+
+    it('disables queries when isOpen is false to avoid fetching data before modal opens', () => {
+      vi.clearAllMocks();
+      render(
+        <GroupStudentSelectModal
+          isOpen={false}
+          courseId="course-1"
+          courseTitle="كورس النحو الشامل"
+          courseGradeLevel="الصف الأول الثانوي"
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      expect(useStudents).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ enabled: false })
+      );
+      expect(useGroups).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ enabled: false })
+      );
+    });
   });
 
   describe('CreateStudentEnrollModal Component', () => {
@@ -327,6 +353,44 @@ describe('Course DRM, Direct Upload & Hybrid Enrollment Suite', () => {
       // Click cancel button
       fireEvent.click(screen.getByText('إلغاء'));
       expect(onCloseMock).toHaveBeenCalled();
+    });
+
+    it('disables assessments query when modal is closed', () => {
+      vi.clearAllMocks();
+      render(
+        <LessonEditorModal
+          isOpen={false}
+          courseId="course-1"
+          moduleId="mod-1"
+          lesson={null}
+          isEditing={false}
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      expect(useAssessments).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ enabled: false })
+      );
+    });
+  });
+
+  describe('CreateCourseModal Component', () => {
+    it('disables assessments query when modal is closed', () => {
+      vi.clearAllMocks();
+      render(
+        <CreateCourseModal
+          isOpen={false}
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      expect(useAssessments).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ enabled: false })
+      );
     });
   });
 });

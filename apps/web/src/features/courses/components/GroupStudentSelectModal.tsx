@@ -29,15 +29,18 @@ export function GroupStudentSelectModal({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
-  const { data: groupsData } = useGroups();
+  const { data: groupsData } = useGroups(undefined, { enabled: isOpen });
   const groups = Array.isArray(groupsData) ? groupsData : (groupsData as any)?.data || [];
 
-  const { data: studentsResponse, isLoading } = useStudents({
-    search: searchTerm || undefined,
-    groupId: selectedGroupId || undefined,
-    gradeLevel: selectedGrade || undefined,
-    limit: 100,
-  });
+  const { data: studentsResponse, isLoading } = useStudents(
+    {
+      search: searchTerm || undefined,
+      groupId: selectedGroupId || undefined,
+      gradeLevel: selectedGrade || undefined,
+      limit: 100,
+    },
+    { enabled: isOpen }
+  );
 
   const students = studentsResponse?.data || [];
   const enrollBatchMutation = useEnrollStudentsBatch(courseId);

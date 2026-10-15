@@ -33,8 +33,8 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
   const [transferConfirmId, setTransferConfirmId] = useState<string | null>(null);
   const [transferringId, setTransferringId] = useState<string | null>(null);
 
-  const { data: searchResults, isLoading: isSearching, isError: isSearchError } = useSearchStudents(debouncedQuery);
-  const { data: existingStudents } = useGroupStudents(groupId);
+  const { data: searchResults, isLoading: isSearching, isError: isSearchError } = useSearchStudents(debouncedQuery, { enabled: isOpen });
+  const { data: existingStudents } = useGroupStudents(groupId, { enabled: isOpen });
   const existingIds = new Set((existingStudents || []).map((s: any) => s.id));
   const addStudent = useAddStudent();
 

@@ -20,11 +20,14 @@ import { QUERY_KEYS } from '@/lib/api/query-keys';
 import { coursesApi } from '@/features/courses/api/courses.api';
 import toast from 'react-hot-toast';
 
-export function useGroups(filters?: {
-  academicYear?: string;
-  academicTerm?: string;
-  gradeLevel?: string;
-}) {
+export function useGroups(
+  filters?: {
+    academicYear?: string;
+    academicTerm?: string;
+    gradeLevel?: string;
+  },
+  options?: { enabled?: boolean }
+) {
   return useQuery<Group[]>({
     queryKey: ['groups', filters],
     queryFn: async (): Promise<Group[]> => {
@@ -46,6 +49,7 @@ export function useGroups(filters?: {
     networkMode: 'offlineFirst',
     staleTime: 15 * 60 * 1000, // 15 minutes
     gcTime: 60 * 60 * 1000,    // 60 minutes
+    enabled: options?.enabled,
   });
 }
 
@@ -74,7 +78,7 @@ export function useGroup(id: string) {
   });
 }
 
-export function useGroupStudents(id: string) {
+export function useGroupStudents(id: string, options?: { enabled?: boolean }) {
   return useQuery<GroupEnrollment[]>({
     queryKey: ['groups', id, 'students'],
     queryFn: async (): Promise<GroupEnrollment[]> => {
@@ -186,7 +190,7 @@ export function useGroupStudents(id: string) {
         }));
       }
     },
-    enabled: !!id,
+    enabled: options?.enabled !== undefined ? (!!id && options.enabled) : !!id,
     networkMode: 'offlineFirst',
     staleTime: 60 * 1000,
   });
@@ -496,7 +500,7 @@ export function useRemoveStudent() {
   });
 }
 
-export function useSearchStudents(query: string) {
+export function useSearchStudents(query: string, options?: { enabled?: boolean }) {
   return useQuery<{ data: Student[] }>({
     queryKey: ['students', 'search', query],
     queryFn: async (): Promise<{ data: Student[] }> => {
@@ -546,7 +550,7 @@ export function useSearchStudents(query: string) {
         };
       }
     },
-    enabled: query.length >= 2,
+    enabled: (options?.enabled ?? true) && query.length >= 2,
     staleTime: 60 * 1000,
   });
 }

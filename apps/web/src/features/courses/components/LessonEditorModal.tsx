@@ -121,9 +121,9 @@ export function LessonEditorModal({
   const deleteAttachmentMutation = useDeleteAttachment(courseId);
 
   const queryClient = useQueryClient();
-  const { data: streamAuth } = useLessonStreamAuth(resolvedLessonId || "");
+  const { data: streamAuth } = useLessonStreamAuth(resolvedLessonId || "", { enabled: isOpen });
 
-  const { data: assessmentsData } = useAssessments();
+  const { data: assessmentsData } = useAssessments(undefined, { enabled: isOpen });
   const assessments = Array.isArray(assessmentsData)
     ? assessmentsData
     : assessmentsData?.data || [];

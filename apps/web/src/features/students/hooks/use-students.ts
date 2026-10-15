@@ -26,7 +26,7 @@ import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 
-export function useStudents(query: StudentQuery) {
+export function useStudents(query: StudentQuery, options?: { enabled?: boolean }) {
   return useQuery<CursorPaginatedResponse<StudentListItem>>({
     queryKey: ['students', query],
     queryFn: async (): Promise<CursorPaginatedResponse<StudentListItem>> => {
@@ -225,7 +225,7 @@ export function useStudents(query: StudentQuery) {
         };
       }
     },
-    enabled: query !== undefined,
+    enabled: options?.enabled !== undefined ? (query !== undefined && options.enabled) : query !== undefined,
     networkMode: 'offlineFirst',
     staleTime: 60 * 1000,
   });
