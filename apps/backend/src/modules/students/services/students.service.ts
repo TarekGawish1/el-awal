@@ -1254,9 +1254,23 @@ export class StudentsService {
     const decodedCursor = query.cursor ? CursorPaginationHelper.decodeCursor(query.cursor) : null;
     const cursorFilter = CursorPaginationHelper.buildPrismaWhereClause(decodedCursor, 'DESC');
 
-    const where: any = {
+    let stageFilter: any = undefined;
+    if (query.academicStage) {
+      const s = query.academicStage;
+      if (s === 'SECONDARY' || s === 'المرحلة الثانوية' || s.includes('ثانوي')) {
+        stageFilter = { in: ['SECONDARY', 'المرحلة الثانوية', 'ثانوي'] };
+      } else if (s === 'MIDDLE' || s === 'PREPARATORY' || s === 'المرحلة الإعدادية' || s.includes('إعدادي')) {
+        stageFilter = { in: ['MIDDLE', 'PREPARATORY', 'المرحلة الإعدادية', 'إعدادي'] };
+      } else if (s === 'PRIMARY' || s === 'المرحلة الابتدائية' || s.includes('ابتدائي')) {
+        stageFilter = { in: ['PRIMARY', 'المرحلة الابتدائية', 'ابتدائي'] };
+      } else {
+        stageFilter = s;
+      }
+    }
+
+    const baseWhere: any = {
       ...(query.gradeLevel ? { gradeLevel: query.gradeLevel } : {}),
-      ...(query.academicStage ? { academicStage: query.academicStage } : {}),
+      ...(stageFilter ? { academicStage: stageFilter } : {}),
       academicStatus: query.academicStatus || 'ACTIVE',
       user: { isActive: true },
       ...(query.groupId
@@ -1269,40 +1283,46 @@ export class StudentsService {
             },
           }
         : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
-              { user: { phone: { contains: query.search } } },
-              { studentCode: { contains: query.search, mode: 'insensitive' } },
-              { qrCodeToken: query.search },
-            ],
-          }
-        : {}),
-      ...(cursorFilter || {}),
     };
 
-    const students = await this.prisma.studentProfile.findMany({
-      where,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
-      include: {
-        user: { select: { id: true, fullName: true, phone: true, email: true, isActive: true } },
-        groupEnrollments: {
-          where: { status: GroupEnrollmentStatus.ACTIVE },
-          include: { group: { select: { id: true, name: true } } },
-        },
-        parentLinks: {
-          include: {
-            parent: {
-              include: { user: { select: { id: true, fullName: true, phone: true, isActive: true } } },
+    if (query.search) {
+      baseWhere.OR = [
+        { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        { user: { phone: { contains: query.search } } },
+        { studentCode: { contains: query.search, mode: 'insensitive' } },
+        { qrCodeToken: query.search },
+      ];
+    }
+
+    const where: any = { ...baseWhere };
+    if (cursorFilter) {
+      where.AND = [cursorFilter];
+    }
+
+    const [students, totalCount] = await Promise.all([
+      this.prisma.studentProfile.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+        include: {
+          user: { select: { id: true, fullName: true, phone: true, email: true, isActive: true } },
+          groupEnrollments: {
+            where: { status: GroupEnrollmentStatus.ACTIVE },
+            include: { group: { select: { id: true, name: true } } },
+          },
+          parentLinks: {
+            include: {
+              parent: {
+                include: { user: { select: { id: true, fullName: true, phone: true, isActive: true } } },
+              },
             },
           },
         },
-      },
-    });
+      }),
+      this.prisma.studentProfile.count({ where: baseWhere }),
+    ]);
 
-    return CursorPaginationHelper.formatResponse(students, limit);
+    return CursorPaginationHelper.formatResponse(students, limit, totalCount);
   }
 
   /**

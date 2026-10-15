@@ -157,20 +157,24 @@ export function useStudents(query: StudentQuery, options?: { enabled?: boolean }
             groupEnrollments: s.groupEnrollments || [],
           }));
 
-          // When fetching general student list, synchronize snapshot and purge local orphans
-          if (!query.search && !query.groupId && !query.gradeLevel) {
+          // When fetching general student list, synchronize snapshot and purge local orphans only if unfiltered full fetch
+          if (!query.search && !query.groupId && !query.gradeLevel && !query.academicStage && !query.cursor && (!query.limit || query.limit >= 100)) {
             await offlineDb.syncStudentsSnapshot(mappedEntities);
           } else {
             await offlineDb.bulkPutStudents(mappedEntities);
           }
         }
 
+        const optimisticCount = combinedData.length - ((result?.data as any[])?.length || 0);
         return {
           ...result,
           data: combinedData,
           meta: {
             ...result?.meta,
-            total: combinedData.length,
+            total:
+              result?.meta?.total !== undefined
+                ? result.meta.total + optimisticCount
+                : combinedData.length,
           },
         };
       } catch {

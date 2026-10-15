@@ -49,12 +49,13 @@ export function StudentList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([undefined]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCursor(undefined);
-      setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
@@ -105,6 +106,13 @@ export function StudentList() {
     }
   }, [activeTerm]);
 
+  // Reset pagination state when any search or filter criteria changes
+  useEffect(() => {
+    setCursor(undefined);
+    setCursorHistory([undefined]);
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms]);
+
   const availableYears = useMemo(() => {
     const yearsSet = new Set<string>();
     yearsSet.add('2026-2027');
@@ -145,11 +153,36 @@ export function StudentList() {
     []
   );
 
-  // Fetch students (with search pushed to backend/offline store and cursor pagination support)
+  // Map stage filter to backend stage code when a single stage is selected
+  const stageQuery = useMemo(() => {
+    if (selectedStages.length !== 1) return undefined;
+    const s = selectedStages[0];
+    if (s === 'المرحلة الابتدائية' || s === 'PRIMARY') return 'PRIMARY';
+    if (s === 'المرحلة الإعدادية' || s === 'MIDDLE') return 'MIDDLE';
+    if (s === 'المرحلة الثانوية' || s === 'SECONDARY') return 'SECONDARY';
+    return s;
+  }, [selectedStages]);
+
+  // Pass single grade level filter to server
+  const gradeQuery = useMemo(() => {
+    if (selectedGrades.length !== 1) return undefined;
+    return selectedGrades[0];
+  }, [selectedGrades]);
+
+  // Pass single physical group filter to server (excluding UNASSIGNED which is handled locally)
+  const groupQuery = useMemo(() => {
+    if (selectedGroups.length !== 1 || selectedGroups[0] === 'UNASSIGNED') return undefined;
+    return selectedGroups[0];
+  }, [selectedGroups]);
+
+  // Fetch students with server cursor pagination (limit: PAGE_SIZE = 10) and forwarded filters
   const { data, isLoading, isError } = useStudents({
     search: debouncedSearch.trim() || undefined,
+    academicStage: stageQuery,
+    gradeLevel: gradeQuery,
+    groupId: groupQuery,
     cursor,
-    limit: 100,
+    limit: PAGE_SIZE,
   });
 
   // Calculate available grade options dynamically based on selected stages
@@ -317,14 +350,43 @@ export function StudentList() {
     });
   }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms, groupMap]);
 
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const PAGE_SIZE = 10;
-  const totalPages = Math.ceil(filteredStudents.length / PAGE_SIZE);
+  const paginatedStudents = filteredStudents;
 
-  const paginatedStudents = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredStudents.slice(start, start + PAGE_SIZE);
-  }, [filteredStudents, currentPage]);
+  const hasMore = Boolean(data?.meta?.hasMore);
+  const totalStudents = data?.meta?.total;
+  const maxReachablePage = hasMore
+    ? Math.max(cursorHistory.length + 1, currentPage + 1)
+    : Math.max(cursorHistory.length, currentPage);
+  const totalPages = Math.max(1, maxReachablePage);
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      if (page === currentPage || page < 1) return;
+
+      if (page > currentPage) {
+        // Advancing forward
+        if (page === currentPage + 1 && data?.meta?.nextCursor) {
+          const nextCursor = data.meta.nextCursor;
+          setCursorHistory((prev) => {
+            const next = [...prev];
+            next[page - 1] = nextCursor;
+            return next;
+          });
+          setCursor(nextCursor);
+          setCurrentPage(page);
+        } else if (cursorHistory[page - 1] !== undefined || page === 1) {
+          setCursor(cursorHistory[page - 1]);
+          setCurrentPage(page);
+        }
+      } else {
+        // Navigating backward
+        const targetCursor = cursorHistory[page - 1];
+        setCursor(targetCursor);
+        setCurrentPage(page);
+      }
+    },
+    [currentPage, data?.meta?.nextCursor, cursorHistory]
+  );
 
   const hasActiveFilters =
     searchTerm !== '' ||
@@ -341,6 +403,8 @@ export function StudentList() {
     setSelectedGroups([]);
     setSelectedYears([]);
     setSelectedTerms([]);
+    setCursor(undefined);
+    setCursorHistory([undefined]);
     setCurrentPage(1);
   };
 
@@ -503,7 +567,7 @@ export function StudentList() {
         {hasActiveFilters && (
           <div className="flex items-center justify-between pt-2 border-t border-slate-50 text-xs">
             <div className="text-slate-500">
-              تم العثور على <span className="font-bold text-primary-600">{filteredStudents.length}</span> طالب
+              تم العثور على <span className="font-bold text-primary-600">{totalStudents ?? filteredStudents.length}</span> طالب
             </div>
             <button
               onClick={resetFilters}
@@ -737,45 +801,16 @@ export function StudentList() {
         </div>
 
         {/* Pagination Controls */}
-        {(totalPages > 1 || data?.meta?.hasMore || cursor) && (
+        {(totalPages > 1 || hasMore || cursor || (totalStudents && totalStudents > PAGE_SIZE)) && (
           <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-            {totalPages > 1 ? (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredStudents.length}
-                pageSize={PAGE_SIZE}
-                onPageChange={setCurrentPage}
-                itemLabel="طالب"
-              />
-            ) : <div />}
-            {/* Cursor Batch Traversal */}
-            {(data?.meta?.hasMore || cursor) && (
-              <div className="flex items-center gap-2 text-xs">
-                {cursor && (
-                  <button
-                    onClick={() => {
-                      setCursor(undefined);
-                      setCurrentPage(1);
-                    }}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors"
-                  >
-                    العودة للدفعة الأولى
-                  </button>
-                )}
-                {data?.meta?.hasMore && data.meta.nextCursor && (
-                  <button
-                    onClick={() => {
-                      setCursor(data.meta.nextCursor!);
-                      setCurrentPage(1);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-medium shadow-sm transition-colors"
-                  >
-                    عرض الدفعة التالية (الـ 100 طالب التالية) &larr;
-                  </button>
-                )}
-              </div>
-            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalStudents}
+              pageSize={PAGE_SIZE}
+              onPageChange={handlePageChange}
+              itemLabel="طالب"
+            />
           </div>
         )}
       </div>
