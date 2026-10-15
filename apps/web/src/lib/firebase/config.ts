@@ -25,29 +25,36 @@ export async function getFirebaseApp(): Promise<FirebaseApp> {
   if (cachedApp) return cachedApp;
   if (appPromise) return appPromise;
 
-  appPromise = (async () => {
-    const { initializeApp, getApps, getApp } = await import('firebase/app');
-    if (getApps().length > 0) {
-      cachedApp = getApp();
-    } else {
-      cachedApp = initializeApp(firebaseConfig);
+  const promise = (async () => {
+    try {
+      const { initializeApp, getApps, getApp } = await import('firebase/app');
+      if (getApps().length > 0) {
+        cachedApp = getApp();
+      } else {
+        cachedApp = initializeApp(firebaseConfig);
+      }
+      return cachedApp;
+    } catch (err) {
+      appPromise = null;
+      throw err;
     }
-    return cachedApp;
   })();
 
-  return appPromise;
+  appPromise = promise;
+  return promise;
 }
 
 /**
  * Returns the Firebase Messaging instance if supported in the current environment (browser).
  * Dynamically imports firebase/messaging on demand.
+ * Resets in-flight promise on failure so subsequent retries on navigation or user interaction can succeed.
  */
 export async function getFirebaseMessaging(): Promise<Messaging | null> {
   if (typeof window === 'undefined') return null;
   if (cachedMessaging) return cachedMessaging;
   if (messagingPromise) return messagingPromise;
 
-  messagingPromise = (async () => {
+  const promise = (async () => {
     try {
       const { isSupported, getMessaging } = await import('firebase/messaging');
       const supported = await isSupported();
@@ -59,10 +66,16 @@ export async function getFirebaseMessaging(): Promise<Messaging | null> {
     } catch (err) {
       console.warn('[Firebase] Messaging not supported or failed to initialize:', err);
       return null;
+    } finally {
+      // Do not permanently cache null promises: allow future calls to retry if uninitialized
+      if (!cachedMessaging) {
+        messagingPromise = null;
+      }
     }
   })();
 
-  return messagingPromise;
+  messagingPromise = promise;
+  return promise;
 }
 
 /**

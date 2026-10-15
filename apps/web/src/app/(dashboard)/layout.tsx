@@ -312,7 +312,7 @@ export default function DashboardLayout({
   useRealtimeAttendance(isReservationsRole && isOnline);
   useRealtimeInquiries(isReservationsRole && isOnline);
   useRealtimeNotifications(isOnline);
-  useWebPush();
+  useWebPush({ enabled: isAuthenticated && isMounted && isInitialized });
 
   // Hydration-safe initial loading screen before auth initialization & client mount
   if (!isMounted || !isInitialized) {

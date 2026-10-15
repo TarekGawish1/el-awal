@@ -24,12 +24,38 @@ const FCM_TOKEN_STORAGE_KEY = 'elawal_fcm_token';
 let globalSubscribedState: boolean | null = null;
 const stateListeners = new Set<(subscribed: boolean) => void>();
 
+let globalPermissionState: PushPermissionState | null = null;
+const permissionListeners = new Set<(perm: PushPermissionState) => void>();
+
+let activeSyncPromise: Promise<boolean> | null = null;
+
 export function isBraveBrowser(): boolean {
   if (typeof window === 'undefined') return false;
   return Boolean(
     (navigator as any).brave ||
     navigator.userAgent.includes('Brave')
   );
+}
+
+function getInitialSupported(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    'PushManager' in window &&
+    'serviceWorker' in navigator &&
+    'Notification' in window
+  );
+}
+
+function getInitialPermission(): PushPermissionState {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'default';
+  }
+  return Notification.permission as PushPermissionState;
+}
+
+function setGlobalPermission(perm: PushPermissionState) {
+  globalPermissionState = perm;
+  permissionListeners.forEach((listener) => listener(perm));
 }
 
 function setGlobalSubscribed(subscribed: boolean) {
@@ -52,14 +78,12 @@ function getInitialSubscribed(): boolean {
   if (typeof window === 'undefined') return false;
   try {
     if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+      globalSubscribedState = false;
       return false;
-    }
-    if (globalSubscribedState !== null) {
-      return globalSubscribedState;
     }
     const cached = localStorage.getItem(PUSH_STORAGE_KEY) === 'true';
     const cachedToken = Boolean(localStorage.getItem(FCM_TOKEN_STORAGE_KEY));
-    const isSub = cached || cachedToken;
+    const isSub = cached || cachedToken || globalSubscribedState === true;
     globalSubscribedState = isSub;
     return isSub;
   } catch {
@@ -101,6 +125,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 /**
  * Ensures a service worker is registered and returns its registration.
+ * Checks for already-active worker first to avoid unnecessary race delays,
+ * and allows up to 10 seconds for initial activation when precaching routes.
  */
 async function getOrRegisterServiceWorker(): Promise<ServiceWorkerRegistration> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -112,15 +138,23 @@ async function getOrRegisterServiceWorker(): Promise<ServiceWorkerRegistration> 
     registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
   }
 
-  // Await ready with a 3-second safety timeout to avoid hanging indefinitely
-  const readyRegistration = await Promise.race([
-    navigator.serviceWorker.ready,
-    new Promise<ServiceWorkerRegistration>((resolve) => {
-      setTimeout(() => resolve(registration!), 3000);
-    }),
-  ]);
+  // Fast path: Worker is already active and ready to handle push events
+  if (registration.active) {
+    return registration;
+  }
 
-  return readyRegistration || registration;
+  // Await ready state with a 10-second safety guard to accommodate route precaching on cold installs
+  try {
+    const readyRegistration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<ServiceWorkerRegistration>((_, reject) => {
+        setTimeout(() => reject(new Error('SW activation timeout')), 10000);
+      }),
+    ]);
+    return readyRegistration;
+  } catch {
+    return registration;
+  }
 }
 
 /**
@@ -203,154 +237,167 @@ async function subscribeSilently(registration: ServiceWorkerRegistration): Promi
 }
 
 /**
+ * Synchronizes and auto-repairs existing subscription with deduplication mutex.
+ */
+async function runSyncExistingSubscription(): Promise<boolean> {
+  if (activeSyncPromise) {
+    return activeSyncPromise;
+  }
+
+  activeSyncPromise = (async () => {
+    try {
+      if (typeof Notification === 'undefined') return false;
+
+      const currentPerm = Notification.permission as PushPermissionState;
+      setGlobalPermission(currentPerm);
+
+      // If permission was revoked or denied in browser settings, cleanly mark as unsubscribed
+      if (currentPerm !== 'granted') {
+        setGlobalSubscribed(false);
+        return false;
+      }
+
+      const hasCachedSub =
+        localStorage.getItem(PUSH_STORAGE_KEY) === 'true' ||
+        Boolean(localStorage.getItem(FCM_TOKEN_STORAGE_KEY));
+
+      // Permission is GRANTED: Maintain optimistic state if previously opted-in
+      if (hasCachedSub) {
+        setGlobalSubscribed(true);
+      }
+
+      // If cached FCM token exists, keep backend record alive immediately
+      const cachedFcmToken = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
+      if (cachedFcmToken) {
+        postSubscription({
+          endpoint: cachedFcmToken,
+          keys: { p256dh: 'fcm', auth: 'fcm' },
+        }).catch(() => undefined);
+      }
+
+      const registration = await getOrRegisterServiceWorker();
+      if (!registration) return false;
+
+      // 1. Try FCM token sync
+      let fcmSuccess = false;
+      try {
+        const messaging = await getFirebaseMessaging();
+        const vapidKey =
+          process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+          (await fetchVapidPublicKey().catch(() => ''));
+
+        if (messaging && vapidKey) {
+          const token = await getFcmToken(messaging, {
+            serviceWorkerRegistration: registration,
+            vapidKey,
+          }).catch(() => null);
+
+          if (token) {
+            fcmSuccess = true;
+            setGlobalSubscribed(true);
+            try {
+              localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
+            } catch {}
+            await postSubscription({
+              endpoint: token,
+              keys: { p256dh: 'fcm', auth: 'fcm' },
+            }).catch(() => undefined);
+            return true;
+          }
+        }
+      } catch (err) {
+        console.debug('[useWebPush] FCM check notice:', err);
+      }
+
+      // 2. Check standard PushManager subscription
+      try {
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          setGlobalSubscribed(true);
+          await postSubscription(subscription.toJSON()).catch(() => undefined);
+          return true;
+        }
+      } catch (err) {
+        console.debug('[useWebPush] PushManager getSubscription check notice:', err);
+      }
+
+      // 3. Self-Healing / Auto-Repair:
+      // If permission is 'granted' AND the user previously opted-in, but the browser
+      // subscription was temporarily missing or recycled, automatically re-establish it.
+      if (hasCachedSub && !fcmSuccess) {
+        console.debug('[useWebPush] Active permission detected; auto-repairing subscription in background...');
+        const repaired = await subscribeSilently(registration);
+        return repaired;
+      } else if (!hasCachedSub) {
+        setGlobalSubscribed(false);
+      }
+
+      return false;
+    } catch (err) {
+      console.warn('[useWebPush] Subscription sync note:', err);
+      return false;
+    } finally {
+      activeSyncPromise = null;
+    }
+  })();
+
+  return activeSyncPromise;
+}
+
+export interface UseWebPushOptions {
+  enabled?: boolean;
+}
+
+/**
  * useWebPush — React hook for managing Web Push subscription lifecycle.
  *
  * Handles:
- * - Browser support detection
- * - Permission state tracking
+ * - Browser support detection with zero initial render flicker
+ * - Permission state tracking synchronized across all hook instances
  * - Subscribe: requests permission → SW registration → VAPID key → PushManager → backend sync
  * - Unsubscribe: removes from browser + backend
  * - Persistent caching & Auto-repair: avoids visual flicker/accidental turn-off
+ * - Concurrency mutex to prevent duplicate network syncs during client navigation
  */
-export function useWebPush(): UseWebPushReturn {
-  const [isSupported, setIsSupported] = useState(false);
-  const [permission, setPermission] = useState<PushPermissionState>('default');
+export function useWebPush(options?: UseWebPushOptions): UseWebPushReturn {
+  const enabled = options?.enabled ?? true;
+  const [isSupported, setIsSupported] = useState<boolean>(getInitialSupported);
+  const [permission, setPermission] = useState<PushPermissionState>(() => globalPermissionState ?? getInitialPermission());
   const [isSubscribed, setIsSubscribed] = useState<boolean>(getInitialSubscribed);
   const [isLoading, setIsLoading] = useState(false);
-  const [isBrave, setIsBrave] = useState(false);
+  const [isBrave, setIsBrave] = useState(isBraveBrowser);
 
   // Synchronize state across multiple hook instances
   useEffect(() => {
-    const listener = (val: boolean) => setIsSubscribed(val);
-    stateListeners.add(listener);
+    const subListener = (val: boolean) => setIsSubscribed(val);
+    stateListeners.add(subListener);
+
+    const permListener = (val: PushPermissionState) => setPermission(val);
+    permissionListeners.add(permListener);
+
     return () => {
-      stateListeners.delete(listener);
+      stateListeners.delete(subListener);
+      permissionListeners.delete(permListener);
     };
   }, []);
 
-  // Check initial state on mount
+  // Check initial state on mount and sync when enabled
   useEffect(() => {
-    const supported =
-      typeof window !== 'undefined' &&
-      'PushManager' in window &&
-      'serviceWorker' in navigator &&
-      'Notification' in window;
-
+    const supported = getInitialSupported();
     setIsSupported(supported);
     setIsBrave(isBraveBrowser());
-    if (!supported) return;
+    if (!supported || !enabled) return;
 
-    const currentPerm = Notification.permission as PushPermissionState;
-    setPermission(currentPerm);
+    const currentPerm = getInitialPermission();
+    setGlobalPermission(currentPerm);
 
     if (currentPerm === 'denied') {
       setGlobalSubscribed(false);
-      setIsSubscribed(false);
       return;
     }
 
-    let cancelled = false;
-
-    // Synchronize and auto-repair existing subscription
-    const syncExistingSubscription = async () => {
-      try {
-        const hasCachedSub =
-          localStorage.getItem(PUSH_STORAGE_KEY) === 'true' ||
-          Boolean(localStorage.getItem(FCM_TOKEN_STORAGE_KEY));
-
-        // If permission was revoked or denied in browser settings, cleanly mark as unsubscribed
-        if (Notification.permission === 'denied' || Notification.permission !== 'granted') {
-          setGlobalSubscribed(false);
-          setIsSubscribed(false);
-          return;
-        }
-
-        // Permission is GRANTED:
-        // If the user previously had an active subscription, maintain that state!
-        if (hasCachedSub) {
-          setGlobalSubscribed(true);
-          setIsSubscribed(true);
-        }
-
-        // If cached FCM token exists, keep backend record alive immediately
-        const cachedFcmToken = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
-        if (cachedFcmToken) {
-          postSubscription({
-            endpoint: cachedFcmToken,
-            keys: { p256dh: 'fcm', auth: 'fcm' },
-          }).catch(() => undefined);
-        }
-
-        const registration = await getOrRegisterServiceWorker();
-        if (!registration || cancelled) return;
-
-        // 1. Try FCM token sync
-        let fcmSuccess = false;
-        try {
-          const messaging = await getFirebaseMessaging();
-          const vapidKey =
-            process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
-            (await fetchVapidPublicKey().catch(() => ''));
-
-          if (messaging && vapidKey) {
-            const token = await getFcmToken(messaging, {
-              serviceWorkerRegistration: registration,
-              vapidKey,
-            }).catch(() => null);
-
-            if (token && !cancelled) {
-              fcmSuccess = true;
-              setGlobalSubscribed(true);
-              setIsSubscribed(true);
-              try {
-                localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
-              } catch {}
-              await postSubscription({
-                endpoint: token,
-                keys: { p256dh: 'fcm', auth: 'fcm' },
-              }).catch(() => undefined);
-              return;
-            }
-          }
-        } catch {
-          // FCM check notice, fall through to PushManager check
-        }
-
-        // 2. Check standard PushManager subscription
-        const subscription = await registration.pushManager.getSubscription();
-        if (cancelled) return;
-
-        if (subscription) {
-          setGlobalSubscribed(true);
-          setIsSubscribed(true);
-          await postSubscription(subscription.toJSON()).catch(() => undefined);
-          return;
-        }
-
-        // 3. Self-Healing / Auto-Repair:
-        // If permission is 'granted' AND the user previously opted-in, but the browser
-        // subscription was temporarily missing or recycled, DO NOT turn off notifications!
-        // Automatically re-establish the subscription silently in the background.
-        if (hasCachedSub && !fcmSuccess) {
-          console.debug('[useWebPush] Active permission detected; auto-repairing subscription in background...');
-          void subscribeSilently(registration);
-        } else if (!hasCachedSub) {
-          // User has never subscribed on this browser
-          setGlobalSubscribed(false);
-          setIsSubscribed(false);
-        }
-      } catch (err) {
-        console.warn('[useWebPush] Subscription sync note:', err);
-        // Do not arbitrarily disable notifications on transient network errors
-      }
-    };
-
-    void syncExistingSubscription();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void runSyncExistingSubscription();
+  }, [enabled]);
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (!isSupported) {
@@ -364,7 +411,7 @@ export function useWebPush(): UseWebPushReturn {
       let perm = Notification.permission;
       if (perm !== 'granted') {
         perm = await Notification.requestPermission();
-        setPermission(perm as PushPermissionState);
+        setGlobalPermission(perm as PushPermissionState);
       }
 
       if (perm !== 'granted') {
