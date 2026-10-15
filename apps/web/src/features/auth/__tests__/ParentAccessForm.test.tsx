@@ -16,6 +16,23 @@ vi.mock('../hooks/useParentAccess', () => ({
   useParentAccess: vi.fn(),
 }));
 
+const mockLoginWithOtp = vi.fn();
+const mockRequestLoginOtp = vi.fn().mockResolvedValue({ success: true, cooldownSeconds: 60 });
+const mockResetOtpError = vi.fn();
+
+vi.mock('../hooks/useAuth', () => ({
+  useAuth: () => ({
+    loginWithOtp: mockLoginWithOtp,
+    isOtpLoading: false,
+    isOtpError: false,
+    otpError: null,
+    resetOtpError: mockResetOtpError,
+    requestLoginOtp: mockRequestLoginOtp,
+  }),
+  normalizeAuthErrorMessage: (err: any) =>
+    typeof err === 'string' ? err : err?.message || 'Authentication error',
+}));
+
 describe('ParentAccessForm', () => {
   const mockAccessParent = vi.fn();
 
@@ -34,7 +51,7 @@ describe('ParentAccessForm', () => {
     render(<ParentAccessForm />);
 
     expect(screen.getByLabelText(/رقم الهاتف أو كود الطالب/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/كلمة المرور/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'دخول ولي الأمر' })).toBeInTheDocument();
   });
 
@@ -46,11 +63,11 @@ describe('ParentAccessForm', () => {
     expect(screen.getByText('يرجى إدخال كلمة المرور')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/رقم الهاتف أو كود الطالب/i), { target: { value: '01012345678' } });
-    fireEvent.change(screen.getByLabelText(/كلمة المرور/i), { target: { value: 'secretpass123' } });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'secretpass123' } });
     fireEvent.click(screen.getByRole('button', { name: 'دخول ولي الأمر' }));
 
     expect(screen.getByLabelText(/رقم الهاتف أو كود الطالب/i)).toHaveValue('01012345678');
-    expect(screen.getByLabelText(/كلمة المرور/i)).toHaveValue('secretpass123');
+    expect(screen.getByPlaceholderText('••••••••')).toHaveValue('secretpass123');
     expect(mockAccessParent).toHaveBeenCalledWith({
       studentPhone: '01012345678',
       password: 'secretpass123',
@@ -71,4 +88,21 @@ describe('ParentAccessForm', () => {
     expect(screen.getByText('تعذر الدخول')).toBeInTheDocument();
     expect(screen.getByText('كلمة المرور غير صحيحة، يرجى التأكد من كلمة المرور أو استخدام رابط الدخول الآمن')).toBeInTheDocument();
   });
+
+  it('switches to WhatsApp OTP tab and dispatches verification code', async () => {
+    render(<ParentAccessForm />);
+
+    // Click OTP tab
+    fireEvent.click(screen.getByRole('button', { name: /رمز الواتساب/i }));
+
+    expect(screen.getByText(/إرسال رمز التحقق عبر واتساب/i)).toBeInTheDocument();
+
+    const phoneInput = screen.getByPlaceholderText(/أدخل رقم الهاتف أو كود الطالب المسجل/i);
+    fireEvent.change(phoneInput, { target: { value: '01012345678' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /إرسال رمز التحقق عبر واتساب/i }));
+
+    expect(mockRequestLoginOtp).toHaveBeenCalledWith('01012345678', 'PARENT');
+  });
 });
+

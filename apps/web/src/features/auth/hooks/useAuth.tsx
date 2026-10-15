@@ -29,7 +29,10 @@ export function normalizeAuthErrorMessage(error: unknown): string {
       if (error.code === 'OFFLINE_NO_PREVIOUS_SESSION' || error.code === 'OFFLINE_INVALID_CREDENTIALS') {
         return error.message;
       }
-      return error.message || 'بيانات الدخول غير صحيحة أو الحساب غير مفعّل';
+      if (!error.message || error.message === 'يرجى تسجيل الدخول والمحاولة مرة أخرى') {
+        return 'بيانات الدخول غير صحيحة أو الحساب غير مفعّل';
+      }
+      return error.message;
     }
 
     if (error.statusCode === 403) {
@@ -45,7 +48,10 @@ export function normalizeAuthErrorMessage(error: unknown): string {
     }
 
     if (error.statusCode >= 500) {
-      return error.message || 'حدث خطأ في خادم النظام، يرجى المحاولة مرة أخرى لاحقاً';
+      if (!error.message || error.message === 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى لاحقاً') {
+        return 'حدث خطأ في خادم النظام، يرجى المحاولة مرة أخرى لاحقاً';
+      }
+      return error.message;
     }
 
     return error.message || 'تعذر تسجيل الدخول، يرجى المحاولة مرة أخرى';

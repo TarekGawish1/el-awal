@@ -1,9 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { StudentDashboard } from '../components/StudentDashboard';
-import { useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance } from '../hooks/useStudentPortal';
+import { useStudentDashboardOverview, useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance } from '../hooks/useStudentPortal';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+  }),
+  usePathname: () => '/student/dashboard',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock('@/features/auth', () => ({
+  useAuth: () => ({
+    user: { id: 'user-1', fullName: 'طالب افتراضي', role: 'STUDENT' },
+  }),
+}));
 
 vi.mock('../hooks/useStudentPortal', () => ({
+  useStudentDashboardOverview: vi.fn(),
+  useEnrollInCourse: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useStudentProfile: vi.fn(),
   useStudentCourses: vi.fn(),
   useStudentAssessments: vi.fn(),
@@ -17,6 +36,32 @@ vi.mock('../hooks/useStudentPortal', () => ({
 
 describe('StudentDashboard', () => {
   it('renders student welcome and dashboard data correctly', () => {
+    vi.mocked(useStudentDashboardOverview).mockReturnValue({
+      data: {
+        student: {
+          id: 'stu-1',
+          studentCode: 'STU-123',
+          gradeLevel: 'Grade 10',
+          user: { fullName: 'طالب افتراضي' },
+          groupEnrollments: [
+            { group: { id: 'g1', name: 'المجموعة أ' } }
+          ],
+        },
+        enrolledCourses: [{ courseId: 'c1', title: 'دورة الفيزياء', teacherName: 'أ. أحمد', progressPercentage: 50 }],
+        recentExams: [
+          { id: 'a1', title: 'اختبار نصف العام', type: 'EXAM', totalScore: 100, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 0 } },
+          { id: 'a2', title: 'اختبار الشهر', type: 'EXAM', totalScore: 50, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 1 } },
+        ],
+        kpis: {
+          attendanceRatePercentage: 75,
+        },
+        nextSession: null,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as any);
+
     vi.mocked(useStudentProfile).mockReturnValue({
       data: {
         id: 'stu-1',
