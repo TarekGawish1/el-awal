@@ -8,6 +8,7 @@ import { SchedulersService } from '../../jobs/schedulers';
 import { DeadlineReminderCron } from './crons/deadline-reminder.cron';
 
 import { NotificationSettingsService } from './services/notification-settings.service';
+import { WebPushDispatcherService } from './services/webpush-dispatcher.service';
 
 @Module({
   controllers: [NotificationsController],
@@ -16,6 +17,7 @@ import { NotificationSettingsService } from './services/notification-settings.se
     NotificationSettingsService,
     NotificationsService,
     WebPushService,
+    WebPushDispatcherService,
 
     // WhatsApp: socket manager + strictly sequential persistent dispatcher
     WhatsAppService,
@@ -25,6 +27,12 @@ import { NotificationSettingsService } from './services/notification-settings.se
     SchedulersService,
     DeadlineReminderCron,
   ],
-  exports: [NotificationSettingsService, NotificationsService, WebPushService, WhatsAppService],
+  exports: [
+    NotificationSettingsService,
+    NotificationsService,
+    WebPushService,
+    WebPushDispatcherService,
+    WhatsAppService,
+  ],
 })
 export class NotificationsModule {}

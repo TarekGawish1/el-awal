@@ -13,6 +13,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { WebPushService, PushPayload } from '../../../services/webpush.service';
+import { WebPushDispatcherService } from './webpush-dispatcher.service';
 import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
 import { NotificationSettingsService } from './notification-settings.service';
 import { formatPaymentReceivedMessage } from '../../../utils/spintax';
@@ -74,6 +75,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly webPush: WebPushService,
+    private readonly webPushDispatcher: WebPushDispatcherService,
     private readonly whatsappDispatcher: WhatsAppDispatcherService,
     private readonly settingsService: NotificationSettingsService,
     @Optional() private readonly realtimeGateway?: RealtimeGateway,
@@ -121,6 +123,8 @@ export class NotificationsService {
       return null;
     }
 
+    const hasWebPush = activeChannels.includes(NotificationChannel.WEB_PUSH);
+
     const notification = await this.prisma.notification.create({
       data: {
         recipientId: dto.recipientId,
@@ -132,6 +136,7 @@ export class NotificationsService {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: dto.data as any,
         channels: activeChannels,
+        pushStatus: hasWebPush ? NotificationStatus.PENDING : null,
         scheduledFor: dto.scheduledFor || new Date(),
       },
       include: { recipient: { select: { fullName: true, role: true } } },
@@ -143,34 +148,9 @@ export class NotificationsService {
       await this.whatsappDispatcher.enqueueNotification(notification);
     }
 
-    // Dispatch Web Push immediately (async, non-blocking)
-    if (activeChannels.includes(NotificationChannel.WEB_PUSH)) {
-      this.webPush
-        .sendToUser(dto.recipientId, {
-          title: dto.title,
-          body: dto.body,
-          url: this.buildNotificationUrl(dto.notificationType, dto.data),
-          data: dto.data,
-        })
-        .then((count) => {
-          if (count > 0) {
-            this.prisma.notification
-              .update({
-                where: { id: notification.id },
-                data: { pushStatus: NotificationStatus.SENT },
-              })
-              .catch(() => undefined);
-          }
-        })
-        .catch((err) => {
-          this.logger.warn(`Web Push failed for notification [${notification.id}]`, err);
-          this.prisma.notification
-            .update({
-              where: { id: notification.id },
-              data: { pushStatus: NotificationStatus.FAILED },
-            })
-              .catch(() => undefined);
-        });
+    // Wake up Web Push database queue worker immediately (< 1ms, zero network blocking)
+    if (hasWebPush) {
+      this.webPushDispatcher.kick();
     }
 
     return notification;
@@ -361,12 +341,10 @@ export class NotificationsService {
         .catch((err) => this.logger.error('Failed to batch enqueue WhatsApp messages', err));
     }
 
-    // 8. Bulk Web Push Dispatch
+    // 8. Bulk Web Push Dispatch via Database Queue
     const webPushItems = targetItems.filter((x) => x.activeChannels.includes(NotificationChannel.WEB_PUSH));
     if (webPushItems.length > 0) {
-      this.dispatchBatchWebPushItems(webPushItems, recipientToNotifIdMap).catch((err) =>
-        this.logger.error('Background batch Web Push failed', err),
-      );
+      this.webPushDispatcher.kick();
     }
 
     return targetItems.map((x) => ({

@@ -7,8 +7,8 @@ import { getMessaging, Messaging, MulticastMessage } from 'firebase-admin/messag
 import * as fs from 'fs';
 import * as path from 'path';
 
-export interface PushSubscriptionDto {
-  endpoint: string;
+export class PushSubscriptionDto {
+  endpoint!: string;
   keys?: {
     p256dh: string;
     auth: string;

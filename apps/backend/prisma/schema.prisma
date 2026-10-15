@@ -1076,6 +1076,8 @@ model Notification {
   whatsappStatus    NotificationStatus?   @map("whatsapp_status")
   whatsappError     String?               @map("whatsapp_error") @db.Text
   pushStatus        NotificationStatus?   @map("push_status")
+  pushError         String?               @map("push_error") @db.Text
+  pushRetryCount    Int                   @default(0) @map("push_retry_count")
   scheduledFor      DateTime              @default(now()) @map("scheduled_for") @db.Timestamptz(6)
   createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1084,6 +1086,7 @@ model Notification {
 
   @@index([recipientId, isRead, createdAt], map: "idx_notifications_recipient_read")
   @@index([whatsappStatus, scheduledFor], map: "idx_notifications_whatsapp_queue")
+  @@index([pushStatus, scheduledFor], map: "idx_notifications_push_queue")
   @@map("notifications")
 }
 

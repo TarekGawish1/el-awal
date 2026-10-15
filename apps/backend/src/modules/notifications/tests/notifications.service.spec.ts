@@ -4,6 +4,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { WebPushService } from '../../../services/webpush.service';
 import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
 import { NotificationSettingsService } from '../services/notification-settings.service';
+import { WebPushDispatcherService } from '../services/webpush-dispatcher.service';
 import { AttendanceStatus, NotificationChannel, NotificationType } from '@prisma/client';
 
 describe('NotificationsService', () => {
@@ -83,12 +84,18 @@ describe('NotificationsService', () => {
     },
   };
 
+  const mockWebPushDispatcher = {
+    kick: jest.fn(),
+    processNextBatch: jest.fn().mockResolvedValue(false),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: WebPushService, useValue: mockWebPushService },
+        { provide: WebPushDispatcherService, useValue: mockWebPushDispatcher },
         { provide: WhatsAppDispatcherService, useValue: mockWhatsAppDispatcher },
         { provide: NotificationSettingsService, useValue: mockNotificationSettings },
       ],
@@ -491,16 +498,20 @@ describe('NotificationsService', () => {
       const generatedNotifId = results[0].id;
       expect(generatedNotifId).toBeDefined();
 
-      // Yield event loop to allow background dispatchBatchWebPush to complete
-      await new Promise((r) => setTimeout(r, 20));
+      // Verify the WebPush database queue worker was kicked immediately
+      expect(mockWebPushDispatcher.kick).toHaveBeenCalled();
 
-      // Verify updateMany was called targeting the EXACT notification ID, not a generic condition
-      expect(mockPrismaService.notification.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: { in: [generatedNotifId] },
-        },
-        data: { pushStatus: 'SENT' },
-      });
+      // Verify notification was created with pushStatus PENDING for queue execution
+      expect(mockPrismaService.notification.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              id: generatedNotifId,
+              pushStatus: 'PENDING',
+            }),
+          ]),
+        }),
+      );
     });
 
     it('sendBatch: deduplicates heterogeneous batch items using Visited Set pattern and executes in 1 createMany', async () => {
