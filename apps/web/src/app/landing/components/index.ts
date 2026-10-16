@@ -9,3 +9,4 @@ export { CertificatesSection } from './CertificatesSection';
 export { AboutUsSection } from './AboutUsSection';
 export { ContactUsSection } from './ContactUsSection';
 export { FooterSection } from './FooterSection';
+export { CoursePreviewModal } from './CoursePreviewModal';
