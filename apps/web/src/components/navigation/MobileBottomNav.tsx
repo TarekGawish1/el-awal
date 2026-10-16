@@ -64,7 +64,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
   return (
     <nav
       aria-label="شريط التنقل السفلي للهواتف"
-      className="lg:hidden pb-[env(safe-area-inset-bottom,0px)] h-[calc(4rem+env(safe-area-inset-bottom,0px))] fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg shadow-neutral-900/5 transition-all"
+      className="lg:hidden pb-[env(safe-area-inset-bottom,0px)] h-[calc(4rem+env(safe-area-inset-bottom,0px))] fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg shadow-neutral-900/5"
     >
       <div className="flex items-center justify-around px-2 py-1.5 max-w-lg mx-auto">
         {tabs.map((tab) => {
@@ -99,7 +99,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all active:scale-95 ${
+              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-colors active:scale-95 ${
                 isActive
                   ? 'text-primary-600 font-bold'
                   : 'text-neutral-500 hover:text-neutral-800'
@@ -117,7 +117,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-neutral-500 hover:text-neutral-800 transition-all active:scale-95"
+          className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-neutral-500 hover:text-neutral-800 transition-colors active:scale-95"
           aria-label="المزيد من القوائم"
         >
           <div className="p-1 rounded-lg hover:bg-neutral-100">

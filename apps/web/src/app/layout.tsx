@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Cairo, Inter } from 'next/font/google';
+import { Cairo } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { PwaRegister, PwaInstallPrompt } from '@/components/pwa';
@@ -8,16 +8,9 @@ import { CookieConsentBanner } from '@/components/analytics/CookieConsentBanner'
 
 const cairo = Cairo({
   subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '600', '700', '800'],
+  weight: ['400', '600', '700'],
   display: 'swap',
   variable: '--font-cairo',
-});
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-inter',
 });
 
 export const viewport: Viewport = {
@@ -65,7 +58,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ar" dir="rtl" className={`${cairo.variable} ${inter.variable}`}>
+    <html lang="ar" dir="rtl" className={cairo.variable}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
