@@ -9,6 +9,24 @@ import { QUERY_KEYS } from '@/lib/api/query-keys';
 
 const DASHBOARD_SNAPSHOT_KEY = 'el_awal_teacher_dashboard_snapshot_v1';
 
+export const DEFAULT_EMPTY_SNAPSHOT: TeacherDashboardInitData = {
+  kpis: {
+    todaySessionsCount: 0,
+    activeSessionsCount: 0,
+    totalActiveStudents: 0,
+    totalActiveGroups: 0,
+    weeklyAttendanceRate: 100,
+    pendingGradingCount: 0,
+    pendingGradingAssessmentsCount: 0,
+  },
+  todaySessions: [],
+  attendanceTrends: [],
+  atRiskStudents: [],
+  pendingGradingList: [],
+  groupPerformance: [],
+  lastUpdatedTimestamp: '',
+};
+
 function getCachedDashboardSnapshot(): TeacherDashboardInitData | undefined {
   if (typeof window === 'undefined') return undefined;
   try {
@@ -109,7 +127,7 @@ export function useTeacherDashboard(filters: DashboardFilterState = DEFAULT_DASH
 
       return data;
     },
-    initialData: isHomeDashboard ? () => getCachedDashboardSnapshot() : undefined,
+    initialData: isHomeDashboard ? () => getCachedDashboardSnapshot() || DEFAULT_EMPTY_SNAPSHOT : undefined,
     initialDataUpdatedAt: isHomeDashboard
       ? () => {
           const snap = getCachedDashboardSnapshot();
