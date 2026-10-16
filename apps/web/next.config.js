@@ -67,6 +67,7 @@ const nextConfig = {
       'framer-motion',
       'react-hook-form',
       '@hookform/resolvers',
+      '@tanstack/react-query',
     ],
   },
 

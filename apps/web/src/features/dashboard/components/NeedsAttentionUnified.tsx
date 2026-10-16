@@ -8,8 +8,16 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { AtRiskStudentAlert, PendingGradingAlert } from '../types/dashboard.types';
 import { usePendingReservations } from '@/features/groups';
-import { PaymentConfirmationModal } from './PaymentConfirmationModal';
-import { StudentDetailsModal } from '@/features/students/components/StudentDetailsModal';
+import dynamic from 'next/dynamic';
+
+const PaymentConfirmationModal = dynamic(
+  () => import('./PaymentConfirmationModal').then((m) => m.PaymentConfirmationModal),
+  { ssr: false }
+);
+const StudentDetailsModal = dynamic(
+  () => import('@/features/students/components/StudentDetailsModal').then((m) => m.StudentDetailsModal),
+  { ssr: false }
+);
 
 export interface NeedsAttentionUnifiedProps {
   atRiskStudents?: AtRiskStudentAlert[];

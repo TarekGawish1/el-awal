@@ -38,13 +38,27 @@ export function useBootstrapSync(autoTrigger: boolean = true): BootstrapSyncStat
       setLastEvent(event);
     });
 
-    // Auto-trigger bootstrap on authenticated session start
+    // Auto-trigger bootstrap on authenticated session start.
+    // Defer the background sync until initial UI hydration and paint are complete (idle time)
+    // to prevent blocking the main thread and IndexedDB during critical page render.
+    let idleTimer: any;
     if (autoTrigger && isAuthenticated && isInitialized) {
-      triggerBootstrap(false);
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        idleTimer = (window as any).requestIdleCallback(() => triggerBootstrap(false), { timeout: 4000 });
+      } else {
+        idleTimer = setTimeout(() => triggerBootstrap(false), 2500);
+      }
     }
 
     return () => {
       unsubscribe();
+      if (idleTimer) {
+        if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          (window as any).cancelIdleCallback(idleTimer);
+        } else {
+          clearTimeout(idleTimer);
+        }
+      }
     };
   }, [autoTrigger, isAuthenticated, isInitialized, triggerBootstrap]);
 

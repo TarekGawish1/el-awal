@@ -9,9 +9,9 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v10';
-const RUNTIME_CACHE = 'el-awal-runtime-v10';
-const RSC_CACHE = 'el-awal-rsc-v10';
+const CACHE_NAME = 'el-awal-core-v11';
+const RUNTIME_CACHE = 'el-awal-runtime-v11';
+const RSC_CACHE = 'el-awal-rsc-v11';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
 const MAX_RUNTIME_ITEMS = 300;
@@ -51,27 +51,11 @@ function isCachableResponse(response) {
   return true;
 }
 
-// Critical App Shell assets and core dashboard routes to pre-cache on install
+// Critical App Shell assets to pre-cache on install.
+// Kept ultra-lightweight (offline fallback, manifests, icons) to prevent network contention on mobile.
+// Dashboard routes, chunks, and RSC flight payloads are cached dynamically as users browse
+// or asynchronously during idle time.
 const PRECACHE_URLS = [
-  '/',
-  '/app',
-  '/login',
-  '/teacher/dashboard',
-  '/teacher/groups',
-  '/teacher/schedules',
-  '/teacher/attendance',
-  '/teacher/students',
-  '/teacher/assessments',
-  '/teacher/content',
-  '/teacher/finance',
-  '/student/dashboard',
-  '/student/courses',
-  '/student/attendance',
-  '/student/assessments',
-  '/student/payments',
-  '/parent/dashboard',
-  '/parent-access',
-  '/register/student',
   '/offline.html',
   '/manifest.webmanifest',
   '/manifest.json',
@@ -83,31 +67,15 @@ const PRECACHE_URLS = [
   '/icons/apple-touch-icon.png',
   '/favicon.ico',
   '/favicon.svg',
-  '/wasm/zxing_reader.wasm',
 ];
 
-// Core routes whose RSC payloads should also be pre-cached for instant client-side routing
-const PRECACHE_RSC_ROUTES = [
-  '/teacher/dashboard',
-  '/teacher/students',
-  '/teacher/groups',
-  '/teacher/schedules',
-  '/teacher/attendance',
-  '/teacher/finance',
-  '/teacher/assessments',
-  '/teacher/content',
-  '/student/dashboard',
-  '/parent/dashboard',
-];
-
-// 1. Install Event: Pre-cache core shell, offline page, and RSC payloads
+// 1. Install Event: Pre-cache core shell and offline fallback only
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       const coreCache = await caches.open(CACHE_NAME);
-      const rscCache = await caches.open(RSC_CACHE);
 
-      // Pre-cache static shell URLs (ignoring redirects to avoid caching login screens under dashboard URLs)
+      // Pre-cache static shell URLs
       for (const url of PRECACHE_URLS) {
         try {
           const response = await fetch(url);
@@ -116,24 +84,6 @@ self.addEventListener('install', (event) => {
           }
         } catch (err) {
           console.debug('[SW] Precache notice:', url, err);
-        }
-      }
-
-      // Pre-cache RSC payloads for dashboard routes
-      for (const route of PRECACHE_RSC_ROUTES) {
-        try {
-          const rscRequest = new Request(`${route}?_rsc=init`, {
-            headers: { RSC: '1', 'Next-Router-Prefetch': '1' },
-          });
-          const response = await fetch(rscRequest);
-          if (response && response.ok && !response.redirected) {
-            await rscCache.put(rscRequest, response.clone());
-            // Also store under normalized route key
-            const normalizedReq = new Request(route, { headers: { RSC: '1' } });
-            await rscCache.put(normalizedReq, response);
-          }
-        } catch (err) {
-          console.debug('[SW] RSC precache notice:', route, err);
         }
       }
     })()
@@ -532,19 +482,13 @@ self.addEventListener('message', (event) => {
     );
   }
   if (event.data && event.data.type === 'WARM_OFFLINE_SHELL') {
-    const urlsToWarm = [
-      '/teacher/dashboard',
-      '/teacher/attendance',
-      '/teacher/finance',
-      '/teacher/students',
-      '/teacher/groups',
-      '/teacher/schedules',
-      '/student/dashboard',
-      '/student/group',
-      '/student/attendance',
-      '/student/payments',
-      '/parent/dashboard',
-    ];
+    const urlsToWarm = Array.isArray(event.data.urls) && event.data.urls.length > 0
+      ? event.data.urls
+      : [
+          '/teacher/dashboard',
+          '/teacher/attendance',
+          '/teacher/students',
+        ];
     event.waitUntil(
       (async () => {
         const coreCache = await caches.open(CACHE_NAME);

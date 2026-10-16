@@ -35,7 +35,7 @@ import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPer
 import { PwaInstallButton } from '@/components/pwa';
 import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIndicator';
 import { MobileBottomNav } from '@/components/navigation';
-import { SyncReviewModal, SyncConfirmationModal, OfflineActivityDrawer } from '@/components/sync';
+import dynamic from 'next/dynamic';
 import { getNavigationSectionsForRole } from '@/config/navigation';
 import { useShellBadges } from '@/core/hooks/useShellBadges';
 import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
@@ -46,7 +46,23 @@ import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { useWebPush } from '@/hooks/useWebPush';
-import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
+
+const SyncReviewModal = dynamic(
+  () => import('@/components/sync').then((m) => m.SyncReviewModal),
+  { ssr: false }
+);
+const SyncConfirmationModal = dynamic(
+  () => import('@/components/sync').then((m) => m.SyncConfirmationModal),
+  { ssr: false }
+);
+const OfflineActivityDrawer = dynamic(
+  () => import('@/components/sync').then((m) => m.OfflineActivityDrawer),
+  { ssr: false }
+);
+const WhatsAppConnectionManager = dynamic(
+  () => import('@/components/admin/WhatsAppConnectionManager').then((m) => m.WhatsAppConnectionManager),
+  { ssr: false }
+);
 import { isRouteAllowedForRole, getRoleLandingRoute, getAvailableRoles, getRoleLabel as getRoleLabelUtil } from '@/features/auth/utils/role-routing';
 import { switchRoleRequest, fetchCurrentUser } from '@/features/auth/api/auth.api';
 import { useAuthStore } from '@/features/auth/store/auth.store';
@@ -151,45 +167,59 @@ export default function DashboardLayout({
     return () => unsubscribe();
   }, []);
 
-  // Warm Service Worker offline caches and prefetch client chunks for offline pages
+  // Warm Service Worker offline caches and prefetch client chunks for offline pages during idle time
   useEffect(() => {
     if (isMounted && isOnline && isAuthenticated) {
-      if (
-        typeof navigator !== 'undefined' &&
-        'serviceWorker' in navigator &&
-        navigator.serviceWorker.controller
-      ) {
-        try {
-          navigator.serviceWorker.controller.postMessage({ type: 'WARM_OFFLINE_SHELL' });
-        } catch {}
-      }
-
       const offlineRoutes =
         user?.role === 'STUDENT'
-          ? ['/student/dashboard', '/student/group', '/student/attendance', '/student/payments']
+          ? ['/student/dashboard', '/student/group', '/student/attendance']
           : user?.role === 'PARENT'
           ? ['/parent/dashboard']
           : [
               '/teacher/dashboard',
-              '/teacher/groups',
-              '/teacher/schedules',
               '/teacher/attendance',
-              '/teacher/students',
-              '/teacher/finance',
+              '/teacher/groups',
             ];
-      const schedulePrefetch = () => {
-        offlineRoutes.forEach((route) => {
+
+      const startBackgroundWarming = () => {
+        if (
+          typeof navigator !== 'undefined' &&
+          'serviceWorker' in navigator &&
+          navigator.serviceWorker.controller
+        ) {
           try {
-            router.prefetch(route);
+            navigator.serviceWorker.controller.postMessage({
+              type: 'WARM_OFFLINE_SHELL',
+              urls: offlineRoutes,
+            });
           } catch {}
+        }
+
+        offlineRoutes.forEach((route, idx) => {
+          setTimeout(() => {
+            try {
+              router.prefetch(route);
+            } catch {}
+          }, idx * 1200);
         });
       };
 
-      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(schedulePrefetch, { timeout: 3000 });
-      } else {
-        setTimeout(schedulePrefetch, 1500);
-      }
+      // Defer background warming until well after critical rendering & LCP (6s delay)
+      let idleId: number | undefined;
+      const timer = setTimeout(() => {
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          idleId = (window as any).requestIdleCallback(startBackgroundWarming, { timeout: 10000 });
+        } else {
+          startBackgroundWarming();
+        }
+      }, 6000);
+
+      return () => {
+        clearTimeout(timer);
+        if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          (window as any).cancelIdleCallback(idleId);
+        }
+      };
     }
   }, [isMounted, isOnline, isAuthenticated, user?.role, router]);
 

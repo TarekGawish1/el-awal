@@ -35,8 +35,19 @@ function initClaritySafely() {
 
 export function ClarityProvider() {
   useEffect(() => {
-    // Check and init on mount if consent already exists
-    initClaritySafely();
+    // Check and init if consent already exists, deferred to idle time to protect initial paint
+    const initDeferred = () => {
+      initClaritySafely();
+    };
+
+    let idleId: any;
+    let timerId: any;
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = (window as any).requestIdleCallback(initDeferred, { timeout: 4000 });
+    } else {
+      timerId = setTimeout(initDeferred, 2500);
+    }
 
     // Listen for consent changes when user interacts with CookieConsentBanner
     const handleConsentUpdate = (event: Event) => {
@@ -49,6 +60,12 @@ export function ClarityProvider() {
     window.addEventListener(COOKIE_CONSENT_EVENT, handleConsentUpdate);
     return () => {
       window.removeEventListener(COOKIE_CONSENT_EVENT, handleConsentUpdate);
+      if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        (window as any).cancelIdleCallback(idleId);
+      }
+      if (timerId) {
+        clearTimeout(timerId);
+      }
     };
   }, []);
 
