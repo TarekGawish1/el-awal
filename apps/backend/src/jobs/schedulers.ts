@@ -818,7 +818,7 @@ export class SchedulersService implements OnModuleInit {
               },
               enrollments: {
                 where: { status: GroupEnrollmentStatus.ACTIVE },
-                select: { studentId: true },
+                select: { studentId: true, enrolledAt: true },
               },
             },
           },
@@ -849,8 +849,16 @@ export class SchedulersService implements OnModuleInit {
           session.attendanceRecords.map((r) => r.studentId),
         );
 
-        // الطلاب اللي مسجلين في المجموعة وملهومش سجل
+        const sessionEndTime = session.endTime
+          ? getSessionUtcDate(session.sessionDate, session.endTime)
+          : new Date(session.sessionDate);
+
+        // الطلاب اللي مسجلين في المجموعة وملهومش سجل وكانوا منضمين بالفعل قبل انتهاء الحصة
         const studentsToMark = session.group.enrollments
+          .filter((e) => {
+            if (!e.enrolledAt) return true;
+            return new Date(e.enrolledAt).getTime() <= sessionEndTime.getTime();
+          })
           .map((e) => e.studentId)
           .filter((id) => !alreadyRecordedIds.has(id));
 

@@ -40,15 +40,48 @@ function formatTime(value?: string | null) {
   return `${hour}:${match[2]} ${suffix}`;
 }
 
-function attendanceForSession(session: StudentGroupSession, today: string) {
-  if (session.sessionDate.slice(0, 10) > today) return { label: 'قادمة', variant: 'neutral' as const };
-  if (session.attendance?.status === 'PRESENT') return { label: 'حاضر', variant: 'success' as const };
-  if (session.attendance?.status === 'EXCUSED') return { label: 'عذر مقبول', variant: 'warning' as const };
-  return { label: 'غائب', variant: 'error' as const };
+function attendanceForSession(session: StudentGroupSession, today: string, enrolledAt?: string | null) {
+  const effectiveEnrolledAt = enrolledAt || session.studentEnrolledAt;
+  const isPreEnrollment =
+    session.isPreEnrollment ||
+    Boolean(
+      effectiveEnrolledAt &&
+        session.sessionDate.slice(0, 10) < effectiveEnrolledAt.slice(0, 10)
+    );
+
+  if (isPreEnrollment) {
+    return { label: 'لم تكن منضماً', variant: 'neutral' as const };
+  }
+
+  if (session.sessionDate.slice(0, 10) > today) {
+    return { label: 'قادمة', variant: 'neutral' as const };
+  }
+
+  if (session.attendance?.status === 'PRESENT') {
+    return { label: 'حاضر', variant: 'success' as const };
+  }
+  if (session.attendance?.status === 'EXCUSED') {
+    return { label: 'عذر مقبول', variant: 'warning' as const };
+  }
+  if (session.attendance?.status === 'ABSENT') {
+    return { label: 'غائب', variant: 'error' as const };
+  }
+
+  return { label: 'لم يسجل بعد', variant: 'neutral' as const };
 }
 
-function CalendarSessionCard({ session, onClick, today }: { session: StudentGroupSession; onClick: () => void; today: string }) {
-  const attendance = attendanceForSession(session, today);
+function CalendarSessionCard({
+  session,
+  onClick,
+  today,
+  enrolledAt,
+}: {
+  session: StudentGroupSession;
+  onClick: () => void;
+  today: string;
+  enrolledAt?: string | null;
+}) {
+  const attendance = attendanceForSession(session, today, enrolledAt);
   return (
     <button
       type="button"
@@ -156,7 +189,7 @@ export default function StudentGroupPage() {
                     const key = day ? dateKey(day) : `empty-${index}`;
                     const daySessions = day ? (sessionsByDate.get(key) || []) : [];
                     return <div key={key} className={`min-h-32 rounded-xl border p-2 ${day ? 'border-slate-100 bg-white' : 'border-transparent bg-slate-50/40'}`}>
-                      {day && <><div className={`mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ${key === today ? 'bg-primary-600 text-white' : 'text-slate-500'}`}>{day.getUTCDate()}</div><div className="space-y-2">{daySessions.map((session) => <CalendarSessionCard key={session.id} session={session} today={today} onClick={() => setSelectedSession(session)} />)}</div></>}
+                      {day && <><div className={`mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ${key === today ? 'bg-primary-600 text-white' : 'text-slate-500'}`}>{day.getUTCDate()}</div><div className="space-y-2">{daySessions.map((session) => <CalendarSessionCard key={session.id} session={session} today={today} enrolledAt={groupData?.enrolledAt} onClick={() => setSelectedSession(session)} />)}</div></>}
                     </div>;
                   })}
                 </div>
@@ -166,7 +199,7 @@ export default function StudentGroupPage() {
         </CardContent>
       </Card>
 
-      {selectedSession && <SessionDetailsModal session={selectedSession} onClose={() => setSelectedSession(null)} />}
+      {selectedSession && <SessionDetailsModal session={selectedSession} enrolledAt={groupData?.enrolledAt} onClose={() => setSelectedSession(null)} />}
     </div>
   );
 }

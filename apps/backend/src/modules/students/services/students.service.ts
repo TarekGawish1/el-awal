@@ -703,6 +703,7 @@ export class StudentsService {
         monthlyFee: Number(group.monthlyFee),
         schedules: group.schedules,
       },
+      enrolledAt: enrollment.enrolledAt,
       teacher: {
         id: group.teacher.id,
         fullName: group.teacher.user.fullName,
@@ -810,8 +811,29 @@ export class StudentsService {
       isCancelled: s.isCancelled,
     }));
 
+    const enrolledAt = enrollment.enrolledAt;
+
     return Promise.all(sessions.map(async (session) => {
       const sessionDateKey = getDateKey(session.sessionDate);
+      const enrolledAtKey = getDateKey(enrolledAt);
+      let sessionEndTime = new Date(session.sessionDate);
+      if (session.endTime) {
+        const [h, m] = session.endTime.split(':').map(Number);
+        if (!isNaN(h) && !isNaN(m)) {
+          sessionEndTime = new Date(session.sessionDate);
+          sessionEndTime.setUTCHours(h, m, 0, 0);
+        }
+      }
+
+      const isPreEnrollment = Boolean(
+        enrolledAt && (
+          (sessionDateKey && enrolledAtKey && sessionDateKey < enrolledAtKey) ||
+          (sessionDateKey === enrolledAtKey && sessionEndTime.getTime() < new Date(enrolledAt).getTime())
+        )
+      );
+
+      const attendance = isPreEnrollment ? null : (session.attendanceRecords[0] || null);
+
       let assessment = assessments.find((item) => {
         if (session.topic && item.title && item.title.includes(session.topic)) return true;
         if (sessionDateKey && item.title && item.title.includes(sessionDateKey)) return true;
@@ -845,7 +867,9 @@ export class StudentsService {
         isCancelled: session.isCancelled,
         cancellationReason: session.cancellationReason,
         location: session.schedule?.location || null,
-        attendance: session.attendanceRecords[0] || null,
+        isPreEnrollment,
+        studentEnrolledAt: enrolledAt,
+        attendance,
         assessment: assessment
           ? {
               id: assessment.id,

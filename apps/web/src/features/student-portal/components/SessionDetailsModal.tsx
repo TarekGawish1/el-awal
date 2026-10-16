@@ -17,6 +17,7 @@ import { StudentGroupSession } from '../api/student.api';
 interface SessionDetailsModalProps {
   session: StudentGroupSession;
   onClose: () => void;
+  enrolledAt?: string | null;
 }
 
 const attendanceLabels: Record<string, { label: string; variant: 'success' | 'error' | 'warning' | 'neutral' }> = {
@@ -43,8 +44,16 @@ function formatRecordedAt(value?: string) {
   }).format(new Date(value));
 }
 
-export function SessionDetailsModal({ session, onClose }: SessionDetailsModalProps) {
-  const attendance = session.attendance ? attendanceLabels[session.attendance.status] : null;
+export function SessionDetailsModal({ session, onClose, enrolledAt }: SessionDetailsModalProps) {
+  const effectiveEnrolledAt = enrolledAt || session.studentEnrolledAt;
+  const isPreEnrollment =
+    session.isPreEnrollment ||
+    Boolean(
+      effectiveEnrolledAt &&
+        session.sessionDate.slice(0, 10) < effectiveEnrolledAt.slice(0, 10)
+    );
+
+  const attendance = !isPreEnrollment && session.attendance ? attendanceLabels[session.attendance.status] : null;
   const assessment = session.assessment;
   const submission = assessment?.submission;
 
@@ -89,9 +98,19 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
           <section className="rounded-xl border border-slate-100 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="font-bold text-slate-800">سجل الحضور</h3>
-              {attendance ? <Badge variant={attendance.variant}>{attendance.label}</Badge> : <Badge variant="neutral">لم يسجل بعد</Badge>}
+              {isPreEnrollment ? (
+                <Badge variant="neutral">لم تكن منضماً</Badge>
+              ) : attendance ? (
+                <Badge variant={attendance.variant}>{attendance.label}</Badge>
+              ) : (
+                <Badge variant="neutral">لم يسجل بعد</Badge>
+              )}
             </div>
-            {session.attendance ? (
+            {isPreEnrollment ? (
+              <p className="text-sm text-slate-500">
+                هذه الحصة أُقيمت قبل تاريخ انضمامك إلى المجموعة، ولذلك لا يُحتسب لك حضور أو غياب عنها.
+              </p>
+            ) : session.attendance ? (
               <p className="text-sm leading-7 text-slate-500">
                 تم تسجيل الحضور {session.attendance.recordingMethod === 'QR_SCAN' ? 'عبر مسح رمز الـ QR' : 'يدوياً'}
                 {session.attendance.recordedAt ? ` الساعة ${formatRecordedAt(session.attendance.recordedAt)}` : ''}

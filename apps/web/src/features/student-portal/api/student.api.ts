@@ -24,6 +24,8 @@ export interface StudentGroupSession {
   topic?: string | null;
   isCancelled: boolean;
   cancellationReason?: string | null;
+  isPreEnrollment?: boolean;
+  studentEnrolledAt?: string | null;
   attendance?: {
     status: 'PRESENT' | 'ABSENT' | 'EXCUSED';
     recordingMethod?: 'QR_SCAN' | 'MANUAL';
@@ -79,6 +81,7 @@ export interface StudentGroupDetails {
       location?: string | null;
     }>;
   };
+  enrolledAt?: string | null;
   teacher: {
     id: string;
     fullName: string;
