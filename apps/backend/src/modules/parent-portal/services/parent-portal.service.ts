@@ -9,6 +9,7 @@ import {
   PaymentStatus,
   HomeworkSubmissionStatus,
   UserRole,
+  AssessmentType,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import {
@@ -187,7 +188,26 @@ export class ParentPortalService {
             select: {
               sessionDate: true,
               topic: true,
-              group: { select: { name: true } },
+              group: {
+                select: {
+                  name: true,
+                  _count: {
+                    select: {
+                      assessments: {
+                        where: {
+                          type: AssessmentType.ASSIGNMENT,
+                          isPublished: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              _count: {
+                select: {
+                  homeworkRecords: true,
+                },
+              },
               homeworkRecords: {
                 where: { studentId },
                 select: { status: true },
@@ -294,24 +314,39 @@ export class ParentPortalService {
       .filter((p) => p.paymentStatus !== PaymentStatus.PAID)
       .reduce((acc, p) => acc + (Number(p.amountExpected) || 0), 0);
 
+    // Helper to determine if a session actually had a homework requirement:
+    // (Either this student has a homework record, the session tracked homework for attendees,
+    // or the group has published assignments)
+    const isSessionHomeworkApplicable = (r: any) => {
+      const studentHw = (r.session?.homeworkRecords?.length ?? 0) > 0;
+      const sessionTrackedHw = (r.session?._count?.homeworkRecords ?? 0) > 0;
+      const groupHasHw = (r.session?.group?._count?.assessments ?? 0) > 0;
+      return studentHw || sessionTrackedHw || groupHasHw;
+    };
+
     // Homework performance stats from last attendance records
-    const hwCompleted = safeAttendanceHistory.filter((r) => {
+    const sessionsWithHw = safeAttendanceHistory.filter(
+      (r: any) => r.status === AttendanceStatus.PRESENT && isSessionHomeworkApplicable(r),
+    );
+
+    const hwCompleted = sessionsWithHw.filter((r: any) => {
       const hw = r.session?.homeworkRecords?.[0]?.status;
       return (
-        r.status === AttendanceStatus.PRESENT &&
-        (hw === HomeworkSubmissionStatus.CHECKED_ONSITE ||
-          hw === HomeworkSubmissionStatus.SUBMITTED_ONLINE ||
-          hw === HomeworkSubmissionStatus.EXCUSED)
+        hw === HomeworkSubmissionStatus.CHECKED_ONSITE ||
+        hw === HomeworkSubmissionStatus.SUBMITTED_ONLINE ||
+        hw === HomeworkSubmissionStatus.EXCUSED
       );
     }).length;
-    const hwMissing = safeAttendanceHistory.filter((r) => {
+
+    const hwMissing = sessionsWithHw.filter((r: any) => {
       const hw = r.session?.homeworkRecords?.[0]?.status;
-      return (
-        r.status === AttendanceStatus.PRESENT &&
-        (!hw || hw === HomeworkSubmissionStatus.NOT_SUBMITTED)
-      );
+      return !hw || hw === HomeworkSubmissionStatus.NOT_SUBMITTED;
     }).length;
-    const hwIncomplete = 0;
+
+    const hwIncomplete = sessionsWithHw.filter((r: any) => {
+      const hw = r.session?.homeworkRecords?.[0]?.status;
+      return (hw as string) === 'INCOMPLETE';
+    }).length;
 
     // Next scheduled session calculation
     let nextSession: any = null;
@@ -400,6 +435,7 @@ export class ParentPortalService {
         totalUnpaid,
         hwStats: {
           totalAttended: presentSessions,
+          totalAssigned: sessionsWithHw.length,
           hwCompleted,
           hwMissing,
           hwIncomplete,
@@ -413,9 +449,19 @@ export class ParentPortalService {
         },
       },
       nextSession,
-      attendanceHistory: safeAttendanceHistory.map((a) => {
+      attendanceHistory: safeAttendanceHistory.map((a: any) => {
+        const hasHw = isSessionHomeworkApplicable(a);
         const hwRecord = a.session?.homeworkRecords?.[0];
-        const homeworkStatus = hwRecord?.status || 'NOT_SUBMITTED';
+        let homeworkStatus = 'NO_HOMEWORK';
+
+        if (hasHw) {
+          if (hwRecord?.status) {
+            homeworkStatus = hwRecord.status;
+          } else {
+            homeworkStatus = a.status === AttendanceStatus.PRESENT ? 'MISSING' : 'EXCUSED';
+          }
+        }
+
         return {
           id: a.id,
           sessionId: a.sessionId,
@@ -423,6 +469,7 @@ export class ParentPortalService {
           sessionDate: a.session?.sessionDate || a.recordedAt,
           status: a.status,
           homeworkStatus,
+          hasHomework: hasHw,
           recordedAt: a.recordedAt,
         };
       }),

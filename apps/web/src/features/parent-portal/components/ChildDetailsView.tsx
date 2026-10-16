@@ -65,8 +65,9 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
 
   // --- Calculations ---
   const totalAttended = overview?.kpis?.hwStats?.totalAttended ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT').length;
-  const hwCompleted = overview?.kpis?.hwStats?.hwCompleted ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED')).length;
-  const hwMissing = overview?.kpis?.hwStats?.hwMissing ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'MISSING').length;
+  const totalAssignedHw = overview?.kpis?.hwStats?.totalAssigned ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus && r.homeworkStatus !== 'NO_HOMEWORK').length;
+  const hwCompleted = overview?.kpis?.hwStats?.hwCompleted ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED' || r.homeworkStatus === 'CHECKED_ONSITE')).length;
+  const hwMissing = overview?.kpis?.hwStats?.hwMissing ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'MISSING' || r.homeworkStatus === 'NOT_SUBMITTED')).length;
   const hwIncomplete = overview?.kpis?.hwStats?.hwIncomplete ?? attendanceHistory.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'INCOMPLETE').length;
 
   const totalPaid = overview?.kpis?.totalPaid ?? paymentHistory.filter((p: any) => p.paymentStatus === 'PAID').reduce((acc: number, p: any) => acc + (Number(p.amountPaid) || 0), 0);
@@ -421,7 +422,9 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
             <p className="text-[10px] font-bold text-slate-500 mb-1">مستوى الأداء</p>
             <p className="text-lg font-black text-slate-800">
-              {totalAttended > 0 ? (hwCompleted / totalAttended > 0.8 ? 'ممتاز' : hwCompleted / totalAttended > 0.5 ? 'جيد' : 'ضعيف') : 'غير محدد'}
+              {totalAssignedHw > 0
+                ? (hwCompleted / totalAssignedHw >= 0.8 ? 'ممتاز' : hwCompleted / totalAssignedHw >= 0.5 ? 'جيد' : 'ضعيف')
+                : totalAttended > 0 ? 'منتظم' : 'غير محدد'}
             </p>
           </div>
           <div className="bg-green-50 p-3 rounded-2xl border border-green-100 text-center">
@@ -463,17 +466,12 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
             <div className="flex-1 bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
               <p className="text-xs text-blue-700 font-bold mb-1">نسبة حل الواجب</p>
               <p className="text-xl font-black text-blue-700">
-                {attendanceHistory &&
-                attendanceHistory.filter((r: any) => r.status === 'PRESENT').length > 0
-                  ? Math.round(
-                      (attendanceHistory.filter(
-                        (r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED'),
-                      ).length /
-                        attendanceHistory.filter((r: any) => r.status === 'PRESENT').length) *
-                        100,
-                    )
-                  : 0}
-                %
+                {(() => {
+                  if (totalAssignedHw > 0) {
+                    return `${Math.round((hwCompleted / totalAssignedHw) * 100)}%`;
+                  }
+                  return totalAttended > 0 ? '100%' : '0%';
+                })()}
               </p>
             </div>
           </div>
@@ -520,7 +518,7 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
                       let hwTitle = "لم يحضر";
 
                       if (isPresent) {
-                        if (record.homeworkStatus === 'COMPLETED' || record.homeworkStatus === 'SUBMITTED' || record.homeworkStatus === 'EXCUSED') {
+                        if (record.homeworkStatus === 'COMPLETED' || record.homeworkStatus === 'SUBMITTED' || record.homeworkStatus === 'EXCUSED' || record.homeworkStatus === 'CHECKED_ONSITE') {
                           hwIcon = <Check className="w-4 h-4" />;
                           hwClass = "bg-blue-100 border-blue-200 text-blue-600";
                           hwTitle = "تم حل الواجب";
@@ -528,14 +526,14 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
                           hwIcon = <FileWarning className="w-4 h-4" />;
                           hwClass = "bg-amber-100 border-amber-200 text-amber-600";
                           hwTitle = "واجب ناقص";
-                        } else if (record.homeworkStatus === 'MISSING') {
+                        } else if (record.homeworkStatus === 'MISSING' || record.homeworkStatus === 'NOT_SUBMITTED') {
                           hwIcon = <X className="w-4 h-4" />;
                           hwClass = "bg-red-100 border-red-200 text-red-600";
                           hwTitle = "لم يحل الواجب";
                         } else {
-                          hwIcon = <HelpCircle className="w-4 h-4" />;
-                          hwClass = "bg-slate-100 border-slate-200 text-slate-500";
-                          hwTitle = "غير مسجل";
+                          hwIcon = <span className="text-sm font-bold text-slate-400">-</span>;
+                          hwClass = "bg-slate-50 border-slate-200 text-slate-400";
+                          hwTitle = "لا يوجد واجب لهذه الحصة";
                         }
                       }
 

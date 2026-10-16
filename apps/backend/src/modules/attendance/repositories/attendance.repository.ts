@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { AttendanceRecord, AttendanceStatus } from '@prisma/client';
+import { AttendanceRecord, AttendanceStatus, AssessmentType } from '@prisma/client';
 import { CursorPaginationHelper, CursorPaginationParams, PaginatedResult } from '../../../common/pagination/cursor-pagination.helper';
 
 export interface QrScanResult {
@@ -119,7 +119,26 @@ export class AttendanceRepository {
               select: {
                 id: true,
                 name: true,
+                _count: {
+                  select: {
+                    assessments: {
+                      where: {
+                        type: AssessmentType.ASSIGNMENT,
+                        isPublished: true,
+                      },
+                    },
+                  },
+                },
               },
+            },
+            _count: {
+              select: {
+                homeworkRecords: true,
+              },
+            },
+            homeworkRecords: {
+              where: { studentId },
+              select: { status: true },
             },
           },
         },
@@ -127,7 +146,22 @@ export class AttendanceRepository {
     });
 
     return CursorPaginationHelper.formatResponse(
-      records.map((r) => ({ ...r, createdAt: r.recordedAt })),
+      records.map((r: any) => {
+        const studentHw = r.session?.homeworkRecords?.[0];
+        const sessionTrackedHw = (r.session?._count?.homeworkRecords ?? 0) > 0;
+        const groupHasHw = (r.session?.group?._count?.assessments ?? 0) > 0;
+        const hasHomework = !!studentHw || sessionTrackedHw || groupHasHw;
+        const homeworkStatus = hasHomework
+          ? (studentHw?.status || 'MISSING')
+          : 'NO_HOMEWORK';
+
+        return {
+          ...r,
+          homeworkStatus,
+          hasHomework,
+          createdAt: r.recordedAt,
+        };
+      }),
       limit,
     );
   }

@@ -331,12 +331,19 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                   <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100/50 flex flex-col justify-center">
                     <span className="text-xs text-blue-600 font-semibold mb-1">نسبة حل الواجب</span>
                     <span className="text-2xl font-black text-blue-700">
-                      {attendanceHistory && attendanceHistory.filter((r: any) => r.status === 'PRESENT').length > 0
-                        ? Math.round(
-                            (attendanceHistory.filter((r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED')).length /
-                              attendanceHistory.filter((r: any) => r.status === 'PRESENT').length) * 100
-                          )
-                        : 0}%
+                      {(() => {
+                        const presentWithHw = (attendanceHistory || []).filter(
+                          (r: any) => r.status === 'PRESENT' && r.homeworkStatus && r.homeworkStatus !== 'NO_HOMEWORK'
+                        );
+                        if (presentWithHw.length === 0) {
+                          const totalPresent = (attendanceHistory || []).filter((r: any) => r.status === 'PRESENT').length;
+                          return totalPresent > 0 ? '100%' : '0%';
+                        }
+                        const done = presentWithHw.filter(
+                          (r: any) => r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED' || r.homeworkStatus === 'CHECKED_ONSITE'
+                        ).length;
+                        return `${Math.round((done / presentWithHw.length) * 100)}%`;
+                      })()}
                     </span>
                   </div>
                 </div>
@@ -373,16 +380,21 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                             <td className="p-3 text-slate-700 font-bold whitespace-nowrap text-start">الواجب</td>
                             {[...attendanceHistory].reverse().map((record: any) => {
                               const isPresent = record.status === 'PRESENT';
-                              const hwDone = record.homeworkStatus === 'COMPLETED' || record.homeworkStatus === 'SUBMITTED' || record.homeworkStatus === 'EXCUSED';
+                              const hasHw = record.homeworkStatus && record.homeworkStatus !== 'NO_HOMEWORK';
+                              const hwDone = record.homeworkStatus === 'COMPLETED' || record.homeworkStatus === 'SUBMITTED' || record.homeworkStatus === 'EXCUSED' || record.homeworkStatus === 'CHECKED_ONSITE';
                               return (
                                 <td key={`hw-${record.id}`} className="p-2">
                                   {!isPresent ? (
                                     <div className="mx-auto w-6 h-6 rounded-md flex items-center justify-center bg-slate-50 border border-slate-100 text-slate-300" title="لم يحضر">
                                       -
                                     </div>
+                                  ) : !hasHw ? (
+                                    <div className="mx-auto w-6 h-6 rounded-md flex items-center justify-center bg-slate-50 border border-slate-100 text-slate-400 text-xs" title="لا يوجد واجب لهذه الحصة">
+                                      -
+                                    </div>
                                   ) : (
                                     <div className={`mx-auto w-6 h-6 rounded-md flex items-center justify-center border ${
-                                      hwDone ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-amber-50 border-amber-200 text-amber-600'
+                                      hwDone ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-red-50 border-red-200 text-red-600'
                                     }`} title={hwDone ? 'تم حل الواجب' : 'لم يحل الواجب'}>
                                       {hwDone ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
                                     </div>
