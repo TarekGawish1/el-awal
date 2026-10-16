@@ -1,44 +1,66 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { getRoleLandingRoute, hasMultipleRoles } from '@/features/auth/utils/role-routing';
 import { getStoredUser } from '@/features/auth/utils/auth-tokens';
 
+/**
+ * Resolves the dashboard route from a user object (same logic as before).
+ */
+function resolveRoute(effectiveUser: ReturnType<typeof getStoredUser>): string | null {
+  if (!effectiveUser) return null;
+  if (effectiveUser.role === 'STUDENT') return '/student/dashboard';
+  if (effectiveUser.role === 'TEACHER' || effectiveUser.role === 'SECRETARIAT') return '/teacher/dashboard';
+  if (effectiveUser.role === 'PARENT') return '/parent/dashboard';
+  if (hasMultipleRoles(effectiveUser)) return '/select-role';
+  return getRoleLandingRoute(effectiveUser.role);
+}
+
 export default function PwaEntryPage() {
   const router = useRouter();
   const { user, isAuthenticated, isInitialized } = useAuth();
+  const didRedirect = useRef(false);
 
+  // ── Fast path: synchronous localStorage check on first render ──
+  // Runs before any async auth initialization. If a user profile exists in
+  // localStorage we can navigate immediately without waiting for useEffect.
+  if (typeof window !== 'undefined' && !didRedirect.current) {
+    const storedUser = getStoredUser();
+    const target = resolveRoute(storedUser);
+    if (target) {
+      didRedirect.current = true;
+      // Use location.replace to avoid a history entry for the splash page.
+      window.location.replace(target);
+    }
+  }
+
+  // ── Fallback: once auth store finishes initializing ──
+  // Handles the case where localStorage was cleared (logged-out) or the fast
+  // path ran on the server.
   useEffect(() => {
-    // Fast path: Synchronous check of stored user profile in localStorage
+    if (didRedirect.current) return;
+
     const storedUser = getStoredUser();
     const effectiveUser = isInitialized && isAuthenticated && user ? user : storedUser;
+    const target = resolveRoute(effectiveUser);
 
-    if (effectiveUser) {
-      if (effectiveUser.role === 'STUDENT') {
-        router.replace('/student/dashboard');
-        return;
-      }
-      if (effectiveUser.role === 'TEACHER' || effectiveUser.role === 'SECRETARIAT') {
-        router.replace('/teacher/dashboard');
-        return;
-      }
-      if (hasMultipleRoles(effectiveUser)) {
-        router.replace('/select-role');
-        return;
-      }
-      router.replace(getRoleLandingRoute(effectiveUser.role));
+    if (target) {
+      didRedirect.current = true;
+      router.replace(target);
       return;
     }
 
-    // Unauthenticated visitor: redirect to login
+    // No stored user at all — redirect to login once auth is ready
     if (isInitialized) {
+      didRedirect.current = true;
       router.replace('/login');
     }
   }, [isInitialized, isAuthenticated, user, router]);
 
+  // Minimal splash kept intentionally short (only shows if localStorage is empty)
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-center items-center py-6 px-4">
       <div className="w-full max-w-md flex flex-col items-center justify-center space-y-4 text-center">
