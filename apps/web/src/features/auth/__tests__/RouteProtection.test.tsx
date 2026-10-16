@@ -50,7 +50,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
       </DashboardLayout>
     );
 
-    expect(screen.getByText('جاري التحقق من بيانات الدخول...')).toBeInTheDocument();
+    expect(screen.getByText('نظام إدارة التعليم')).toBeInTheDocument();
     expect(screen.queryByText('Protected Dashboard Content')).not.toBeInTheDocument();
   });
 

@@ -83,12 +83,7 @@ export function useSiteSettings() {
         const res = await apiClient<any>(API_ENDPOINTS.SITE_SETTINGS.PUBLIC);
         return res?.data ?? res ?? {};
       } catch {
-        try {
-          const res = await apiClient<any>('/settings/site');
-          return res?.data ?? res ?? {};
-        } catch {
-          return {};
-        }
+        return {};
       }
     },
     staleTime: 15 * 60 * 1000, // 15 minutes
