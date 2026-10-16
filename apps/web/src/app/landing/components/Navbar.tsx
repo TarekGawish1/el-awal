@@ -45,7 +45,7 @@ export function Navbar() {
       <div className="absolute inset-0 bg-white/70 backdrop-blur-md border-b border-white/20 shadow-sm" />
 
       {/* Content */}
-      <div className="relative z-10 container mx-auto flex items-center justify-between">
+      <div className="relative z-10 w-full max-w-[98%] 2xl:max-w-[1880px] mx-auto flex items-center justify-between px-2 sm:px-4">
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">

@@ -312,8 +312,8 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
           </div>
         </div>
         {/* Transparent fading sides — softens the hard cut-off at both edges */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-4 sm:w-6 bg-gradient-to-r from-slate-50 to-transparent z-10" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-4 sm:w-6 bg-gradient-to-l from-slate-50 to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-8 sm:w-16 bg-gradient-to-r from-slate-50 to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 sm:w-16 bg-gradient-to-l from-slate-50 to-transparent z-10" />
       </div>
     </div>
   );
@@ -584,7 +584,7 @@ export function CertificatesSection() {
         <div className="absolute bottom-[10%] left-[5%] w-[40%] h-[30%] rounded-full bg-orange-50 blur-[120px]" />
       </div>
 
-      <div className="container mx-auto px-6 relative z-10">
+      <div className="w-full max-w-[98%] 2xl:max-w-[1880px] mx-auto px-2 sm:px-4 md:px-6 relative z-10">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -641,7 +641,7 @@ export function CertificatesSection() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: stageIndex * 0.1 }}
               >
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-6 px-1 sm:px-2">
                   <h3 className="text-2xl font-bold text-slate-800 border-r-4 border-amber-500 pr-4">
                     {stage.stageName}
                   </h3>
