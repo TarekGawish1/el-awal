@@ -13,6 +13,7 @@ import { CourseManagementContainer } from '@/features/courses/components/CourseM
 import { CourseBuilderView } from '@/features/courses/components/CourseBuilderView';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { coursesApi } from '@/features/courses/api/courses.api';
+import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 
 // Mock dependencies
 vi.mock('@/features/courses/api/courses.api', () => ({
@@ -677,6 +678,16 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       // Grade select should now contain middle school grades
       expect(screen.getByDisplayValue('الصف الأول الإعدادي')).toBeInTheDocument();
+    });
+
+    it('disables assessments query when modal is closed', () => {
+      vi.clearAllMocks();
+      const mockCourse = { id: 'course-99' } as any;
+      render(<EditCourseModal isOpen={false} course={mockCourse} onClose={vi.fn()} />, { wrapper });
+      expect(useAssessments).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ enabled: false })
+      );
     });
   });
 

@@ -123,6 +123,9 @@ describe('GroupList', () => {
     // Verify filter dropdowns exist
     expect(screen.getByText('جميع المراحل التعليمية')).toBeInTheDocument();
     expect(screen.getByText('جميع الأماكن والسناتر')).toBeInTheDocument();
+
+    // Verify student count is derived directly from group._count.enrollments
+    expect(screen.getByText(/10 طالب/i)).toBeInTheDocument();
   });
 
   it('loads and respects stored academic year and semester from localStorage', () => {

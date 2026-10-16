@@ -7,13 +7,39 @@ import { getMessaging, Messaging, MulticastMessage } from 'firebase-admin/messag
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { IsString, IsNotEmpty, IsOptional, ValidateNested, IsObject } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class PushSubscriptionKeysDto {
+  @IsOptional()
+  @IsString()
+  p256dh?: string;
+
+  @IsOptional()
+  @IsString()
+  auth?: string;
+}
+
 export class PushSubscriptionDto {
+  @IsString()
+  @IsNotEmpty()
   endpoint!: string;
-  keys?: {
-    p256dh: string;
-    auth: string;
-  };
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => PushSubscriptionKeysDto)
+  keys?: PushSubscriptionKeysDto;
+
+  @IsOptional()
+  @IsString()
   userAgent?: string;
+}
+
+export class PushUnsubscribeDto {
+  @IsString()
+  @IsNotEmpty()
+  endpoint!: string;
 }
 
 export interface PushPayload {

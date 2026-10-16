@@ -35,7 +35,10 @@ export const assessmentKeys = {
   submissionDetail: (submissionId: string) => [...assessmentKeys.all, 'submission', submissionId] as const,
 };
 
-export function useAssessments(query?: Record<string, string>) {
+export function useAssessments(
+  query?: Record<string, string>,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: assessmentKeys.list(JSON.stringify(query)),
     queryFn: async () => {
@@ -62,6 +65,7 @@ export function useAssessments(query?: Record<string, string>) {
         };
       }
     },
+    enabled: options?.enabled,
   });
 }
 

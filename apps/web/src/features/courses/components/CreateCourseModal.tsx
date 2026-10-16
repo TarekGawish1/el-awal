@@ -40,7 +40,7 @@ interface CreateCourseModalProps {
 
 export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseModalProps) {
   const createMutation = useCreateCourse();
-  const { data: assessmentsData } = useAssessments();
+  const { data: assessmentsData } = useAssessments(undefined, { enabled: isOpen });
   const assessments = Array.isArray(assessmentsData)
     ? assessmentsData
     : (assessmentsData?.data || []);

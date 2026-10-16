@@ -362,11 +362,11 @@ export function useLessonViewer(lessonId: string) {
   });
 }
 
-export function useLessonStreamAuth(lessonId: string) {
+export function useLessonStreamAuth(lessonId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['lesson-stream-auth', lessonId],
     queryFn: () => coursesApi.getLessonStreamAuth(lessonId),
-    enabled: !!lessonId,
+    enabled: options?.enabled !== undefined ? (!!lessonId && options.enabled) : !!lessonId,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (data?.videoStatus === 'PROCESSING') {

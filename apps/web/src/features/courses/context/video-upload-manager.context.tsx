@@ -15,10 +15,7 @@ import {
   validateVideoFile,
   VideoMetadata,
 } from '../utils/video-optimizer';
-import {
-  createBunnyTusUpload,
-  BunnyTusUploadInstance,
-} from '../utils/bunny-tus-uploader';
+import type { BunnyTusUploadInstance } from '../utils/bunny-tus-uploader';
 
 export interface VideoUploadTask {
   id: string;
@@ -474,6 +471,7 @@ export function VideoUploadManagerProvider({
           });
 
           // Upload directly to Bunny Stream using official TUS resumable protocol
+          const { createBunnyTusUpload } = await import('../utils/bunny-tus-uploader');
           const tusUpload = createBunnyTusUpload({
             file,
             videoId: creds.videoId,

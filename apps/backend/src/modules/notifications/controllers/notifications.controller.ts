@@ -19,7 +19,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { NotificationsService } from '../services/notifications.service';
-import { WebPushService, PushSubscriptionDto } from '../../../services/webpush.service';
+import { WebPushService, PushSubscriptionDto, PushUnsubscribeDto } from '../../../services/webpush.service';
 import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import {
@@ -126,7 +126,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Remove a Web Push subscription' })
   async unsubscribeFromPush(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { endpoint: string },
+    @Body() body: PushUnsubscribeDto,
   ) {
     await this.webPushService.unsubscribe(user.id, body.endpoint);
     return { success: true, message: 'Push subscription removed' };

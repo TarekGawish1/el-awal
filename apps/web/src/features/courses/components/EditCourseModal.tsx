@@ -74,7 +74,7 @@ const COMMON_SUBJECTS = [
 export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCourseModalProps) {
   const queryClient = useQueryClient();
   const updateMutation = useUpdateCourse(course.id);
-  const { data: assessmentsData } = useAssessments();
+  const { data: assessmentsData } = useAssessments(undefined, { enabled: isOpen });
   const assessments = Array.isArray(assessmentsData)
     ? assessmentsData
     : (assessmentsData?.data || []);
