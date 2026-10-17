@@ -1,35 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  Eye,
-  Users,
-  TrendingUp,
-  Globe,
-  LayoutDashboard,
-  Calendar,
-  RefreshCw,
-  Laptop,
-  Smartphone,
-  Tablet,
-  ArrowUpRight,
-  Sparkles,
-  Layers,
-  Filter,
-  CheckCircle2,
-  Info,
-  UserCheck,
-  UserPlus,
-  Monitor,
-  Chrome,
-  Clock,
-  GraduationCap,
-  ShieldCheck,
-  ArrowLeft,
-} from 'lucide-react';
+import { Eye, RefreshCw } from 'lucide-react';
 import { useAnalyticsOverview } from '../hooks/useAnalytics';
 import { AnalyticsScope, AnalyticsRange } from '../types/analytics.types';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { AnalyticsFilterBar } from './AnalyticsFilterBar';
+import { AnalyticsKpiGrid } from './AnalyticsKpiGrid';
+import { AnalyticsRoleCards } from './AnalyticsRoleCards';
+import { AnalyticsTimeSeriesChart } from './AnalyticsTimeSeriesChart';
+import { AnalyticsDevicesBreakdown } from './AnalyticsDevicesBreakdown';
 import { GeoRankingCard } from './GeoRankingCard';
 import { StudentLeaderboardCard } from './StudentLeaderboardCard';
 import { VisitorListCard } from './VisitorListCard';
@@ -41,8 +21,6 @@ export function AnalyticsDashboard() {
   const [scope, setScope] = useState<AnalyticsScope>('all');
   const [range, setRange] = useState<AnalyticsRange>('week');
   const [isCustomOpen, setIsCustomOpen] = useState(false);
-  // Device section sub-tab: 'device' | 'os' | 'browser'
-  const [deviceTab, setDeviceTab] = useState<'device' | 'os' | 'browser'>('device');
 
   // Default custom range: last 7 days
   const todayStr = new Date().toISOString().split('T')[0];
@@ -51,9 +29,6 @@ export function AnalyticsDashboard() {
   const [customTo, setCustomTo] = useState(todayStr);
   const [appliedCustomFrom, setAppliedCustomFrom] = useState<string | undefined>(undefined);
   const [appliedCustomTo, setAppliedCustomTo] = useState<string | undefined>(undefined);
-
-  // Hovered time series bar tooltip
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   // Selected role filter for visitor list navigation
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<'all' | 'students' | 'parents' | 'guests'>('all');
@@ -66,8 +41,7 @@ export function AnalyticsDashboard() {
     }
   };
 
-  // Fetch aggregated overview (consolidates stats, geo-ranking, student leaderboard, and visitors into 1 single roundtrip)
-  const { data: overviewData, isLoading, isFetching, refetch, error } = useAnalyticsOverview({
+  const { data: overviewData, isLoading, isFetching, refetch } = useAnalyticsOverview({
     scope,
     range,
     from: range === 'custom' ? appliedCustomFrom : undefined,
@@ -116,7 +90,6 @@ export function AnalyticsDashboard() {
   };
 
   const timeSeries = data?.timeSeries || [];
-  const maxViews = Math.max(...timeSeries.map((t) => t.totalViews), 1);
 
   return (
     <div className="space-y-6 pb-28 sm:pb-12 animate-in fade-in duration-200">
@@ -157,806 +130,52 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* Scope Switcher & Date Range Filters Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-neutral-200/80 shadow-xs space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Scope Segmented Control */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-neutral-500 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-neutral-400" />
-              <span>نطاق التحليل:</span>
-            </label>
-            <div className="inline-flex p-1 bg-neutral-100/90 rounded-xl border border-neutral-200/60 max-w-full overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setScope('all')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  scope === 'all'
-                    ? 'bg-white text-primary-700 shadow-xs'
-                    : 'text-neutral-600 hover:text-neutral-900'
-                }`}
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>الكل (الموقع والنظام)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setScope('landing')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  scope === 'landing'
-                    ? 'bg-white text-primary-700 shadow-xs'
-                    : 'text-neutral-600 hover:text-neutral-900'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>الموقع التعريفي فقط</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setScope('system')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  scope === 'system'
-                    ? 'bg-white text-primary-700 shadow-xs'
-                    : 'text-neutral-600 hover:text-neutral-900'
-                }`}
-              >
-                <LayoutDashboard className="w-3.5 h-3.5 text-primary-600" />
-                <span>النظام الداخلي</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Date Range Buttons */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-neutral-500 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-neutral-400" />
-              <span>الفترة الزمنية:</span>
-            </label>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {[
-                { id: 'today', label: 'اليوم' },
-                { id: 'week', label: 'هذا الأسبوع' },
-                { id: 'month', label: 'هذا الشهر' },
-                { id: 'year', label: 'هذه السنة' },
-                { id: 'all', label: 'جميع الأوقات' },
-                { id: 'custom', label: 'مخصص (تاريخ محدد)' },
-              ].map((item) => {
-                const isActive = range === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleRangeChange(item.id as AnalyticsRange)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-primary-600 text-white shadow-xs'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Custom Date Range Picker Accordion */}
-        {isCustomOpen && (
-          <form
-            onSubmit={handleApplyCustomRange}
-            className="pt-3 border-t border-neutral-100 flex flex-wrap items-center gap-3 animate-in fade-in duration-150"
-          >
-            <div className="flex items-center gap-2 text-xs font-bold text-neutral-600">
-              <Filter className="w-3.5 h-3.5 text-primary-600" />
-              <span>من:</span>
-              <input
-                type="date"
-                value={customFrom}
-                onChange={(e) => setCustomFrom(e.target.value)}
-                max={todayStr}
-                required
-                className="px-2.5 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-medium text-neutral-800 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 text-xs font-bold text-neutral-600">
-              <span>إلى:</span>
-              <input
-                type="date"
-                value={customTo}
-                onChange={(e) => setCustomTo(e.target.value)}
-                max={todayStr}
-                required
-                className="px-2.5 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-medium text-neutral-800 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs cursor-pointer"
-            >
-              تطبيق التصفية
-            </button>
-          </form>
-        )}
-      </div>
+      <AnalyticsFilterBar
+        scope={scope}
+        setScope={setScope}
+        range={range}
+        onRangeChange={handleRangeChange}
+        isCustomOpen={isCustomOpen}
+        customFrom={customFrom}
+        setCustomFrom={setCustomFrom}
+        customTo={customTo}
+        setCustomTo={setCustomTo}
+        todayStr={todayStr}
+        onApplyCustomRange={handleApplyCustomRange}
+      />
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {/* Card 1: Total Views */}
-        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-primary-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-neutral-500 uppercase">الزيارات الإجمالية</span>
-            <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl group-hover:scale-105 transition-transform">
-              <Eye className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
-              {isLoading ? (
-                <div className="h-8 w-24 bg-neutral-200 animate-pulse rounded-md" />
-              ) : (
-                formatNumber(summary.totalViews)
-              )}
-            </h3>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-neutral-500">
-              <span>تتضمن:</span>
-              <span className="font-bold text-primary-700">{formatNumber(summary.landingViews)}</span>
-              <span>موقع</span>
-              <span>·</span>
-              <span className="font-bold text-emerald-700">{formatNumber(summary.systemViews)}</span>
-              <span>نظام</span>
-            </div>
-          </div>
-          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-primary-500/5 to-transparent rounded-bl-full pointer-events-none" />
-        </div>
-
-        {/* Card 2: Unique Visitors */}
-        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-emerald-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-neutral-500 uppercase">الزوار الفريدين</span>
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl group-hover:scale-105 transition-transform">
-              <Users className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
-              {isLoading ? (
-                <div className="h-8 w-20 bg-neutral-200 animate-pulse rounded-md" />
-              ) : (
-                formatNumber(summary.uniqueVisitors)
-              )}
-            </h3>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-neutral-500">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>معرّف آمن للخصوصية (SHA-256)</span>
-            </div>
-          </div>
-          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-emerald-500/5 to-transparent rounded-bl-full pointer-events-none" />
-        </div>
-
-        {/* Card 3: Views per Visitor */}
-        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-purple-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-neutral-500 uppercase">متوسط الزيارات للزائر</span>
-            <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl group-hover:scale-105 transition-transform">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
-              {isLoading ? (
-                <div className="h-8 w-16 bg-neutral-200 animate-pulse rounded-md" />
-              ) : (
-                summary.viewsPerVisitor
-              )}
-            </h3>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-neutral-500">
-              <span>تفاعل الزائر مع صفحات الموقع</span>
-            </div>
-          </div>
-          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-purple-500/5 to-transparent rounded-bl-full pointer-events-none" />
-        </div>
-
-        {/* Card 4: New vs Returning Visitors */}
-        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-rose-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-neutral-500 uppercase">زوار جدد / عائدون</span>
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl group-hover:scale-105 transition-transform">
-              <Users className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            {isLoading ? (
-              <div className="h-8 w-24 bg-neutral-200 animate-pulse rounded-md" />
-            ) : summary.uniqueVisitors > 0 ? (
-              <>
-                <div className="flex items-center justify-between text-xs font-bold mb-1.5">
-                  <span className="text-emerald-700 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                    جدد: {formatNumber(summary.newVisitors ?? 0)}
-                  </span>
-                  <span className="text-rose-600 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />
-                    عائدون: {formatNumber(summary.returningVisitors ?? 0)}
-                  </span>
-                </div>
-                <div className="w-full h-2.5 bg-neutral-100 rounded-full overflow-hidden flex">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-500"
-                    style={{ width: summary.uniqueVisitors > 0 ? `${Math.round(((summary.newVisitors ?? 0) / summary.uniqueVisitors) * 100)}%` : '0%' }}
-                    title="زوار جدد"
-                  />
-                  <div
-                    className="h-full bg-rose-400 transition-all duration-500"
-                    style={{ width: summary.uniqueVisitors > 0 ? `${Math.round(((summary.returningVisitors ?? 0) / summary.uniqueVisitors) * 100)}%` : '0%' }}
-                    title="عائدون"
-                  />
-                </div>
-                <p className="text-[11px] text-neutral-400 mt-2">
-                  {summary.uniqueVisitors > 0 ? Math.round(((summary.returningVisitors ?? 0) / summary.uniqueVisitors) * 100) : 0}% زاروا أكثر من مرة
-                </p>
-              </>
-            ) : (
-              <div className="text-xs text-neutral-400 mt-2">لا توجد بيانات كافية</div>
-            )}
-          </div>
-          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-rose-500/5 to-transparent rounded-bl-full pointer-events-none" />
-        </div>
-
-        {/* Card 5: Total Browsing Time */}
-        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-amber-200 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-neutral-500 uppercase">إجمالي وقت التواجد</span>
-            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-105 transition-transform">
-              <Clock className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <h3 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
-              {isLoading ? (
-                <div className="h-8 w-24 bg-neutral-200 animate-pulse rounded-md" />
-              ) : (
-                summary.totalDurationFormatted || '0 دقيقة'
-              )}
-            </h3>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-neutral-500">
-              <span>متوسط للزائر:</span>
-              <span className="font-bold text-amber-700">{summary.avgDurationPerVisitorFormatted || '0 دقيقة'}</span>
-            </div>
-          </div>
-          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-amber-500/5 to-transparent rounded-bl-full pointer-events-none" />
-        </div>
-      </div>
+      <AnalyticsKpiGrid
+        isLoading={isLoading}
+        summary={summary}
+        formatNumber={formatNumber}
+      />
 
       {/* Dedicated Registered Users Classification (Students vs Parents vs Guests) */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-              <UserCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-neutral-900 leading-tight">
-                هوية وتصنيف الزوار في هذه الفترة
-              </h2>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                إحصائيات تفصيلية لعدد الطلاب، وأولياء الأمور، والزوار الضيوف الذين دخلوا المنصة
-              </p>
-            </div>
-          </div>
-          <div className="text-xs text-neutral-400 font-medium">
-            اضغط على أي بطاقة للانتقال لسجل وهوية هؤلاء الزوار مباشرة
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-          {/* Students Card */}
-          <button
-            type="button"
-            onClick={() => handleRoleCardClick('students')}
-            className={`text-start p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
-              selectedRoleFilter === 'students'
-                ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-200 shadow-sm'
-                : 'bg-gradient-to-br from-white to-emerald-50/20 border-emerald-100/80 hover:border-emerald-300 hover:shadow-xs'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-emerald-700" />
-                <span>الطلاب المسجلين</span>
-              </span>
-              <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl group-hover:scale-110 transition-transform">
-                <GraduationCap className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h3 className="text-3xl font-black text-neutral-900 tracking-tight flex items-baseline gap-2">
-                {isLoading ? (
-                  <div className="h-8 w-20 bg-neutral-200 animate-pulse rounded-md" />
-                ) : (
-                  formatNumber(summary.studentsCount ?? 0)
-                )}
-                <span className="text-sm font-bold text-neutral-500">طالب دخل المنصة</span>
-              </h3>
-              <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                حسابات طلابية نشطة تصفحت الحصص والمحتوى وسجلت حضوراً وتفاعلاً
-              </p>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-emerald-100 flex items-center justify-between text-xs font-bold text-emerald-700 group-hover:text-emerald-800">
-              <span>عرض قائمة وهوية الطلاب (مين هم)</span>
-              <ArrowLeft className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" />
-            </div>
-
-            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-emerald-500/10 to-transparent rounded-bl-full pointer-events-none" />
-          </button>
-
-          {/* Parents Card */}
-          <button
-            type="button"
-            onClick={() => handleRoleCardClick('parents')}
-            className={`text-start p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
-              selectedRoleFilter === 'parents'
-                ? 'bg-purple-50/70 border-purple-500 ring-2 ring-purple-200 shadow-sm'
-                : 'bg-gradient-to-br from-white to-purple-50/20 border-purple-100/80 hover:border-purple-300 hover:shadow-xs'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-purple-800 bg-purple-100/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-purple-700" />
-                <span>أولياء الأمور</span>
-              </span>
-              <div className="p-2 bg-purple-100 text-purple-700 rounded-xl group-hover:scale-110 transition-transform">
-                <Users className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h3 className="text-3xl font-black text-neutral-900 tracking-tight flex items-baseline gap-2">
-                {isLoading ? (
-                  <div className="h-8 w-20 bg-neutral-200 animate-pulse rounded-md" />
-                ) : (
-                  formatNumber(summary.parentsCount ?? 0)
-                )}
-                <span className="text-sm font-bold text-neutral-500">ولي أمر دخل المنصة</span>
-              </h3>
-              <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                أولياء أمور سجلوا الدخول لمتابعة أداء وحضور ودرجات أبنائهم
-              </p>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-purple-100 flex items-center justify-between text-xs font-bold text-purple-700 group-hover:text-purple-800">
-              <span>عرض سجل أولياء الأمور وأبنائهم (مين هم)</span>
-              <ArrowLeft className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" />
-            </div>
-
-            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-purple-500/10 to-transparent rounded-bl-full pointer-events-none" />
-          </button>
-
-          {/* Guests Card */}
-          <button
-            type="button"
-            onClick={() => handleRoleCardClick('guests')}
-            className={`text-start p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
-              selectedRoleFilter === 'guests'
-                ? 'bg-sky-50/70 border-sky-500 ring-2 ring-sky-200 shadow-sm'
-                : 'bg-gradient-to-br from-white to-sky-50/20 border-sky-100/80 hover:border-sky-300 hover:shadow-xs'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-sky-800 bg-sky-100/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-sky-700" />
-                <span>زوار غير مسجلين (ضيوف)</span>
-              </span>
-              <div className="p-2 bg-sky-100 text-sky-700 rounded-xl group-hover:scale-110 transition-transform">
-                <Globe className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h3 className="text-3xl font-black text-neutral-900 tracking-tight flex items-baseline gap-2">
-                {isLoading ? (
-                  <div className="h-8 w-20 bg-neutral-200 animate-pulse rounded-md" />
-                ) : (
-                  formatNumber(summary.guestsCount ?? 0)
-                )}
-                <span className="text-sm font-bold text-neutral-500">زائر عام</span>
-              </h3>
-              <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                زوار تصفحوا صفحات الموقع التعريفي قبل أو بدون تسجيل الدخول
-              </p>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-sky-100 flex items-center justify-between text-xs font-bold text-sky-700 group-hover:text-sky-800">
-              <span>عرض تفاصيل الزوار الضيوف</span>
-              <ArrowLeft className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" />
-            </div>
-
-            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-sky-500/10 to-transparent rounded-bl-full pointer-events-none" />
-          </button>
-        </div>
-      </div>
+      <AnalyticsRoleCards
+        isLoading={isLoading}
+        selectedRoleFilter={selectedRoleFilter}
+        onRoleCardClick={handleRoleCardClick}
+        summary={summary}
+        formatNumber={formatNumber}
+      />
 
       {/* Time Series Trend Section */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-neutral-900">
-              حركة الزيارات على مدار الفترة
-            </h2>
-            <p className="text-xs text-neutral-500">
-              توزيع عدد المشاهدات والزوار الفريدين على مدار الوقت
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between sm:justify-end gap-3 text-xs font-bold text-neutral-600">
-            <span className="text-[11px] text-neutral-400 sm:hidden">اسحب أفقياً للتنقل ⟵</span>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-xs bg-primary-600" />
-                <span>الموقع التعريفي</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-xs bg-emerald-500" />
-                <span>النظام الداخلي</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Time-Series Chart Container */}
-        {timeSeries.length === 0 || summary.totalViews === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">
-            <Info className="w-8 h-8 text-neutral-400 mb-2" />
-            <p className="text-sm font-bold text-neutral-700">لا توجد بيانات مسجلة في هذه الفترة</p>
-            <p className="text-xs text-neutral-500 mt-1 max-w-sm">
-              يتم تسجيل الزيارات تلقائياً بمجرد تصفح الطلاب أو الزوار لصفحات الموقع أو المنصة.
-            </p>
-          </div>
-        ) : (
-          <div className="relative pt-3 pb-2 overflow-x-auto scrollbar-thin">
-            {/* Chart area */}
-            <div
-              className={`flex items-end gap-1.5 sm:gap-2 px-2 ${
-                timeSeries.length > 12
-                  ? `min-w-[${Math.max(680, timeSeries.length * 54)}px]`
-                  : timeSeries.length > 7
-                  ? 'min-w-[640px]'
-                  : 'min-w-[420px] sm:min-w-0'
-              } w-full`}
-              style={{ height: '260px' }}
-            >
-              {timeSeries.map((point, index) => {
-                const totalHeightPct = Math.max(4, (point.totalViews / maxViews) * 100);
-                const landingHeightPct = point.totalViews > 0 ? (point.landingViews / point.totalViews) * 100 : 0;
-                const systemHeightPct = point.totalViews > 0 ? (point.systemViews / point.totalViews) * 100 : 0;
-                const isHovered = hoveredIndex === index;
-
-                // For 'year' range, show a shorter label (month name only, strip year suffix)
-                // For 'all' range, labels are already plain years (e.g. "2026") — show as-is
-                const displayLabel = range === 'year'
-                  ? point.label.replace(/\s*\d{4}$/, '').trim()
-                  : point.label;
-
-                return (
-                  <div
-                    key={point.date}
-                    className={`flex-1 flex flex-col items-center justify-end group relative cursor-pointer min-w-[38px] rounded-xl transition-all duration-150 ${
-                      isHovered ? 'bg-neutral-100/80 ring-1 ring-neutral-300/80 z-30' : 'hover:bg-neutral-50/60'
-                    }`}
-                    style={{ height: '240px' }}
-                    onMouseEnter={() => setHoveredIndex(index)}
-                    onMouseLeave={() => setHoveredIndex(null)}
-                    onClick={() => setHoveredIndex(hoveredIndex === index ? null : index)}
-                  >
-                    {/* Tooltip on Hover / Touch – anchored safely at top-2 so it NEVER clips at the top */}
-                    {isHovered && (
-                      <div
-                        className={`absolute top-2 z-50 p-3 bg-neutral-900/95 text-white rounded-xl shadow-2xl border border-neutral-700 text-xs whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xs min-w-[175px] ${
-                          index < 3
-                            ? 'right-0'
-                            : index >= timeSeries.length - 3
-                            ? 'left-0'
-                            : 'left-1/2 -translate-x-1/2'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2 border-b border-neutral-700/80 pb-1.5 mb-2">
-                          <span className="font-black text-white text-xs">{point.label}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 bg-primary-500/30 text-primary-300 rounded-md font-black">
-                            {formatNumber(point.totalViews)} زيارة
-                          </span>
-                        </div>
-                        <div className="space-y-1.5 text-[11px]">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-neutral-400 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                              الزوار الفريدين:
-                            </span>
-                            <span className="font-black text-emerald-400 font-mono">
-                              {formatNumber(point.uniqueVisitors)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-neutral-400 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-primary-500 shrink-0" />
-                              الموقع التعريفي:
-                            </span>
-                            <span className="font-bold text-primary-300 font-mono">
-                              {formatNumber(point.landingViews)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-neutral-400 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                              لوحة النظام:
-                            </span>
-                            <span className="font-bold text-emerald-300 font-mono">
-                              {formatNumber(point.systemViews)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Bar area */}
-                    <div className="w-full flex flex-col justify-end px-1" style={{ height: '172px' }}>
-                      {point.totalViews === 0 ? (
-                        <div
-                          className="w-full bg-neutral-200/60 hover:bg-neutral-300 rounded-t-xs h-1.5 transition-colors"
-                          title={`${point.label}: 0 زيارة`}
-                        />
-                      ) : (
-                        <div
-                          className={`w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-xs transition-all duration-200 ${
-                            isHovered ? 'ring-2 ring-primary-500/70 brightness-110' : 'opacity-95 hover:opacity-100'
-                          }`}
-                          style={{ height: `${totalHeightPct}%` }}
-                        >
-                          {/* Landing part */}
-                          <div
-                            className="bg-primary-600 transition-all"
-                            style={{ height: `${landingHeightPct}%` }}
-                          />
-                          {/* System part */}
-                          <div
-                            className="bg-emerald-500 transition-all"
-                            style={{ height: `${systemHeightPct}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* X-axis Label */}
-                    <span
-                      className="text-[10px] font-bold text-neutral-500 mt-1.5 truncate max-w-full text-center whitespace-nowrap leading-tight"
-                      style={{ height: '24px' }}
-                    >
-                      {displayLabel}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
+      <AnalyticsTimeSeriesChart
+        timeSeries={timeSeries}
+        totalViews={summary.totalViews}
+        range={range}
+        formatNumber={formatNumber}
+      />
 
       {/* Two Column Layout: Top Pages & Device Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Top Visited Pages (2 Cols) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base sm:text-lg font-bold text-neutral-900">
-                أكثر الصفحات زيارة
-              </h2>
-              <p className="text-xs text-neutral-500">
-                المسارات الأكثر طلباً وتردداً من الزوار والمستخدمين
-              </p>
-            </div>
-          </div>
-
-          {data?.topPages && data.topPages.length > 0 ? (
-            <div className="space-y-3">
-              {data.topPages.map((page, idx) => (
-                <div
-                  key={page.path}
-                  className="p-3 bg-neutral-50/80 hover:bg-neutral-50 rounded-xl border border-neutral-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-6 h-6 rounded-lg bg-neutral-200/80 text-neutral-700 text-xs font-bold flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-neutral-900 truncate dir-ltr text-end sm:text-start" dir="ltr">
-                        {page.path}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                            page.isLandingPage
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-primary-100 text-primary-800'
-                          }`}
-                        >
-                          {page.isLandingPage ? 'صفحة تعريفية' : 'لوحة النظام'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 shrink-0 justify-between sm:justify-end">
-                    <div className="w-28 h-2 bg-neutral-200 rounded-full overflow-hidden hidden sm:block">
-                      <div
-                        className="h-full bg-primary-600 rounded-full"
-                        style={{ width: `${page.percentage}%` }}
-                      />
-                    </div>
-                    <div className="text-end">
-                      <p className="text-sm font-black text-neutral-900">
-                        {formatNumber(page.views)}
-                        <span className="text-xs font-normal text-neutral-500 mr-1">زيارة</span>
-                      </p>
-                      <p className="text-[10px] text-neutral-400">{page.percentage}% من الإجمالي</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-12 text-center text-xs text-neutral-400">
-              لا توجد صفحات مسجلة حتى الآن
-            </div>
-          )}
-        </div>
-
-        {/* Device Breakdown (1 Col) — with OS + Browser sub-tabs */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs space-y-4">
-          {/* Header + tab switcher */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base sm:text-lg font-bold text-neutral-900">الأجهزة والمتصفحات</h2>
-              <p className="text-xs text-neutral-500 mt-0.5">توزيع الزوار حسب نوع الجهاز ونظام التشغيل والمتصفح</p>
-            </div>
-            <div className="inline-flex p-1 bg-neutral-100 rounded-xl border border-neutral-200/60 self-start sm:self-auto">
-              {(['device', 'os', 'browser'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setDeviceTab(tab)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    deviceTab === tab
-                      ? 'bg-white text-primary-700 shadow-xs'
-                      : 'text-neutral-600 hover:text-neutral-900'
-                  }`}
-                >
-                  {tab === 'device' ? 'نوع الجهاز' : tab === 'os' ? 'نظام التشغيل' : 'المتصفح'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Device Type tab */}
-          {deviceTab === 'device' && (
-            <div className="space-y-3 pt-1">
-              {data?.devices && data.devices.map((device) => {
-                const Icon = device.device === 'Desktop' ? Laptop : device.device === 'Mobile' ? Smartphone : Tablet;
-                const color = device.device === 'Desktop' ? 'bg-primary-600' : device.device === 'Mobile' ? 'bg-emerald-500' : 'bg-amber-500';
-                const textColor = device.device === 'Desktop' ? 'text-primary-700' : device.device === 'Mobile' ? 'text-emerald-700' : 'text-amber-700';
-                const bgColor = device.device === 'Desktop' ? 'bg-primary-50' : device.device === 'Mobile' ? 'bg-emerald-50' : 'bg-amber-50';
-                return (
-                  <div key={device.device} className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`p-2 ${bgColor} ${textColor} rounded-lg`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-neutral-900">{device.labelAr}</p>
-                          <p className="text-[11px] text-neutral-400">{device.device}</p>
-                        </div>
-                      </div>
-                      <div className="text-end">
-                        <p className="text-sm font-black text-neutral-900">{device.percentage}%</p>
-                        <p className="text-[10px] text-neutral-500">{formatNumber(device.count)} زيارة</p>
-                      </div>
-                    </div>
-                    <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
-                      <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${device.percentage}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* OS tab */}
-          {deviceTab === 'os' && (
-            <div className="space-y-3 pt-1">
-              {data?.osBreakdown && data.osBreakdown.length > 0 ? data.osBreakdown.map((item) => {
-                const osColors: Record<string, string> = {
-                  Android: 'bg-green-500', iOS: 'bg-neutral-800',
-                  Windows: 'bg-blue-500', macOS: 'bg-slate-500',
-                  Linux: 'bg-orange-500', Other: 'bg-neutral-400',
-                };
-                const osBg: Record<string, string> = {
-                  Android: 'bg-green-50 text-green-700', iOS: 'bg-neutral-100 text-neutral-700',
-                  Windows: 'bg-blue-50 text-blue-700', macOS: 'bg-slate-50 text-slate-700',
-                  Linux: 'bg-orange-50 text-orange-700', Other: 'bg-neutral-50 text-neutral-600',
-                };
-                return (
-                  <div key={item.os} className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`px-2.5 py-1 rounded-lg text-[11px] font-black ${osBg[item.os] || 'bg-neutral-50 text-neutral-600'}`}>{item.os}</div>
-                        <p className="text-sm font-bold text-neutral-900">{item.labelAr}</p>
-                      </div>
-                      <div className="text-end">
-                        <p className="text-sm font-black text-neutral-900">{item.percentage}%</p>
-                        <p className="text-[10px] text-neutral-500">{formatNumber(item.count)} زيارة</p>
-                      </div>
-                    </div>
-                    <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
-                      <div className={`h-full ${osColors[item.os] || 'bg-neutral-400'} rounded-full transition-all duration-500`} style={{ width: `${item.percentage}%` }} />
-                    </div>
-                  </div>
-                );
-              }) : (
-                <div className="py-8 text-center text-xs text-neutral-400">لا توجد بيانات نظام تشغيل بعد</div>
-              )}
-            </div>
-          )}
-
-          {/* Browser tab */}
-          {deviceTab === 'browser' && (
-            <div className="space-y-3 pt-1">
-              {data?.browserBreakdown && data.browserBreakdown.length > 0 ? data.browserBreakdown.map((item) => {
-                const browserColors: Record<string, string> = {
-                  Chrome: 'bg-yellow-500', Safari: 'bg-blue-500',
-                  Firefox: 'bg-orange-500', Edge: 'bg-sky-600',
-                  Opera: 'bg-red-500', Other: 'bg-neutral-400',
-                };
-                const browserBg: Record<string, string> = {
-                  Chrome: 'bg-yellow-50 text-yellow-700', Safari: 'bg-blue-50 text-blue-700',
-                  Firefox: 'bg-orange-50 text-orange-700', Edge: 'bg-sky-50 text-sky-700',
-                  Opera: 'bg-red-50 text-red-700', Other: 'bg-neutral-50 text-neutral-600',
-                };
-                return (
-                  <div key={item.browser} className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`px-2 py-1 rounded-lg text-[11px] font-black ${browserBg[item.browser] || 'bg-neutral-50 text-neutral-600'}`}>{item.browser}</div>
-                        <p className="text-sm font-bold text-neutral-900">{item.labelAr}</p>
-                      </div>
-                      <div className="text-end">
-                        <p className="text-sm font-black text-neutral-900">{item.percentage}%</p>
-                        <p className="text-[10px] text-neutral-500">{formatNumber(item.count)} زيارة</p>
-                      </div>
-                    </div>
-                    <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
-                      <div className={`h-full ${browserColors[item.browser] || 'bg-neutral-400'} rounded-full transition-all duration-500`} style={{ width: `${item.percentage}%` }} />
-                    </div>
-                  </div>
-                );
-              }) : (
-                <div className="py-8 text-center text-xs text-neutral-400">لا توجد بيانات متصفحات بعد</div>
-              )}
-            </div>
-          )}
-
-          {/* Privacy Note Footer */}
-          <div className="mt-2 p-3 bg-neutral-50 rounded-xl border border-neutral-200/60 flex items-start gap-2.5">
-            <Info className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-neutral-500 leading-relaxed">
-              جميع التقديرات وحساب الزوار تعتمد على بصمة تشفير SHA-256 متوافقة مع معايير حماية الخصوصية GDPR، دون حفظ أي عناوين IP صريحة.
-            </p>
-          </div>
-        </div>
-      </div>
+      <AnalyticsDevicesBreakdown
+        topPages={data?.topPages}
+        devices={data?.devices}
+        osBreakdown={data?.osBreakdown}
+        browserBreakdown={data?.browserBreakdown}
+        formatNumber={formatNumber}
+      />
 
       {/* Geographic Ranking & Student Engagement Leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -985,4 +204,3 @@ export function AnalyticsDashboard() {
     </div>
   );
 }
-

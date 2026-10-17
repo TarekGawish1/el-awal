@@ -1,36 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2, Search, CheckCircle, AlertCircle, QrCode } from 'lucide-react';
-import { useRecordPayment, useGroupDefaulters, useMatrixLedger } from '../hooks/useFinance';
-import { useBooklets } from '@/features/booklets/hooks/useBooklets';
-import { useGroups, useGroupStudents } from '@/features/groups/hooks/useGroups';
-import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
-import { TERM_MONTHS } from './FinanceFiltersBar';
-import { PaymentStatus } from '../types/finance.types';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Label } from '@/components/ui/Label';
-import toast from 'react-hot-toast';
-import { formatBookletMismatchMessage, isBookletEligibleForStudent } from '../utils/bookletEligibility';
-import { matchesSearch } from '@/lib/utils/search';
-import {
-  calculateProratedTuition,
-  isEnrolledInPeriod,
-} from '../utils/proration.util';
-
-const paymentSchema = z.object({
-  studentId: z.string().min(1, 'يجب اختيار الطالب'),
-  bookletId: z.string().optional(),
-  amountPaid: z.number().min(0, 'المبلغ يجب أن يكون 0 أو أكثر'),
-  receiptNumber: z.string().optional(),
-  notes: z.string().optional(),
-});
-
-type PaymentFormData = z.infer<typeof paymentSchema>;
+import React from 'react';
+import { X, DollarSign, BookOpen, CreditCard, QrCode } from 'lucide-react';
+import { useRecordPaymentModalState } from '../hooks/useRecordPaymentModalState';
+import { RecordPaymentFilterSection } from './RecordPaymentFilterSection';
+import { RecordPaymentStudentSection } from './RecordPaymentStudentSection';
+import { RecordPaymentAmountSection } from './RecordPaymentAmountSection';
 
 interface Props {
   isOpen: boolean;
@@ -59,451 +34,62 @@ export function RecordPaymentModal({
   periodMonth: initialPeriodMonth,
   allStudents = [],
 }: Props) {
-  const [paymentType, setPaymentType] = useState<'TUITION' | 'BOOKLET'>('TUITION');
-  const [selectedStage, setSelectedStage] = useState<string>('');
-  const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(initialGroupId);
-  const [selectedAcademicTerm, setSelectedAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>('FIRST_TERM');
-  const [currentPeriodYear, setCurrentPeriodYear] = useState<number>(initialPeriodYear);
-  const [currentPeriodMonth, setCurrentPeriodMonth] = useState<number>(initialPeriodMonth);
-  const [studentSearchQuery, setStudentSearchQuery] = useState('');
-  const [showOnlyUnpaid, setShowOnlyUnpaid] = useState(true);
-
-  const { data: allGroups = [] } = useGroups();
-
-  const availableGrades = useMemo(() => {
-    if (selectedStage && GRADE_LEVELS_BY_STAGE[selectedStage as keyof typeof GRADE_LEVELS_BY_STAGE]) {
-      return GRADE_LEVELS_BY_STAGE[selectedStage as keyof typeof GRADE_LEVELS_BY_STAGE];
-    }
-    return Array.from(new Set(allGroups.map((g) => g.gradeLevel).filter(Boolean)));
-  }, [selectedStage, allGroups]);
-
-  const filteredGroups = useMemo(() => {
-    return allGroups.filter((g) => {
-      if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
-      if (selectedStage && inferStageFromGrade(g.gradeLevel) !== selectedStage) return false;
-      return true;
-    });
-  }, [allGroups, selectedGradeLevel, selectedStage]);
-
-  const { mutate: recordPayment, isPending } = useRecordPayment();
-  const { data: defaultersData, isLoading: isDefaultersLoading } = useGroupDefaulters(
-    selectedGroupId,
-    currentPeriodYear,
-    currentPeriodMonth,
-  );
-  const { data: groupEnrollments = [], isLoading: isEnrollmentsLoading } = useGroupStudents(selectedGroupId);
-  const { booklets = [], isLoading: isBookletsLoading } = useBooklets();
-  const { data: matrixLedgerData } = useMatrixLedger({
-    groupId: selectedGroupId || undefined,
-    stage: selectedStage || undefined,
-    gradeLevel: selectedGradeLevel || undefined,
-  });
-
   const {
+    paymentType,
+    handlePaymentTypeChange,
+    selectedStage,
+    handleStageChange,
+    selectedGradeLevel,
+    handleGradeChange,
+    availableGrades,
+    filteredGroups,
+    selectedGroupId,
+    handleGroupChange,
+    selectedAcademicTerm,
+    handleTermChange,
+    currentPeriodMonth,
+    setCurrentPeriodMonth,
+    showOnlyUnpaid,
+    setShowOnlyUnpaid,
+    studentSearchQuery,
+    setStudentSearchQuery,
+    selectedStudentId,
+    handleStudentChange,
+    filteredStudents,
+    selectedBookletId,
+    handleBookletChange,
+    eligibleBooklets,
+    booklets,
+    selectedStudent,
+    groupFee,
+    isPending,
+    isDefaultersLoading,
+    isEnrollmentsLoading,
+    isBookletsLoading,
+    isBookletAlreadyPaid,
+    isPreviouslyPartial,
+    previouslyPaid,
+    currentExpectedAmount,
+    currentEnteredAmount,
+    totalCumulativePaid,
+    remainingDue,
+    isFullPayment,
+    isPartialPayment,
+    getStudentBookletPaymentStatus,
+    setValue,
     register,
     handleSubmit,
-    formState: { errors },
-    reset,
-    watch,
-    setValue,
-  } = useForm<PaymentFormData>({
-    resolver: zodResolver(paymentSchema),
+    errors,
+    onSubmit,
+  } = useRecordPaymentModalState({
+    initialGroupId,
+    initialPeriodYear,
+    initialPeriodMonth,
+    allStudents,
+    onClose,
   });
 
-  const selectedStudentId = watch('studentId');
-  const selectedBookletId = watch('bookletId');
-  const defaulters = defaultersData?.defaulters || [];
-  const currentGroupObj = allGroups.find((g) => g.id === selectedGroupId);
-  const groupFee = Number(currentGroupObj?.monthlyFee) || 0;
-
-  const getStudentBookletPaymentStatus = (studentId: string, bookletId?: string) => {
-    if (!bookletId) return { isPaid: false, isPartiallyPaid: false, amountPaid: 0, remainingAmount: 0, expected: 0 };
-    const matrixStudent = matrixLedgerData?.students?.find((s: any) => s.id === studentId);
-    const cell = matrixStudent?.bookletPayments?.[bookletId];
-    const targetBooklet = booklets.find((b) => b.id === bookletId);
-    const expected = Number(cell?.amountExpected || targetBooklet?.price || 0);
-    const amountPaid = Number(cell?.amountPaid || 0);
-    const isPaid = Boolean(cell?.isPaid || (expected > 0 && amountPaid >= expected));
-    const isPartiallyPaid = Boolean(cell?.isPartiallyPaid || (amountPaid > 0 && amountPaid < expected));
-    const remainingAmount = isPaid ? 0 : Math.max(0, expected - amountPaid);
-    return { isPaid, isPartiallyPaid, amountPaid, remainingAmount, expected };
-  };
-
-  const availableStudents = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        id: string;
-        name: string;
-        fee: number;
-        amountPaid: number;
-        remainingAmount: number;
-        isPaid: boolean;
-        isPartiallyPaid: boolean;
-        studentCode?: string;
-        calculationReason?: string;
-        rateMultiplier?: number;
-      }
-    >();
-
-    defaulters.forEach((d) => {
-      const amountPaid = d.amountPaid || 0;
-      const fee = d.monthlyFeeExpected !== undefined ? d.monthlyFeeExpected : groupFee;
-      const remainingAmount = d.remainingAmount ?? Math.max(0, fee - amountPaid);
-      const isPartiallyPaid = Boolean(d.isPartiallyPaid || amountPaid > 0);
-      const calculationReason = (d as any).calculationReason || (fee < groupFee ? (fee === 0 ? 'معفى من اشتراك الشهر الحالي' : 'نصف شهر (انضمام منتصف الشهر)') : undefined);
-      const rateMultiplier = (d as any).rateMultiplier ?? (fee === 0 ? 0 : fee < groupFee ? 0.5 : 1.0);
-
-      map.set(d.studentId, {
-        id: d.studentId,
-        name: d.fullName,
-        fee,
-        amountPaid,
-        remainingAmount,
-        isPaid: false,
-        isPartiallyPaid,
-        studentCode: d.studentCode || undefined,
-        calculationReason,
-        rateMultiplier,
-      });
-    });
-
-    groupEnrollments.forEach((e) => {
-      if (e.student?.id && !map.has(e.student.id)) {
-        const enrollmentDate = e.enrolledAt ? new Date(e.enrolledAt) : null;
-        let fee = groupFee;
-        let calculationReason: string | undefined = undefined;
-        let rateMultiplier = 1.0;
-
-        if (enrollmentDate && isEnrolledInPeriod(enrollmentDate, currentPeriodYear, currentPeriodMonth)) {
-          const proration = calculateProratedTuition(groupFee, enrollmentDate);
-          fee = proration.expectedAmount;
-          calculationReason = proration.calculationReason;
-          rateMultiplier = proration.rateMultiplier;
-        }
-
-        map.set(e.student.id, {
-          id: e.student.id,
-          name: e.student.user?.name || 'طالب',
-          fee,
-          amountPaid: fee,
-          remainingAmount: 0,
-          isPaid: true,
-          isPartiallyPaid: false,
-          studentCode: e.student.code,
-          calculationReason,
-          rateMultiplier,
-        });
-      }
-    });
-
-    if (!selectedGroupId && allStudents.length > 0) {
-      allStudents.forEach((s) => {
-        if (!map.has(s.id)) {
-          map.set(s.id, {
-            id: s.id,
-            name: s.fullName,
-            fee: groupFee,
-            amountPaid: 0,
-            remainingAmount: groupFee,
-            isPaid: false,
-            isPartiallyPaid: false,
-            studentCode: s.studentCode,
-            rateMultiplier: 1.0,
-          });
-        }
-      });
-    }
-
-    return Array.from(map.values());
-  }, [defaulters, groupEnrollments, selectedGroupId, allStudents, groupFee, currentPeriodYear, currentPeriodMonth]);
-
-  const filteredStudents = useMemo(() => {
-    return availableStudents.filter((s) => {
-      if (paymentType === 'TUITION' && showOnlyUnpaid && s.isPaid) {
-        return false;
-      }
-      if (paymentType === 'BOOKLET' && showOnlyUnpaid && selectedBookletId) {
-        const bookletStatus = getStudentBookletPaymentStatus(s.id, selectedBookletId);
-        if (bookletStatus.isPaid) {
-          return false;
-        }
-      }
-      if (!studentSearchQuery.trim()) return true;
-      return (
-        matchesSearch(s.name, studentSearchQuery) ||
-        (s.studentCode ? s.studentCode.toLowerCase().includes(studentSearchQuery.toLowerCase().trim()) : false)
-      );
-    });
-  }, [availableStudents, showOnlyUnpaid, paymentType, selectedBookletId, matrixLedgerData, studentSearchQuery]);
-
-  const getStudentBookletContext = (studentId: string) => {
-    const defaulter = defaulters.find((student) => student.studentId === studentId);
-    const enrollment = groupEnrollments.find((e) => e.student?.id === studentId);
-    const fullStudent = allStudents.find((student) => student.id === studentId);
-    
-    const groupIds = Array.from(
-      new Set([
-        selectedGroupId,
-        fullStudent?.groupId,
-        fullStudent?.initialGroupId,
-        ...(fullStudent?.groupIds || []),
-      ].filter(Boolean) as string[])
-    );
-
-    const gradeLevel =
-      enrollment?.student?.gradeLevel ||
-      fullStudent?.gradeLevel ||
-      defaulter?.gradeLevel ||
-      selectedGradeLevel ||
-      allGroups.find((g) => g.id === selectedGroupId)?.gradeLevel ||
-      '';
-
-    return {
-      gradeLevel,
-      groupIds,
-    };
-  };
-
-  const eligibleBooklets = useMemo(() => {
-    // 1. If a student is selected, filter specifically for this student
-    if (selectedStudentId) {
-      const student = getStudentBookletContext(selectedStudentId);
-      const studentBooklets = booklets.filter((booklet) => isBookletEligibleForStudent(booklet, student));
-      if (studentBooklets.length > 0) return studentBooklets;
-    }
-
-    // 2. If no student selected or no strict match, filter by selected group/grade/stage
-    return booklets.filter((booklet) => {
-      if (selectedGroupId && booklet.groupId && booklet.groupId !== selectedGroupId) {
-        return false;
-      }
-      if (selectedGradeLevel && booklet.gradeLevel !== selectedGradeLevel) {
-        return false;
-      }
-      if (selectedStage && inferStageFromGrade(booklet.gradeLevel) !== selectedStage) {
-        return false;
-      }
-      return true;
-    });
-  }, [booklets, selectedStudentId, selectedGroupId, selectedGradeLevel, selectedStage, defaulters, groupEnrollments, allStudents]);
-
-  const handleStageChange = (newStage: string) => {
-    setSelectedStage(newStage);
-    setSelectedGradeLevel('');
-    setSelectedGroupId('');
-    setValue('studentId', '');
-  };
-
-  const handleGradeChange = (newGrade: string) => {
-    setSelectedGradeLevel(newGrade);
-    setSelectedGroupId('');
-    setValue('studentId', '');
-    if (newGrade && !selectedStage) {
-      const st = inferStageFromGrade(newGrade);
-      if (st) setSelectedStage(st);
-    }
-  };
-
-  const handleGroupChange = (newGroupId: string) => {
-    setSelectedGroupId(newGroupId);
-    setValue('studentId', '');
-    if (newGroupId) {
-      const g = allGroups.find((item) => item.id === newGroupId);
-      if (g) {
-        if (g.gradeLevel) setSelectedGradeLevel(g.gradeLevel);
-        const st = inferStageFromGrade(g.gradeLevel);
-        if (st) setSelectedStage(st);
-      }
-    }
-  };
-
-  const handleTermChange = (term: 'FIRST_TERM' | 'SECOND_TERM') => {
-    setSelectedAcademicTerm(term);
-    const termMonths = TERM_MONTHS[term];
-    if (!termMonths.includes(currentPeriodMonth)) {
-      setCurrentPeriodMonth(termMonths[0]);
-    }
-  };
-
-  const handleStudentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const sId = e.target.value;
-    setValue('studentId', sId);
-    if (sId && paymentType === 'TUITION') {
-      const student = availableStudents.find((st) => st.id === sId);
-      if (student) {
-        const amountToSet = student.isPartiallyPaid
-          ? (student.remainingAmount ?? Math.max(0, (student.fee || groupFee) - (student.amountPaid || 0)))
-          : (student.fee || groupFee);
-        setValue('amountPaid', amountToSet);
-      }
-    } else if (sId && paymentType === 'BOOKLET') {
-      const bId = selectedBookletId || (eligibleBooklets.length > 0 ? eligibleBooklets[0].id : undefined);
-      if (bId) {
-        if (!selectedBookletId) setValue('bookletId', bId);
-        const status = getStudentBookletPaymentStatus(sId, bId);
-        const currentBooklet = booklets.find((booklet) => booklet.id === bId);
-        const price = Number(currentBooklet?.price || 0);
-        const amountToSet = status.isPartiallyPaid ? status.remainingAmount : (status.isPaid ? 0 : price);
-        setValue('amountPaid', amountToSet);
-      }
-    }
-  };
-
-  const handleBookletChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const bId = e.target.value;
-    setValue('bookletId', bId);
-    if (bId) {
-      const targetBooklet = booklets.find((item) => item.id === bId);
-      const price = Number(targetBooklet?.price || 0);
-      if (selectedStudentId) {
-        const status = getStudentBookletPaymentStatus(selectedStudentId, bId);
-        const amountToSet = status.isPartiallyPaid ? status.remainingAmount : (status.isPaid ? 0 : price);
-        setValue('amountPaid', amountToSet);
-      } else {
-        setValue('amountPaid', price);
-      }
-    }
-  };
-
-  const handlePaymentTypeChange = (type: 'TUITION' | 'BOOKLET') => {
-    setPaymentType(type);
-    if (type === 'BOOKLET') {
-      const bId = selectedBookletId || (eligibleBooklets.length > 0 ? eligibleBooklets[0].id : undefined);
-      if (bId) {
-        setValue('bookletId', bId);
-        if (selectedStudentId) {
-          const status = getStudentBookletPaymentStatus(selectedStudentId, bId);
-          const currentBooklet = booklets.find((booklet) => booklet.id === bId);
-          const price = Number(currentBooklet?.price || 0);
-          const amountToSet = status.isPartiallyPaid ? status.remainingAmount : (status.isPaid ? 0 : price);
-          setValue('amountPaid', amountToSet);
-        } else {
-          const currentBooklet = booklets.find((booklet) => booklet.id === bId);
-          if (currentBooklet) setValue('amountPaid', Number(currentBooklet.price));
-        }
-      }
-    } else if (type === 'TUITION' && selectedStudentId) {
-      const student = availableStudents.find((d) => d.id === selectedStudentId);
-      if (student) {
-        const amountToSet = student.isPartiallyPaid
-          ? (student.remainingAmount ?? Math.max(0, (student.fee || groupFee) - (student.amountPaid || 0)))
-          : (student.fee || groupFee);
-        setValue('amountPaid', amountToSet);
-      }
-      setValue('bookletId', undefined);
-    }
-  };
-
-  const watchAmountPaid = watch('amountPaid');
-  const selectedStudent = availableStudents.find((s) => s.id === selectedStudentId);
-  const selectedBooklet = booklets.find((b) => b.id === selectedBookletId);
-
-  const currentBookletStatus = useMemo(() => {
-    if (paymentType !== 'BOOKLET' || !selectedStudentId || !selectedBookletId) {
-      return null;
-    }
-    return getStudentBookletPaymentStatus(selectedStudentId, selectedBookletId);
-  }, [paymentType, selectedStudentId, selectedBookletId, matrixLedgerData, booklets]);
-
-  const isBookletAlreadyPaid = Boolean(currentBookletStatus?.isPaid);
-
-  const previouslyPaid =
-    paymentType === 'BOOKLET'
-      ? (currentBookletStatus?.amountPaid || 0)
-      : (paymentType === 'TUITION' ? (selectedStudent?.amountPaid || 0) : 0);
-
-  const isPreviouslyPartial =
-    paymentType === 'BOOKLET'
-      ? Boolean(currentBookletStatus?.isPartiallyPaid)
-      : (paymentType === 'TUITION' && Boolean(selectedStudent?.isPartiallyPaid || previouslyPaid > 0));
-
-  const currentExpectedAmount =
-    paymentType === 'BOOKLET'
-      ? Number(currentBookletStatus?.expected || selectedBooklet?.price || 0)
-      : Number(selectedStudent?.fee || groupFee || 0);
-
-  const currentEnteredAmount = Number(watchAmountPaid || 0);
-  const totalCumulativePaid = previouslyPaid + currentEnteredAmount;
-  const remainingDue = Math.max(0, currentExpectedAmount - totalCumulativePaid);
-  const isFullPayment = totalCumulativePaid >= currentExpectedAmount && currentExpectedAmount > 0;
-  const isPartialPayment = totalCumulativePaid > 0 && totalCumulativePaid < currentExpectedAmount;
-
   if (!isOpen) return null;
-
-  const onSubmit = (data: PaymentFormData) => {
-    if (paymentType === 'BOOKLET' && !data.bookletId) {
-      toast.error('يرجى اختيار المذكرة المراد سداد قيمتها');
-      return;
-    }
-
-    const student = availableStudents.find((d) => d.id === data.studentId);
-    const booklet = booklets.find((b) => b.id === data.bookletId);
-    const studentContext = getStudentBookletContext(data.studentId);
-
-    if (paymentType === 'BOOKLET' && booklet && !isBookletEligibleForStudent(booklet, studentContext)) {
-      toast.error(formatBookletMismatchMessage(booklet.gradeLevel, studentContext.gradeLevel));
-      return;
-    }
-
-    const expected =
-      paymentType === 'BOOKLET'
-        ? booklet
-          ? Number(booklet.price)
-          : data.amountPaid
-        : (student?.fee !== undefined ? student.fee : (groupFee || data.amountPaid));
-
-    const studentPrevPaid = paymentType === 'TUITION' ? (student?.amountPaid || 0) : 0;
-    const currentInstallment = Number(data.amountPaid || 0);
-    const cumulativeTotal = studentPrevPaid + currentInstallment;
-
-    const isFull = cumulativeTotal >= expected;
-    const remaining = Math.max(0, expected - cumulativeTotal);
-
-    recordPayment(
-      {
-        studentId: data.studentId,
-        groupId: selectedGroupId || undefined,
-        bookletId: paymentType === 'BOOKLET' ? data.bookletId : undefined,
-        paymentType,
-        periodYear: currentPeriodYear,
-        periodMonth: currentPeriodMonth,
-        amountPaid: cumulativeTotal,
-        amountExpected: expected,
-        paymentStatus: isFull ? PaymentStatus.PAID : PaymentStatus.PENDING,
-        paymentMethod: 'CASH',
-        receiptNumber: data.receiptNumber,
-        notes:
-          data.notes ||
-          (paymentType === 'BOOKLET' && booklet
-            ? `سداد مذكرة: ${booklet.title}${!isFull ? ` (دفعة جزئية - متبقي ${remaining} ج.م)` : ''}`
-            : isPreviouslyPartial
-            ? isFull
-              ? `استكمال سداد باقي المصروفات بالكامل (${currentInstallment} ج.م)`
-              : `سداد دفعة إضافية (${currentInstallment} ج.م) — متبقي ${remaining} ج.م`
-            : !isFull
-            ? `دفعة جزئية (${currentInstallment} ج.م) — متبقي ${remaining} ج.م`
-            : undefined),
-      } as any,
-      {
-        onSuccess: () => {
-          toast.success(
-            paymentType === 'BOOKLET'
-              ? isFull
-                ? 'تم تسجيل سداد المذكرة بالكامل بنجاح 📚'
-                : `تم تسجيل سداد جزئي للمذكرة (${currentInstallment} ج.م) — متبقي ${remaining} ج.م 📚`
-              : isFull
-              ? 'تم استكمال سداد المصروفات بالكامل بنجاح 💳'
-              : `تم تسجيل دفعة (${currentInstallment} ج.م) — متبقي ${remaining} ج.م 💳`,
-          );
-          reset();
-          onClose();
-        },
-        onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء التسجيل'),
-      },
-    );
-  };
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
@@ -569,405 +155,68 @@ export function RecordPaymentModal({
             </button>
           </div>
 
-          <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/70 space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-              <Filter className="w-3.5 h-3.5 text-primary-600" />
-              <span>تحديد وتصفية المجموعة المستهدفة:</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
-                  المرحلة الدراسية
-                </Label>
-                <select
-                  className="w-full h-9 rounded-xl border border-slate-200 px-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
-                  value={selectedStage}
-                  onChange={(e) => handleStageChange(e.target.value)}
-                >
-                  <option value="">جميع المراحل</option>
-                  <option value="SECONDARY">المرحلة الثانوية</option>
-                  <option value="PREPARATORY">المرحلة الإعدادية</option>
-                  <option value="PRIMARY">المرحلة الابتدائية</option>
-                </select>
-              </div>
-
-              <div>
-                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
-                  الصف الدراسي
-                </Label>
-                <select
-                  className="w-full h-9 rounded-xl border border-slate-200 px-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
-                  value={selectedGradeLevel}
-                  onChange={(e) => handleGradeChange(e.target.value)}
-                >
-                  <option value="">جميع الصفوف</option>
-                  {availableGrades.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
-                  الفصل والشهر
-                </Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <select
-                    className="w-full h-9 rounded-xl border border-slate-200 px-1.5 text-[11px] font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
-                    value={selectedAcademicTerm}
-                    onChange={(e) => handleTermChange(e.target.value as 'FIRST_TERM' | 'SECOND_TERM')}
-                  >
-                    <option value="FIRST_TERM">ترم أول</option>
-                    <option value="SECOND_TERM">ترم ثان</option>
-                  </select>
-                  <select
-                    className="w-full h-9 rounded-xl border border-slate-200 px-1.5 text-[11px] font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
-                    value={currentPeriodMonth}
-                    onChange={(e) => setCurrentPeriodMonth(Number(e.target.value))}
-                  >
-                    {TERM_MONTHS[selectedAcademicTerm].map((m) => (
-                      <option key={m} value={m}>
-                        شهر {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
-                  المجموعة الدراسية
-                </Label>
-                <select
-                  className="w-full h-9 rounded-xl border border-slate-200 px-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
-                  value={selectedGroupId}
-                  onChange={(e) => handleGroupChange(e.target.value)}
-                >
-                  <option value="">-- اختر المجموعة --</option>
-                  {filteredGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name} ({group.gradeLevel})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+          <RecordPaymentFilterSection
+            selectedStage={selectedStage}
+            onStageChange={handleStageChange}
+            selectedGradeLevel={selectedGradeLevel}
+            onGradeChange={handleGradeChange}
+            availableGrades={availableGrades}
+            selectedAcademicTerm={selectedAcademicTerm}
+            onTermChange={handleTermChange}
+            currentPeriodMonth={currentPeriodMonth}
+            onPeriodMonthChange={setCurrentPeriodMonth}
+            selectedGroupId={selectedGroupId}
+            onGroupChange={handleGroupChange}
+            filteredGroups={filteredGroups}
+          />
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <Label className="block text-xs font-bold text-slate-700">
-                  الطالب <span className="text-red-500">*</span>
-                </Label>
-                <div className="flex items-center gap-2 text-[11px]">
-                  {selectedGroupId && (
-                    <span className="font-semibold text-primary-600">
-                      {filteredStudents.length} طالب متاح
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setShowOnlyUnpaid(!showOnlyUnpaid)}
-                    className="text-xs font-bold text-slate-500 hover:text-primary-600 transition-colors cursor-pointer"
-                  >
-                    {showOnlyUnpaid
-                      ? '(عرض جميع الطلاب)'
-                      : paymentType === 'BOOKLET'
-                      ? '(غير المسددين للمذكرة فقط)'
-                      : '(غير المسددين فقط)'}
-                  </button>
-                </div>
-              </div>
+            <RecordPaymentStudentSection
+              paymentType={paymentType}
+              selectedGroupId={selectedGroupId}
+              filteredStudents={filteredStudents}
+              showOnlyUnpaid={showOnlyUnpaid}
+              onToggleShowOnlyUnpaid={() => setShowOnlyUnpaid(!showOnlyUnpaid)}
+              studentSearchQuery={studentSearchQuery}
+              onStudentSearchQueryChange={setStudentSearchQuery}
+              selectedStudentId={selectedStudentId}
+              onStudentChange={handleStudentChange}
+              selectedBookletId={selectedBookletId}
+              onBookletChange={handleBookletChange}
+              eligibleBooklets={eligibleBooklets}
+              booklets={booklets}
+              selectedStudent={selectedStudent}
+              groupFee={groupFee}
+              isPending={isPending}
+              isDefaultersLoading={isDefaultersLoading}
+              isEnrollmentsLoading={isEnrollmentsLoading}
+              isBookletsLoading={isBookletsLoading}
+              isBookletAlreadyPaid={isBookletAlreadyPaid}
+              getStudentBookletPaymentStatus={getStudentBookletPaymentStatus}
+              studentIdError={errors.studentId?.message}
+              bookletIdError={errors.bookletId?.message}
+            />
 
-              {/* Instant Search Input */}
-              <div className="relative mb-2">
-                <Search className="absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="ابحث باسم الطالب أو الكود STU..."
-                  value={studentSearchQuery}
-                  onChange={(e) => setStudentSearchQuery(e.target.value)}
-                  className="w-full h-9 rounded-xl border border-slate-200 pr-9 pl-3 text-xs focus:ring-2 focus:ring-primary/20 bg-slate-50/60 focus:bg-white text-slate-800 transition-all placeholder:text-slate-400"
-                />
-              </div>
-
-              <select
-                className="w-full h-10 rounded-xl border border-slate-200 px-3 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
-                value={selectedStudentId || ''}
-                onChange={handleStudentChange}
-                disabled={isPending || isDefaultersLoading || isEnrollmentsLoading}
-              >
-                <option value="">
-                  {isDefaultersLoading || isEnrollmentsLoading
-                    ? 'جاري تحميل قائمة الطلاب...'
-                    : filteredStudents.length === 0
-                    ? '-- لا يوجد طلاب مطابقين للبحث --'
-                    : '-- اختر طالباً --'}
-                </option>
-                {filteredStudents.map((s) => {
-                  const bookletStatus =
-                    paymentType === 'BOOKLET' && selectedBookletId
-                      ? getStudentBookletPaymentStatus(s.id, selectedBookletId)
-                      : null;
-
-                  return (
-                    <option key={s.id} value={s.id}>
-                      {s.name} {s.studentCode ? `[${s.studentCode}]` : ''}
-                      {paymentType === 'TUITION' && (
-                        s.rateMultiplier === 0
-                          ? ' — (معفى من اشتراك الشهر الحالي — انضمام بعد يوم 20)'
-                          : s.rateMultiplier === 0.5
-                          ? ` — (نصف شهر — المطلوب: ${s.fee} ج.م)`
-                          : s.isPaid
-                          ? ' — (مسدد بالفعل)'
-                          : s.isPartiallyPaid
-                          ? ` — (سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
-                          : ` — (غير مسدد — المطلوب: ${s.fee} ج.م)`
-                      )}
-                      {paymentType === 'BOOKLET' && bookletStatus && (
-                        bookletStatus.isPaid
-                          ? ' — (مسدد بالفعل — تم الاستلام)'
-                          : bookletStatus.isPartiallyPaid
-                          ? ` — (سداد جزئي: مدفوع ${bookletStatus.amountPaid} ج.م • متبقي ${bookletStatus.remainingAmount} ج.م)`
-                          : ` — (غير مسدد — المطلوب: ${bookletStatus.expected} ج.م)`
-                      )}
-                    </option>
-                  );
-                })}
-              </select>
-              {errors.studentId && (
-                <p className="text-red-500 text-xs mt-1 font-medium">
-                  {errors.studentId.message}
-                </p>
-              )}
-
-              {paymentType === 'TUITION' && selectedStudent && selectedStudent.rateMultiplier !== undefined && selectedStudent.rateMultiplier < 1.0 && (
-                <div className={`mt-2 p-3 rounded-xl border flex items-start gap-2.5 text-xs font-bold animate-in fade-in ${
-                  selectedStudent.rateMultiplier === 0
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                    : 'bg-amber-50 border-amber-200 text-amber-900'
-                }`}>
-                  <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${
-                    selectedStudent.rateMultiplier === 0 ? 'text-emerald-600' : 'text-amber-600'
-                  }`} />
-                  <div>
-                    <div className="font-extrabold">
-                      {selectedStudent.rateMultiplier === 0
-                        ? 'إعفاء من اشتراك الشهر الحالي (طالب جديد)'
-                        : 'اشتراك نصف شهر (انضمام منتصف الشهر)'}
-                    </div>
-                    <p className="text-[11px] font-medium mt-0.5 opacity-90">
-                      {selectedStudent.calculationReason || (
-                        selectedStudent.rateMultiplier === 0
-                          ? 'التحق الطالب بعد يوم 20 في الشهر، لذلك يعفى من اشتراك الشهر الحالي وتكون الرسوم 0 ج.م.'
-                          : `التحق الطالب بين يوم 10 و 20 في الشهر، لذلك يُحسب 50% فقط (${selectedStudent.fee} ج.م بدلاً من ${groupFee} ج.م).`
-                      )}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {paymentType === 'BOOKLET' && isBookletAlreadyPaid && (
-                <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-800 animate-in fade-in">
-                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>هذا الطالب قام بسداد واستلام هذه المذكرة مسبقاً بالكامل! (تم منع تكرار الدفع).</span>
-                </div>
-              )}
-            </div>
-
-            {paymentType === 'BOOKLET' && (
-              <div>
-                <Label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  المذكرة / الملزمة الدراسية <span className="text-red-500">*</span>
-                </Label>
-                <select
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-purple-500/20 bg-white text-slate-800"
-                  value={selectedBookletId || ''}
-                  onChange={handleBookletChange}
-                  disabled={isPending || isBookletsLoading}
-                >
-                  <option value="">
-                    {isBookletsLoading
-                      ? 'جاري تحميل المذكرات...'
-                      : eligibleBooklets.length === 0
-                      ? (booklets.length === 0 ? '-- لا توجد مذكرات مضافة في النظام --' : '-- لا توجد مذكرات مطابقة لهذا الاختيار --')
-                      : `-- اختر المذكرة (${eligibleBooklets.length} متاح) --`}
-                  </option>
-                  {eligibleBooklets.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.title} — {b.gradeLevel} ({b.price} ج.م)
-                    </option>
-                  ))}
-                </select>
-                {errors.bookletId && (
-                  <p className="text-red-500 text-xs mt-1 font-medium">
-                    {errors.bookletId.message}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Amount Paid with Partial Payment Controls */}
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <Label className="block text-xs font-bold text-slate-700">
-                  {isPreviouslyPartial ? 'المبلغ المحصل الآن لاستكمال السداد (ج.م)' : 'المبلغ المحصل الآن (ج.م)'} <span className="text-red-500">*</span>
-                </Label>
-                {currentExpectedAmount > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    {isPreviouslyPartial ? (
-                      <button
-                        type="button"
-                        onClick={() => setValue('amountPaid', selectedStudent?.remainingAmount ?? Math.max(0, currentExpectedAmount - previouslyPaid))}
-                        className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors border border-emerald-200 cursor-pointer"
-                      >
-                        سداد المتبقي كاملاً ({selectedStudent?.remainingAmount ?? Math.max(0, currentExpectedAmount - previouslyPaid)} ج.م)
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setValue('amountPaid', currentExpectedAmount)}
-                          className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-emerald-200"
-                        >
-                          {selectedStudent?.rateMultiplier === 0.5
-                            ? `سداد نصف الشهر (${currentExpectedAmount} ج.م)`
-                            : `سداد كامل (${currentExpectedAmount} ج.م)`}
-                        </button>
-                        {selectedStudent?.rateMultiplier !== 0.5 && currentExpectedAmount > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setValue('amountPaid', Math.round(currentExpectedAmount / 2))}
-                            className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-amber-200"
-                          >
-                            سداد النصف ({Math.round(currentExpectedAmount / 2)} ج.م)
-                          </button>
-                        )}
-                        {selectedStudent?.rateMultiplier === 0.5 && groupFee > currentExpectedAmount && (
-                          <button
-                            type="button"
-                            onClick={() => setValue('amountPaid', groupFee)}
-                            className="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-slate-300"
-                          >
-                            سداد شهر كامل ({groupFee} ج.م)
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-              <Input
-                type="number"
-                step="any"
-                min="0"
-                {...register('amountPaid', { valueAsNumber: true })}
-                disabled={isPending}
-                className="font-bold text-emerald-700 text-base"
-              />
-              {errors.amountPaid && (
-                <p className="text-red-500 text-xs mt-1 font-medium">
-                  {errors.amountPaid.message}
-                </p>
-              )}
-
-              {/* Dynamic Partial / Full Payment Calculation Summary */}
-              {selectedStudentId && currentExpectedAmount > 0 && (
-                <div
-                  className={`mt-2 p-3.5 rounded-xl border text-xs transition-all ${
-                    isFullPayment
-                      ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                      : isPartialPayment
-                      ? 'bg-amber-50/80 border-amber-200 text-amber-900'
-                      : 'bg-slate-50 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold">
-                    <span>
-                      {isFullPayment
-                        ? 'سداد كامل للمبلغ'
-                        : isPartialPayment
-                        ? 'سداد جزئي (دفعة مقدمة / قسط)'
-                        : 'تفاصيل الرسوم المستحقة'}
-                    </span>
-                    <span className="font-extrabold">
-                      إجمالي الاشتراك: {currentExpectedAmount} ج.م
-                    </span>
-                  </div>
-
-                  {isPreviouslyPartial && (
-                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-semibold border-t border-amber-200/60 pt-1.5 text-amber-800">
-                      <span>المسدد سابقاً: {previouslyPaid} ج.م</span>
-                      <span className="text-blue-700 font-bold">المحصل الآن: {currentEnteredAmount} ج.م</span>
-                    </div>
-                  )}
-
-                  <div className="mt-1 flex items-center justify-between text-[11px] font-bold border-t border-slate-200/60 pt-1">
-                    <span>الإجمالي المسدد بعد هذه العملية: {totalCumulativePaid} ج.م</span>
-                    <span className={remainingDue === 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                      {remainingDue === 0 ? '✅ تم سداد كامل المبلغ' : `المتبقي: ${remainingDue} ج.م`}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  رقم الإيصال (اختياري)
-                </Label>
-                <Input
-                  type="text"
-                  placeholder="رقم الإيصال الورقي"
-                  {...register('receiptNumber')}
-                  disabled={isPending}
-                />
-              </div>
-              <div>
-                <Label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  ملاحظات (اختياري)
-                </Label>
-                <Input
-                  type="text"
-                  placeholder="...ملاحظات أو خصم"
-                  {...register('notes')}
-                  disabled={isPending}
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex justify-end gap-2.5">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
-                إلغاء
-              </Button>
-              <Button
-                type="submit"
-                disabled={isPending || !selectedStudentId || currentEnteredAmount <= 0 || (paymentType === 'BOOKLET' && isBookletAlreadyPaid)}
-                className={
-                  paymentType === 'BOOKLET'
-                    ? 'bg-purple-600 hover:bg-purple-700 text-white font-bold'
-                    : isPartialPayment
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold'
-                    : 'bg-primary hover:bg-primary/90 text-white font-bold'
-                }
-              >
-                {isPending ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>جاري الحفظ...</span>
-                  </div>
-                ) : isPartialPayment ? (
-                  `حفظ دفعة جزئية (${currentEnteredAmount} ج.م)`
-                ) : (
-                  'حفظ عملية السداد'
-                )}
-              </Button>
-            </div>
+            <RecordPaymentAmountSection
+              register={register}
+              errors={errors}
+              isPending={isPending}
+              selectedStudentId={selectedStudentId}
+              selectedStudent={selectedStudent}
+              groupFee={groupFee}
+              paymentType={paymentType}
+              isBookletAlreadyPaid={isBookletAlreadyPaid}
+              isPreviouslyPartial={isPreviouslyPartial}
+              previouslyPaid={previouslyPaid}
+              currentExpectedAmount={currentExpectedAmount}
+              currentEnteredAmount={currentEnteredAmount}
+              totalCumulativePaid={totalCumulativePaid}
+              remainingDue={remainingDue}
+              isFullPayment={isFullPayment}
+              isPartialPayment={isPartialPayment}
+              onSetAmountPaid={(amt) => setValue('amountPaid', amt)}
+              onClose={onClose}
+            />
           </form>
         </div>
       </div>

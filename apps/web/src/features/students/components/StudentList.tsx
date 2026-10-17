@@ -1,20 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { MultiSelectDropdown } from '@/features/groups/components/MultiSelectDropdown';
-import { useStudents } from '../hooks/use-students';
-import { useGroups } from '@/features/groups/hooks/useGroups';
-import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
-import { AcademicStatus } from '../types/students.types';
-import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft, Eye, KeyRound, Filter, X } from 'lucide-react';
+import React from 'react';
 import dynamic from 'next/dynamic';
 import { Pagination } from '@/components/ui/Pagination';
-import { CreatorBadge } from '@/components/ui/CreatorBadge';
+import { useStudentListState } from '../hooks/useStudentListState';
+import { StudentListFilters } from './StudentListFilters';
+import { StudentListTable } from './StudentListTable';
 
 const StudentDetailsModal = dynamic(
   () => import('./StudentDetailsModal').then((mod) => mod.StudentDetailsModal),
@@ -26,789 +17,90 @@ const StudentPasswordModal = dynamic(
   { ssr: false }
 );
 
-
-const STAGE_GRADES_MAP: Record<string, string[]> = {
-  'المرحلة الابتدائية': [
-    'الصف الأول الابتدائي',
-    'الصف الثاني الابتدائي',
-    'الصف الثالث الابتدائي',
-    'الصف الرابع الابتدائي',
-    'الصف الخامس الابتدائي',
-    'الصف السادس الابتدائي',
-  ],
-  'المرحلة الإعدادية': [
-    'الصف الأول الإعدادي',
-    'الصف الثاني الإعدادي',
-    'الصف الثالث الإعدادي',
-  ],
-  'المرحلة الثانوية': [
-    'الصف الأول الثانوي',
-    'الصف الثاني الثانوي',
-    'الصف الثالث الثانوي',
-  ],
-};
-
-const getStageName = (gradeLevel?: string, academicStage?: string) => {
-  if (academicStage === 'PRIMARY' || gradeLevel?.includes('الابتدائي')) return 'المرحلة الابتدائية';
-  if (academicStage === 'MIDDLE' || gradeLevel?.includes('الإعدادي')) return 'المرحلة الإعدادية';
-  if (academicStage === 'SECONDARY' || gradeLevel?.includes('الثانوي')) return 'المرحلة الثانوية';
-  return 'أخرى';
-};
-
 export function StudentList() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [cursor, setCursor] = useState<string | undefined>(undefined);
-  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([undefined]);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const PAGE_SIZE = 10;
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-  const [selectedStages, setSelectedStages] = useState<string[]>([]);
-  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [selectedStudentForModal, setSelectedStudentForModal] = useState<string | null>(null);
-  const [selectedStudentForPassword, setSelectedStudentForPassword] = useState<{ id: string; name: string } | null>(null);
-
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const filtersRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
-        setIsFiltersOpen(false);
-      }
-    };
-    if (isFiltersOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isFiltersOpen]);
-
-  // Fetch groups to populate group filter options
-  const { data: groups } = useGroups();
-
-  // Synchronized System Academic Period (Read-only from global system switcher)
   const {
-    activeYear,
-    activeTerm,
-  } = useStoredAcademicPeriod(groups);
-
-  // Local filter toolbar states initialized with system active period
-  const [selectedYears, setSelectedYears] = useState<string[]>([]);
-  const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
-
-  // Automatically synchronize local filters when global system academic period changes from top navbar
-  useEffect(() => {
-    if (activeYear) {
-      setSelectedYears([activeYear]);
-    }
-  }, [activeYear]);
-
-  useEffect(() => {
-    if (activeTerm) {
-      setSelectedTerms([activeTerm]);
-    }
-  }, [activeTerm]);
-
-  // Reset pagination state when any search or filter criteria changes
-  useEffect(() => {
-    setCursor(undefined);
-    setCursorHistory([undefined]);
-    setCurrentPage(1);
-  }, [debouncedSearch, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms]);
-
-  const availableYears = useMemo(() => {
-    const yearsSet = new Set<string>();
-    yearsSet.add('2026-2027');
-    yearsSet.add('2026-2027');
-    yearsSet.add('2024-2025');
-
-    if (groups && Array.isArray(groups)) {
-      groups.forEach((g) => {
-        if (g.academicYear && g.academicYear.trim()) {
-          yearsSet.add(g.academicYear.trim());
-        }
-      });
-    }
-
-    return Array.from(yearsSet)
-      .sort()
-      .reverse()
-      .map((year) => ({
-        label: year,
-        value: year,
-        icon: <Calendar className="w-3.5 h-3.5 text-primary-600" />,
-      }));
-  }, [groups]);
-
-  const availableTerms = useMemo(
-    () => [
-      {
-        label: 'الفصل الدراسي الأول (ترم أول)',
-        value: 'FIRST_TERM',
-        icon: <BookOpen className="w-3.5 h-3.5 text-primary-600" />,
-      },
-      {
-        label: 'الفصل الدراسي الثاني (ترم ثانٍ)',
-        value: 'SECOND_TERM',
-        icon: <BookOpen className="w-3.5 h-3.5 text-primary-600" />,
-      },
-    ],
-    []
-  );
-
-  // Map stage filter to backend stage code when a single stage is selected
-  const stageQuery = useMemo(() => {
-    if (selectedStages.length !== 1) return undefined;
-    const s = selectedStages[0];
-    if (s === 'المرحلة الابتدائية' || s === 'PRIMARY') return 'PRIMARY';
-    if (s === 'المرحلة الإعدادية' || s === 'MIDDLE') return 'MIDDLE';
-    if (s === 'المرحلة الثانوية' || s === 'SECONDARY') return 'SECONDARY';
-    return s;
-  }, [selectedStages]);
-
-  // Pass single grade level filter to server
-  const gradeQuery = useMemo(() => {
-    if (selectedGrades.length !== 1) return undefined;
-    return selectedGrades[0];
-  }, [selectedGrades]);
-
-  // Pass single physical group filter to server (including UNASSIGNED)
-  const groupQuery = useMemo(() => {
-    if (selectedGroups.length !== 1) return undefined;
-    return selectedGroups[0];
-  }, [selectedGroups]);
-
-  // Fetch students with server cursor pagination (limit: PAGE_SIZE = 10) and forwarded filters
-  const { data, isLoading, isError } = useStudents({
-    search: debouncedSearch.trim() || undefined,
-    academicStage: stageQuery,
-    gradeLevel: gradeQuery,
-    groupId: groupQuery,
+    searchTerm,
+    setSearchTerm,
+    currentPage,
+    setCurrentPage,
+    PAGE_SIZE,
+    availableYears,
+    selectedYears,
+    setSelectedYears,
+    availableTerms,
+    selectedTerms,
+    setSelectedTerms,
+    isFiltersOpen,
+    setIsFiltersOpen,
+    filtersRef,
+    selectedStages,
+    handleStagesChange,
+    availableGradeOptions,
+    selectedGrades,
+    handleGradesChange,
+    availableGroupOptions,
+    selectedGroups,
+    setSelectedGroups,
+    hasActiveFilters,
+    totalStudents,
+    filteredStudents,
+    resetFilters,
+    isLoading,
+    isError,
+    totalPages,
+    hasMore,
     cursor,
-    limit: PAGE_SIZE,
-  });
-
-  // Calculate available grade options dynamically based on selected stages
-  const availableGradeOptions = useMemo(() => {
-    let gradesList: string[] = [];
-
-    if (selectedStages.length > 0) {
-      selectedStages.forEach((stage) => {
-        if (STAGE_GRADES_MAP[stage]) {
-          gradesList.push(...STAGE_GRADES_MAP[stage]);
-        }
-      });
-    } else {
-      Object.values(STAGE_GRADES_MAP).forEach((grades) => {
-        gradesList.push(...grades);
-      });
-    }
-
-    // Also include any custom grades present in the students data
-    if (data?.data && Array.isArray(data.data)) {
-      data.data.forEach((st) => {
-        if (st.gradeLevel && !gradesList.includes(st.gradeLevel)) {
-          const stStage = getStageName(st.gradeLevel, st.academicStage);
-          if (selectedStages.length === 0 || selectedStages.includes(stStage)) {
-            gradesList.push(st.gradeLevel);
-          }
-        }
-      });
-    }
-
-    return Array.from(new Set(gradesList)).map((grade) => ({
-      label: grade,
-      value: grade,
-    }));
-  }, [selectedStages, data]);
-
-  // Prune non-matching grades on stage change
-  const handleStagesChange = useCallback((newStages: string[]) => {
-    setSelectedStages(newStages);
-    if (newStages.length > 0) {
-      setSelectedGrades((prevGrades) =>
-        prevGrades.filter((grade) => {
-          const stage = getStageName(grade);
-          return newStages.includes(stage);
-        })
-      );
-    }
-  }, []);
-
-  // Handle grade change
-  const handleGradesChange = useCallback((newGrades: string[]) => {
-    setSelectedGrades(newGrades);
-  }, []);
-
-  // Available groups for filter dropdown filtered by chosen academic year, semester, stage & grade
-  const availableGroupOptions = useMemo(() => {
-    if (!groups || !Array.isArray(groups)) return [];
-    const groupOpts = groups
-      .filter((g) => {
-        // 1. Stage filter
-        const groupStage = getStageName(g.gradeLevel);
-        const matchesStage = selectedStages.length === 0 || selectedStages.includes(groupStage);
-
-        // 2. Grade filter
-        const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(g.gradeLevel);
-
-        // 3. Academic Year filter
-        const matchesYear =
-          selectedYears.length === 0 ||
-          (g.academicYear && selectedYears.includes(g.academicYear));
-
-        // 4. Academic Term filter
-        const matchesTerm =
-          selectedTerms.length === 0 ||
-          (g.academicTerm && selectedTerms.includes(g.academicTerm));
-
-        return matchesStage && matchesGrade && matchesYear && matchesTerm;
-      })
-      .map((g) => ({
-        label: g.name,
-        value: g.id,
-        icon: <Users className="w-3.5 h-3.5 text-primary-600" />,
-      }));
-
-    return [
-      {
-        label: 'غير معين (بدون مجموعة)',
-        value: 'UNASSIGNED',
-        icon: <Users className="w-3.5 h-3.5 text-amber-500" />,
-      },
-      ...groupOpts,
-    ];
-  }, [groups, selectedStages, selectedGrades, selectedYears, selectedTerms]);
-
-  // Fast group lookup map
-  const groupMap = useMemo(() => {
-    if (!groups || !Array.isArray(groups)) return new Map<string, any>();
-    return new Map(groups.map((g) => [g.id, g]));
-  }, [groups]);
-
-  // Prune any selected groups that are no longer available in the filtered options
-  React.useEffect(() => {
-    if (selectedGroups.length > 0) {
-      const validGroupIds = new Set(availableGroupOptions.map((g) => g.value));
-      setSelectedGroups((prev) => {
-        const filtered = prev.filter((id) => validGroupIds.has(id));
-        return filtered.length === prev.length ? prev : filtered;
-      });
-    }
-  }, [availableGroupOptions]);
-
-  // Filter students
-  const filteredStudents = useMemo(() => {
-    if (!data?.data) return [];
-    return data.data.filter((student) => {
-      // 1. Search filter
-      const q = searchTerm.trim().toLowerCase();
-      const matchesSearch =
-        !q ||
-        student.user.fullName.toLowerCase().includes(q) ||
-        student.studentCode.toLowerCase().includes(q) ||
-        (student.user.phone && student.user.phone.includes(q)) ||
-        (student.gradeLevel && student.gradeLevel.toLowerCase().includes(q)) ||
-        (student.groupEnrollments &&
-          student.groupEnrollments.some((e) => e.group.name.toLowerCase().includes(q)));
-
-      // 2. Stage filter
-      const stage = getStageName(student.gradeLevel, student.academicStage);
-      const matchesStage = selectedStages.length === 0 || selectedStages.includes(stage);
-
-      // 3. Grade filter
-      const matchesGrade =
-        selectedGrades.length === 0 ||
-        (student.gradeLevel && selectedGrades.includes(student.gradeLevel));
-
-      // 4. Group filter
-      const isUnassigned = !student.groupEnrollments || student.groupEnrollments.length === 0;
-      const matchesGroup =
-        selectedGroups.length === 0 ||
-        (selectedGroups.includes('UNASSIGNED') && isUnassigned) ||
-        (student.groupEnrollments &&
-          student.groupEnrollments.some((e) => selectedGroups.includes(e.group.id)));
-
-      // 5. Academic Year filter
-      const matchesYear =
-        selectedYears.length === 0 ||
-        isUnassigned ||
-        (student.groupEnrollments &&
-          student.groupEnrollments.some((e) => {
-            const groupInfo = groupMap.get(e.group.id);
-            return groupInfo?.academicYear && selectedYears.includes(groupInfo.academicYear);
-          }));
-
-      // 6. Academic Term filter
-      const matchesTerm =
-        selectedTerms.length === 0 ||
-        isUnassigned ||
-        (student.groupEnrollments &&
-          student.groupEnrollments.some((e) => {
-            const groupInfo = groupMap.get(e.group.id);
-            return groupInfo?.academicTerm && selectedTerms.includes(groupInfo.academicTerm);
-          }));
-
-      return matchesSearch && matchesStage && matchesGrade && matchesGroup && matchesYear && matchesTerm;
-    });
-  }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms, groupMap]);
-
-  const paginatedStudents = filteredStudents;
-
-  const hasMore = Boolean(data?.meta?.hasMore);
-  const totalStudents = data?.meta?.total;
-  const maxReachablePage = hasMore
-    ? Math.max(cursorHistory.length + 1, currentPage + 1)
-    : Math.max(cursorHistory.length, currentPage);
-  const totalPages = Math.max(1, maxReachablePage);
-
-  const handlePageChange = useCallback(
-    (page: number) => {
-      if (page === currentPage || page < 1) return;
-
-      if (page > currentPage) {
-        // Advancing forward
-        if (page === currentPage + 1 && data?.meta?.nextCursor) {
-          const nextCursor = data.meta.nextCursor;
-          setCursorHistory((prev) => {
-            const next = [...prev];
-            next[page - 1] = nextCursor;
-            return next;
-          });
-          setCursor(nextCursor);
-          setCurrentPage(page);
-        } else if (cursorHistory[page - 1] !== undefined || page === 1) {
-          setCursor(cursorHistory[page - 1]);
-          setCurrentPage(page);
-        }
-      } else {
-        // Navigating backward
-        const targetCursor = cursorHistory[page - 1];
-        setCursor(targetCursor);
-        setCurrentPage(page);
-      }
-    },
-    [currentPage, data?.meta?.nextCursor, cursorHistory]
-  );
-
-  const hasActiveFilters =
-    searchTerm !== '' ||
-    selectedStages.length > 0 ||
-    selectedGrades.length > 0 ||
-    selectedGroups.length > 0 ||
-    selectedYears.length > 0 ||
-    selectedTerms.length > 0;
-
-  const resetFilters = () => {
-    setSearchTerm('');
-    setSelectedStages([]);
-    setSelectedGrades([]);
-    setSelectedGroups([]);
-    setSelectedYears([]);
-    setSelectedTerms([]);
-    setCursor(undefined);
-    setCursorHistory([undefined]);
-    setCurrentPage(1);
-  };
-
-  const getStatusColor = (status: AcademicStatus | string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'success';
-      case 'LEFT':
-        return 'warning';
-      case 'GRADUATED':
-        return 'info';
-      case 'DROPPED_OUT':
-        return 'warning';
-      case 'SUSPENDED':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  const getStatusText = (status: AcademicStatus | string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'نشط';
-      case 'LEFT':
-        return 'غادر السنتر';
-      case 'GRADUATED':
-        return 'خريج';
-      case 'DROPPED_OUT':
-        return 'منسحب';
-      case 'SUSPENDED':
-        return 'موقوف';
-      case 'ARCHIVED':
-        return 'مؤرشف';
-      default:
-        return status;
-    }
-  };
+    handlePageChange,
+    selectedStudentForModal,
+    setSelectedStudentForModal,
+    selectedStudentForPassword,
+    setSelectedStudentForPassword,
+    getStatusColor,
+    getStatusText,
+  } = useStudentListState();
 
   return (
     <div className="space-y-6">
       {/* Filters Toolbar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Search Input */}
-          <div className="md:col-span-5 relative">
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400" />
-            </div>
-            <Input
-              type="search"
-              className="pr-10 h-10 text-xs sm:text-sm bg-slate-50/50 border border-slate-200 focus:border-primary-500 rounded-lg transition-all"
-              placeholder="ابحث بالاسم، رقم الهاتف أو الكود..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-
-          {/* Academic Year */}
-          <div className="md:col-span-3">
-            <MultiSelectDropdown
-              placeholder="العام الدراسي"
-              allSelectedLabel="جميع الأعوام الدراسية"
-              options={availableYears}
-              selectedValues={selectedYears}
-              onChange={(vals) => {
-                setSelectedYears(vals);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-
-          {/* Academic Term */}
-          <div className="md:col-span-3">
-            <MultiSelectDropdown
-              placeholder="الفصل الدراسي"
-              allSelectedLabel="جميع الفصول الدراسية"
-              options={availableTerms}
-              selectedValues={selectedTerms}
-              onChange={(vals) => {
-                setSelectedTerms(vals);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-
-          {/* Advanced Filters Button */}
-          <div className="md:col-span-1 relative" ref={filtersRef}>
-            <button
-              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-              className={`w-full h-10 flex items-center justify-center gap-2 rounded-lg border transition-all ${
-                isFiltersOpen 
-                ? 'bg-primary-50 text-primary-600 border-primary-200' 
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-              title="فلاتر متقدمة"
-            >
-              <Filter className="w-5 h-5" />
-            </button>
-
-            {/* Advanced Filters Popover */}
-            {isFiltersOpen && (
-              <div className="absolute top-full left-0 mt-2 w-[calc(100vw-32px)] sm:w-[320px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-[100] space-y-4 origin-top-left rtl:origin-top-right">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-slate-800 text-sm">فلاتر متقدمة</h3>
-                  <button onClick={() => setIsFiltersOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 p-1.5 rounded-md">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                <div className="space-y-3">
-                  <MultiSelectDropdown
-                    placeholder="المرحلة التعليمية"
-                    allSelectedLabel="جميع المراحل التعليمية"
-                    options={[
-                      { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
-                      { label: 'المرحلة الإعدادية', value: 'المرحلة الإعدادية' },
-                      { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
-                    ]}
-                    selectedValues={selectedStages}
-                    onChange={(vals) => {
-                      handleStagesChange(vals);
-                      setCurrentPage(1);
-                    }}
-                  />
-
-                  <MultiSelectDropdown
-                    placeholder="الصف الدراسي"
-                    allSelectedLabel="جميع الصفوف الدراسية"
-                    withSearch={availableGradeOptions.length > 5}
-                    options={availableGradeOptions}
-                    selectedValues={selectedGrades}
-                    onChange={(vals) => {
-                      handleGradesChange(vals);
-                      setCurrentPage(1);
-                    }}
-                  />
-
-                  <MultiSelectDropdown
-                    placeholder="المجموعة الدراسية"
-                    allSelectedLabel="جميع المجموعات"
-                    withSearch={true}
-                    options={availableGroupOptions}
-                    selectedValues={selectedGroups}
-                    onChange={(vals) => {
-                      setSelectedGroups(vals);
-                      setCurrentPage(1);
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Active Filters Summary & Reset */}
-        {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-slate-50 text-xs">
-            <div className="text-slate-500">
-              تم العثور على <span className="font-bold text-primary-600">{totalStudents ?? filteredStudents.length}</span> طالب
-            </div>
-            <button
-              onClick={resetFilters}
-              className="inline-flex items-center gap-1 text-slate-500 hover:text-primary-600 transition-colors font-medium cursor-pointer"
-            >
-              <RotateCcw className="w-3 h-3" />
-              إعادة تعيين الفلاتر
-            </button>
-          </div>
-        )}
-      </div>
+      <StudentListFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        setCurrentPage={setCurrentPage}
+        availableYears={availableYears}
+        selectedYears={selectedYears}
+        setSelectedYears={setSelectedYears}
+        availableTerms={availableTerms}
+        selectedTerms={selectedTerms}
+        setSelectedTerms={setSelectedTerms}
+        isFiltersOpen={isFiltersOpen}
+        setIsFiltersOpen={setIsFiltersOpen}
+        filtersRef={filtersRef}
+        selectedStages={selectedStages}
+        handleStagesChange={handleStagesChange}
+        availableGradeOptions={availableGradeOptions}
+        selectedGrades={selectedGrades}
+        handleGradesChange={handleGradesChange}
+        availableGroupOptions={availableGroupOptions}
+        selectedGroups={selectedGroups}
+        setSelectedGroups={setSelectedGroups}
+        hasActiveFilters={hasActiveFilters}
+        totalStudents={totalStudents}
+        filteredCount={filteredStudents.length}
+        resetFilters={resetFilters}
+      />
 
       {/* Table & Mobile Cards Section */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        {/* Desktop Table View */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm text-start">
-            <thead className="bg-slate-50/80 border-b border-slate-100 backdrop-blur-sm text-xs">
-              <tr>
-                <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">اسم الطالب</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">رقم الهاتف</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">كود الطالب</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">المرحلة الدراسية</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">المجموعة</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">ولي الأمر</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">الحالة</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-center whitespace-nowrap w-28">التفاصيل</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center space-y-3">
-                      <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-                      <p className="font-medium">جاري تحميل الطلاب...</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : isError ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
-                    فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
-                  </td>
-                </tr>
-              ) : filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-20 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center space-y-3">
-                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-2">
-                        <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                      </div>
-                      <p className="text-lg font-medium text-slate-600">
-                        {hasActiveFilters ? 'لا يوجد طلاب مطابقين لخيارات الفلترة المحددة.' : 'لم يتم العثور على طلاب.'}
-                      </p>
-                      {hasActiveFilters && (
-                        <Button variant="outline" size="sm" onClick={resetFilters} className="mt-2">
-                          <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
-                          إعادة تعيين الفلاتر
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginatedStudents.map((student) => (
-                  <tr
-                    key={student.id}
-                    onClick={() => setSelectedStudentForModal(student.id)}
-                    className="group hover:bg-primary-50/40 hover:shadow-xs transition-all duration-150 cursor-pointer"
-                    title="اضغط لعرض تفاصيل الطالب وسجله الكامل"
-                  >
-                    <td className="px-4 py-2.5">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-700 text-xs group-hover:text-primary-600 transition-colors">
-                            {student.user.fullName}
-                          </span>
-                          <span className="inline-flex items-center text-[10px] text-primary-600 font-semibold opacity-0 group-hover:opacity-100 transition-all transform -translate-x-1 group-hover:translate-x-0">
-                            <Eye className="w-3 h-3 text-primary-500" />
-                          </span>
-                        </div>
-                        <CreatorBadge
-                          createdByName={(student as any).createdByName}
-                          updatedByName={(student as any).updatedByName}
-                          compact
-                          className="mt-0.5"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span className="text-[11px] text-slate-600 font-mono" dir="ltr">
-                        {student.user.phone || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs">
-                      <div className="inline-flex items-center px-2 py-1 rounded-md bg-slate-100 text-slate-600 font-semibold text-[11px] border border-slate-200/60 group-hover:bg-white group-hover:border-primary-200 transition-colors">
-                        {student.studentCode}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 font-medium text-slate-600 text-xs">
-                      {student.gradeLevel || <span className="text-slate-400 italic">-</span>}
-                    </td>
-                    <td className="px-4 py-2.5 font-medium text-slate-600 text-xs">
-                      {student.groupEnrollments?.[0]?.group?.name ? (
-                        <span title={student.groupEnrollments[0].group.name}>
-                          {student.groupEnrollments[0].group.name.split('(')[0].trim()}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
-                          غير معين
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {student.parentLinks?.[0]?.parent.user ? (
-                        <span className="text-xs font-mono text-slate-600" dir="ltr">
-                          {student.parentLinks[0].parent.user.phone || '—'}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 italic text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Badge variant={getStatusColor(student.academicStatus)} className="px-2 py-0.5 text-[10px] font-bold rounded-md shadow-sm">
-                        {getStatusText(student.academicStatus)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 group-hover:text-primary-700 bg-slate-100/80 group-hover:bg-primary-100/80 px-2.5 py-1 rounded-lg transition-all duration-150 border border-slate-200/60 group-hover:border-primary-200 shadow-2xs">
-                        <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-primary-600 transition-colors" />
-                        <span>عرض التفاصيل</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards View (Optimized for Phone Screens) */}
-        <div className="block md:hidden">
-          {isLoading ? (
-            <div className="p-8 text-center text-slate-500">
-              <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-              <p className="font-medium text-sm">جاري تحميل الطلاب...</p>
-            </div>
-          ) : isError ? (
-            <div className="p-6 text-center text-red-500 bg-red-50/50 text-sm">
-              فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
-            </div>
-          ) : filteredStudents.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              <p className="text-sm font-medium text-slate-600">
-                {hasActiveFilters ? 'لا يوجد طلاب مطابقين لخيارات الفلترة.' : 'لم يتم العثور على طلاب.'}
-              </p>
-              {hasActiveFilters && (
-                <Button variant="outline" size="sm" onClick={resetFilters} className="mt-3 text-xs">
-                  <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
-                  إعادة تعيين الفلاتر
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {paginatedStudents.map((student) => (
-                <div
-                  key={student.id}
-                  onClick={() => setSelectedStudentForModal(student.id)}
-                  className="group p-4 space-y-3 hover:bg-primary-50/30 transition-colors cursor-pointer active:scale-[0.99]"
-                  title="اضغط لعرض تفاصيل الطالب"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-sm text-slate-900 group-hover:text-primary-700 transition-colors truncate">
-                            {student.user.fullName}
-                          </h4>
-                          <Eye className="w-3.5 h-3.5 text-primary-500 shrink-0 opacity-75 group-hover:opacity-100" />
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] font-mono text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">
-                            {student.studentCode}
-                          </span>
-                          <span className="text-[11px] text-slate-500 truncate">
-                            {student.gradeLevel || '—'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <Badge variant={getStatusColor(student.academicStatus)} className="text-[10px] font-bold">
-                        {getStatusText(student.academicStatus)}
-                      </Badge>
-                      <span className="text-[10px] text-primary-600 font-semibold inline-flex items-center gap-0.5">
-                        عرض التفاصيل
-                        <ChevronLeft className="w-3 h-3" />
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 group-hover:bg-white group-hover:border-primary-100 transition-colors">
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">المجموعة:</span>
-                      {student.groupEnrollments?.[0]?.group?.name ? (
-                        <span className="font-bold text-slate-700 truncate block">
-                          {student.groupEnrollments[0].group.name.split('(')[0].trim()}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
-                          غير معين
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">ولي الأمر:</span>
-                      <span className="font-mono text-slate-700 block text-[11px]" dir="ltr">
-                        {student.parentLinks?.[0]?.parent.user?.phone || '—'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <StudentListTable
+          isLoading={isLoading}
+          isError={isError}
+          filteredStudents={filteredStudents}
+          hasActiveFilters={hasActiveFilters}
+          resetFilters={resetFilters}
+          onSelectStudent={(id) => setSelectedStudentForModal(id)}
+          getStatusColor={getStatusColor}
+          getStatusText={getStatusText}
+        />
 
         {/* Pagination Controls */}
         {(totalPages > 1 || hasMore || cursor || (totalStudents && totalStudents > PAGE_SIZE)) && (
@@ -844,6 +136,5 @@ export function StudentList() {
         />
       )}
     </div>
-
   );
 }

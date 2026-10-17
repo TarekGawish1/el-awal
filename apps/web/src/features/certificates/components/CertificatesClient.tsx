@@ -1,546 +1,51 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React from "react";
 import Link from "next/link";
-import { Plus, Award, Search, FileText, Eye, EyeOff } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Card } from "@/components/ui/Card";
-import { toast } from "react-hot-toast";
-import { apiClient } from "@/lib/api/client";
-import { API_ENDPOINTS } from "@/lib/api/endpoints";
-import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
-
-interface SavedCertificate {
-  id: string;
-  studentName: string;
-  subject: string;
-  score: string;
-  stage: string;
-  grade: string;
-  issueDate: string;
-  year: string;
-  groupName?: string;
-  isPublic: boolean;
-  createdAt: string;
-  data?: any;
-}
+import { useCertificatesClient } from "../hooks/useCertificatesClient";
+import { CertificateVisibilityPanel } from "./CertificateVisibilityPanel";
+import { CertificateFilterBar } from "./CertificateFilterBar";
+import { CertificateGrid } from "./CertificateGrid";
 
 export function CertificatesClient() {
-  const [certificates, setCertificates] = useState<SavedCertificate[]>([]);
-  const visibilityPanelRef = useRef<HTMLDivElement>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStage, setSelectedStage] = useState("الكل");
-  const [selectedYear, setSelectedYear] = useState("الكل");
-  const [selectedGrade, setSelectedGrade] = useState("الكل");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
-  const [savedAllowedYears, setSavedAllowedYears] = useState<string[] | null>(
-    null,
-  );
-  const [savingYears, setSavingYears] = useState(false);
-  const [allowedStages, setAllowedStages] = useState<string[] | null>(null);
-  const [savedAllowedStages, setSavedAllowedStages] = useState<string[] | null>(
-    null,
-  );
-  const [allowedGrades, setAllowedGrades] = useState<string[] | null>(null);
-  const [savedAllowedGrades, setSavedAllowedGrades] = useState<string[] | null>(
-    null,
-  );
-  const [allowedGroups, setAllowedGroups] = useState<string[] | null>(null);
-  const [savedAllowedGroups, setSavedAllowedGroups] = useState<string[] | null>(
-    null,
-  );
-
-  const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
-    const value = String(grade || "").trim();
-    if (!value) return "";
-    if (
-      Object.values(GRADE_LEVELS_BY_STAGE).some((gradeList) =>
-        gradeList.includes(value),
-      )
-    ) {
-      return value;
-    }
-
-    const suffixByStage: Record<string, string> = {
-      الثانوية: "الثانوي",
-      الإعدادية: "الإعدادي",
-      الابتدائية: "الابتدائي",
-    };
-    const suffix = suffixByStage[String(stage || "").trim()];
-    return suffix &&
-      /^الصف (الأول|الثاني|الثالث|الرابع|الخامس|السادس)$/.test(value)
-      ? `${value} ${suffix}`
-      : value;
-  };
-
-  const isUuid = (id: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-  const getCertificateIdentity = (cert: any) => {
-    const identityParts = [
-      cert?.id ?? "",
-      cert?.studentName ?? "",
-      cert?.subject ?? "",
-      cert?.stage ?? "",
-      cert?.grade ?? "",
-      cert?.year ?? "",
-      cert?.issueDate ?? "",
-      cert?.teacherName ?? "",
-      cert?.score ?? "",
-    ];
-    return identityParts.map((part) => String(part).trim()).join("|");
-  };
-
-  useEffect(() => {
-    const fetchAndMergeCertificates = async () => {
-      let localCerts: any[] = [];
-      try {
-        const raw = JSON.parse(
-          localStorage.getItem("saved_certificates") || "[]",
-        );
-        localCerts = (Array.isArray(raw) ? raw : []).map((c: any) => ({
-          isPublic: true,
-          ...c,
-        }));
-      } catch (err) {
-        console.error("Error parsing certificates from localStorage:", err);
-      }
-
-      let apiCerts: any[] = [];
-      try {
-        const json = await apiClient<any>(API_ENDPOINTS.CERTIFICATES.LIST);
-        apiCerts = json?.data || (Array.isArray(json) ? json : []);
-      } catch (err) {
-        try {
-          const json = await apiClient<any>(API_ENDPOINTS.CERTIFICATES.PUBLIC);
-          apiCerts = json?.data || (Array.isArray(json) ? json : []);
-        } catch (pubErr) {
-          console.error("Error fetching API certificates:", pubErr);
-        }
-      }
-
-      const mappedApiCerts = apiCerts.map((c: any) => {
-        const localMatch = localCerts.find(
-          (local: any) =>
-            local.id === c.id ||
-            (!local.id &&
-              getCertificateIdentity(local) === getCertificateIdentity(c)),
-        );
-        const localImage = localMatch?.image || localMatch?.data?.image;
-
-        return {
-          id: c.id,
-          studentName: c.studentName,
-          subject: c.subject,
-          score: c.score,
-          stage: c.stage,
-          grade: c.grade,
-          issueDate: c.issueDate,
-          year: c.year,
-          gender: c.gender,
-          teacherName: c.teacherName,
-          groupName: c.groupName,
-          isPublic: c.isPublic !== false,
-          createdAt: c.createdAt,
-          image: c.fileUrl || c.image || localImage,
-          data: localMatch?.data,
-        };
-      });
-
-      const apiIdentitySet = new Set(
-        mappedApiCerts.map((api: any) => getCertificateIdentity(api)),
-      );
-
-      // Filter out only true duplicates that match the same certificate record.
-      const nonDuplicateLocalCerts = localCerts.filter((local: any) => {
-        return !apiIdentitySet.has(getCertificateIdentity(local));
-      });
-
-      // Keep localStorage clean of redundant duplicates
-      if (nonDuplicateLocalCerts.length !== localCerts.length) {
-        try {
-          localStorage.setItem(
-            "saved_certificates",
-            JSON.stringify(nonDuplicateLocalCerts),
-          );
-        } catch (e) {
-          console.warn("Could not update localStorage", e);
-        }
-      }
-
-      const combined = [...mappedApiCerts, ...nonDuplicateLocalCerts];
-
-      // Deduplicate only when the same certificate record is repeated.
-      const seen = new Set<string>();
-      const uniqueSaved: any[] = [];
-      for (const item of combined) {
-        const key = getCertificateIdentity(item);
-        if (!seen.has(key) && !seen.has(item.id)) {
-          seen.add(key);
-          if (item.id) seen.add(item.id);
-          uniqueSaved.push(item);
-        }
-      }
-
-      // Sort by creation date (newest first)
-      uniqueSaved.sort((a: any, b: any) => {
-        const dateA = new Date(a.createdAt || 0).getTime();
-        const dateB = new Date(b.createdAt || 0).getTime();
-        return dateB - dateA;
-      });
-
-      setCertificates(uniqueSaved as SavedCertificate[]);
-    };
-
-    fetchAndMergeCertificates();
-  }, []);
-
-  // Owner control: which academic years visitors see on the landing page
-  useEffect(() => {
-    (async () => {
-      try {
-        const json = await apiClient<any>("/site-settings");
-        const arr = json?.settings || json?.data?.settings || [];
-        const found = arr.find(
-          (s: any) => s.key === "certificates.visibleYears",
-        );
-        const val = Array.isArray(found?.value)
-          ? found.value.map((v: any) => String(v))
-          : null;
-        setAllowedYears(val);
-        setSavedAllowedYears(val);
-        const settingValue = (key: string) => {
-          const setting = arr.find((item: any) => item.key === key);
-          return Array.isArray(setting?.value)
-            ? setting.value.map((value: any) => String(value))
-            : null;
-        };
-        setAllowedStages(settingValue("certificates.visibleStages"));
-        setSavedAllowedStages(settingValue("certificates.visibleStages"));
-        setAllowedGrades(settingValue("certificates.visibleGrades"));
-        setSavedAllowedGrades(settingValue("certificates.visibleGrades"));
-        setAllowedGroups(settingValue("certificates.visibleGroups"));
-        setSavedAllowedGroups(settingValue("certificates.visibleGroups"));
-      } catch (err) {
-        console.warn("Could not load site settings:", err);
-      }
-    })();
-  }, []);
-
-  const yearOptions = React.useMemo(() => {
-    const set = new Set<string>();
-    certificates.forEach((c) => {
-      const y = String((c as any).year || "").trim();
-      if (y) set.add(y);
-    });
-    return Array.from(set).sort((a, b) =>
-      b.localeCompare(a, undefined, { numeric: true }),
-    );
-  }, [certificates]);
-
-  const toggleAllowed = (
-    value: string,
-    current: string[] | null,
-    options: string[],
-    setter: React.Dispatch<React.SetStateAction<string[] | null>>,
-  ) => {
-    const base = current ?? options;
-    setter(
-      base.includes(value)
-        ? base.filter((item) => item !== value)
-        : [...base, value],
-    );
-  };
-
-  const yearsDirty =
-    JSON.stringify([...(allowedYears ?? [])].sort()) !==
-    JSON.stringify([...(savedAllowedYears ?? [])].sort());
-
-  const visibilityDirty =
-    yearsDirty ||
-    JSON.stringify([...(allowedStages ?? [])].sort()) !==
-      JSON.stringify([...(savedAllowedStages ?? [])].sort()) ||
-    JSON.stringify([...(allowedGrades ?? [])].sort()) !==
-      JSON.stringify([...(savedAllowedGrades ?? [])].sort()) ||
-    JSON.stringify([...(allowedGroups ?? [])].sort()) !==
-      JSON.stringify([...(savedAllowedGroups ?? [])].sort());
-
-  const stageOptions = ["الثانوية", "الإعدادية", "الابتدائية"];
-
-  const handleSaveVisibility = async () => {
-    visibilityPanelRef.current
-      ?.querySelectorAll<HTMLDetailsElement>("details[open]")
-      .forEach((details) => {
-        details.open = false;
-      });
-    setSavingYears(true);
-    try {
-      const values = [
-        ["certificates.visibleYears", allowedYears ?? yearOptions],
-        ["certificates.visibleStages", allowedStages ?? stageOptions],
-        ["certificates.visibleGrades", allowedGrades ?? allGrades],
-        ["certificates.visibleGroups", allowedGroups ?? groupOptions],
-      ];
-      await Promise.all(
-        values.map(([key, value]) =>
-          apiClient("/site-settings", {
-            method: "PATCH",
-            body: JSON.stringify({ key, value }),
-          }),
-        ),
-      );
-      setSavedAllowedYears(allowedYears ?? yearOptions);
-      setSavedAllowedStages(allowedStages ?? stageOptions);
-      setSavedAllowedGrades(allowedGrades ?? allGrades);
-      setSavedAllowedGroups(allowedGroups ?? groupOptions);
-      toast.success("تم حفظ إعدادات ظهور الشهادات");
-    } catch (err: any) {
-      console.error("Failed to save certificate visibility:", err);
-      toast.error(err?.message || "فشل حفظ الإعداد");
-    } finally {
-      setSavingYears(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (
-      !window.confirm(
-        "هل أنت متأكد من حذف هذه الشهادة؟ سيتم حذفها من قاعدة البيانات والتخزين السحابي نهائياً.",
-      )
-    ) {
-      return;
-    }
-
-    setDeletingId(id);
-    try {
-      // 1. Delete from backend DB + Cloudflare R2 (apiClient attaches the JWT automatically).
-      // Local-only certs (non-UUID ids) were never persisted, so skip the API call for them.
-      if (isUuid(id)) {
-        try {
-          await apiClient(API_ENDPOINTS.CERTIFICATES.DELETE(id), { method: "DELETE" });
-        } catch (err: any) {
-          // 404 = already deleted in DB → treat as success and continue cleaning local state
-          const msg = err?.message || "";
-          const status = err?.statusCode;
-          if (
-            status !== 404 &&
-            !msg.includes("غير موجودة") &&
-            !msg.includes("404")
-          ) {
-            throw err;
-          }
-        }
-      }
-
-      // 2. Remove ONLY the localStorage copy (never write combined API certs back to localStorage)
-      try {
-        const localCerts = JSON.parse(
-          localStorage.getItem("saved_certificates") || "[]",
-        );
-        const filteredLocal = Array.isArray(localCerts)
-          ? localCerts.filter((c: any) => c.id !== id)
-          : [];
-        localStorage.setItem(
-          "saved_certificates",
-          JSON.stringify(filteredLocal),
-        );
-      } catch (e) {
-        console.warn("Could not update localStorage", e);
-      }
-
-      // 3. Update UI state
-      setCertificates((prev) => prev.filter((cert) => cert.id !== id));
-      toast.success("تم حذف الشهادة بنجاح");
-    } catch (err: any) {
-      console.error("Failed to delete certificate from backend:", err);
-      toast.error(err?.message || "فشل حذف الشهادة، يرجى المحاولة مرة أخرى");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleToggleVisibility = async (cert: SavedCertificate) => {
-    const next = !cert.isPublic;
-    setTogglingId(cert.id);
-    try {
-      if (isUuid(cert.id)) {
-        await apiClient(API_ENDPOINTS.CERTIFICATES.VISIBILITY(cert.id), {
-          method: "PATCH",
-          body: JSON.stringify({ isPublic: next }),
-        });
-      }
-      // Local-only certs (or as a mirror): persist the flag in localStorage
-      try {
-        const localCerts = JSON.parse(
-          localStorage.getItem("saved_certificates") || "[]",
-        );
-        if (
-          Array.isArray(localCerts) &&
-          localCerts.some((c: any) => c.id === cert.id)
-        ) {
-          localStorage.setItem(
-            "saved_certificates",
-            JSON.stringify(
-              localCerts.map((c: any) =>
-                c.id === cert.id ? { ...c, isPublic: next } : c,
-              ),
-            ),
-          );
-        }
-      } catch (e) {
-        console.warn("Could not update localStorage", e);
-      }
-      setCertificates((prev) =>
-        prev.map((c) => (c.id === cert.id ? { ...c, isPublic: next } : c)),
-      );
-      toast.success(
-        next ? "تم إظهار الشهادة على الموقع" : "تم إخفاء الشهادة من الموقع",
-      );
-    } catch (err: any) {
-      console.error("Failed to toggle certificate visibility:", err);
-      toast.error(err?.message || "فشل تغيير حالة الظهور");
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  const filteredCertificates = certificates.filter((cert) => {
-    const matchesSearch =
-      cert.studentName?.includes(searchTerm) ||
-      cert.subject?.includes(searchTerm);
-    const matchesStage =
-      selectedStage === "الكل" || cert.stage === selectedStage;
-    const matchesYear =
-      selectedYear === "الكل" ||
-      String(cert.year || "").trim() === selectedYear;
-    const matchesGrade =
-      selectedGrade === "الكل" ||
-      normalizeCertificateGrade(cert.grade, cert.stage) === selectedGrade;
-    return matchesSearch && matchesStage && matchesYear && matchesGrade;
-  });
-
-  const stages = ["الكل", "الثانوية", "الإعدادية", "الابتدائية"];
-
-  const allGrades = React.useMemo(() => {
-    const allCanonicalGrades = Object.values(GRADE_LEVELS_BY_STAGE).flat();
-    const existingGrades = certificates
-      .map((certificate) =>
-        normalizeCertificateGrade(certificate.grade, certificate.stage),
-      )
-      .filter(Boolean);
-    return Array.from(new Set([...allCanonicalGrades, ...existingGrades]));
-  }, [certificates]);
-
-  const gradeOptions = React.useMemo(() => {
-    const selectedStages = allowedStages ?? stageOptions;
-    return allGrades.filter((grade) =>
-      selectedStages.some((stage) => {
-        const suffix = {
-          الثانوية: "الثانوي",
-          الإعدادية: "الإعدادي",
-          الابتدائية: "الابتدائي",
-        }[stage];
-        return suffix ? grade.endsWith(suffix) : false;
-      }),
-    );
-  }, [allGrades, allowedStages]);
-
-  const groupOptions = React.useMemo(() => {
-    const selectedStages = allowedStages ?? stageOptions;
-    const scopedCertificates = certificates.filter((certificate) => {
-      const matchesStage = selectedStages.includes(certificate.stage);
-      const normalizedGrade = normalizeCertificateGrade(
-        certificate.grade,
-        certificate.stage,
-      );
-      const matchesGrade =
-        allowedGrades === null || allowedGrades?.includes(normalizedGrade);
-      return matchesStage && matchesGrade;
-    });
-    return Array.from(
-      new Set(
-        scopedCertificates
-          .map((certificate) => certificate.groupName?.trim())
-          .filter(Boolean) as string[],
-      ),
-    ).sort();
-  }, [certificates, allowedGrades, allowedStages]);
-
-  const grades = React.useMemo(() => {
-    const stageGrades =
-      selectedStage === "الكل"
-        ? allGrades
-        : allGrades.filter((grade) => {
-            const stageSuffix = {
-              الثانوية: "الثانوي",
-              الإعدادية: "الإعدادي",
-              الابتدائية: "الابتدائي",
-            }[selectedStage];
-            return stageSuffix ? grade.endsWith(stageSuffix) : true;
-          });
-    return ["الكل", ...stageGrades];
-  }, [allGrades, selectedStage]);
-
-  const years = React.useMemo(() => {
-    const matchesCurrentFilters = certificates.filter((certificate) => {
-      const matchesStage =
-        selectedStage === "الكل" || certificate.stage === selectedStage;
-      const matchesGrade =
-        selectedGrade === "الكل" ||
-        normalizeCertificateGrade(certificate.grade, certificate.stage) ===
-          selectedGrade;
-      return matchesStage && matchesGrade;
-    });
-    const sourceCertificates = matchesCurrentFilters.length
-      ? matchesCurrentFilters
-      : certificates;
-    const set = new Set<string>();
-    sourceCertificates.forEach((c) => {
-      const y = String(c.year || "").trim();
-      if (y) set.add(y);
-    });
-    return [
-      "الكل",
-      ...Array.from(set).sort((a, b) =>
-        b.localeCompare(a, undefined, { numeric: true }),
-      ),
-    ];
-  }, [certificates, selectedStage, selectedGrade]);
-
-  useEffect(() => {
-    if (allowedGrades !== null) {
-      setAllowedGrades((current) => {
-        if (current === null) return current;
-        const next = current.filter((grade) => gradeOptions.includes(grade));
-        return next.length === 0 ? null : next;
-      });
-    }
-  }, [gradeOptions]);
-
-  useEffect(() => {
-    if (allowedGroups !== null) {
-      setAllowedGroups((current) => {
-        if (current === null) return current;
-        const next = current.filter((group) => groupOptions.includes(group));
-        return next.length === 0 ? null : next;
-      });
-    }
-  }, [groupOptions]);
-
-  useEffect(() => {
-    if (selectedGrade !== "الكل" && !grades.includes(selectedGrade)) {
-      setSelectedGrade("الكل");
-    }
-  }, [grades, selectedGrade]);
-
-  useEffect(() => {
-    if (selectedYear !== "الكل" && !years.includes(selectedYear)) {
-      setSelectedYear("الكل");
-    }
-  }, [selectedYear, years]);
+  const {
+    certificates,
+    filteredCertificates,
+    visibilityPanelRef,
+    searchTerm,
+    setSearchTerm,
+    selectedStage,
+    setSelectedStage,
+    selectedYear,
+    setSelectedYear,
+    selectedGrade,
+    setSelectedGrade,
+    deletingId,
+    togglingId,
+    allowedYears,
+    setAllowedYears,
+    allowedStages,
+    setAllowedStages,
+    allowedGrades,
+    setAllowedGrades,
+    allowedGroups,
+    setAllowedGroups,
+    savingYears,
+    yearOptions,
+    stageOptions,
+    gradeOptions,
+    groupOptions,
+    stages,
+    grades,
+    years,
+    visibilityDirty,
+    toggleAllowed,
+    handleSaveVisibility,
+    handleDelete,
+    handleToggleVisibility,
+  } = useCertificatesClient();
 
   return (
     <div className="space-y-6">
@@ -561,369 +66,48 @@ export function CertificatesClient() {
         </div>
       </div>
 
-      <div
-        ref={visibilityPanelRef}
-        className="bg-white p-4 rounded-xl shadow-sm border border-slate-100"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-slate-800">
-              إعدادات ظهور الشهادات على الموقع
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              اختر السنوات والمراحل والصفوف والمجموعات التي تظهر لزوار الموقع.
-              غير المحدد يختفي تماماً من الموقع.
-            </p>
-          </div>
-          <Button
-            variant="primary"
-            onClick={handleSaveVisibility}
-            disabled={!visibilityDirty || savingYears}
-            className="shrink-0"
-          >
-            {savingYears ? "جاري الحفظ..." : "حفظ الإعداد"}
-          </Button>
-        </div>
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            {
-              label: "السنوات",
-              options: yearOptions,
-              value: allowedYears,
-              setter: setAllowedYears,
-            },
-            {
-              label: "المراحل",
-              options: stageOptions,
-              value: allowedStages,
-              setter: setAllowedStages,
-            },
-            {
-              label: "الصفوف",
-              options: gradeOptions,
-              value: allowedGrades,
-              setter: setAllowedGrades,
-            },
-            {
-              label: "المجموعات",
-              options: groupOptions,
-              value: allowedGroups,
-              setter: setAllowedGroups,
-            },
-          ].map(({ label, options, value, setter }) => (
-            <details key={label} className="relative group">
-              <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-indigo-300">
-                <span>{label}</span>
-                <span className="text-xs text-slate-400">
-                  {value === null ? "الكل" : `${value.length} محدد`}
-                </span>
-              </summary>
-              <div className="absolute right-0 z-20 mt-1 max-h-64 w-full min-w-52 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-                <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                  <input
-                    type="checkbox"
-                    checked={value === null}
-                    onChange={() => setter(null)}
-                    className="h-4 w-4 accent-indigo-600"
-                  />
-                  الكل
-                </label>
-                {options.length === 0 ? (
-                  <p className="px-2 py-2 text-xs text-slate-400">
-                    لا توجد خيارات بعد
-                  </p>
-                ) : (
-                  options.map((option) => (
-                    <label
-                      key={option}
-                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 hover:bg-slate-50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={(value ?? options).includes(option)}
-                        onChange={() =>
-                          toggleAllowed(option, value, options, setter)
-                        }
-                        className="h-4 w-4 accent-emerald-600"
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </details>
-          ))}
-        </div>
-      </div>
+      <CertificateVisibilityPanel
+        visibilityPanelRef={visibilityPanelRef}
+        visibilityDirty={visibilityDirty}
+        savingYears={savingYears}
+        handleSaveVisibility={handleSaveVisibility}
+        yearOptions={yearOptions}
+        stageOptions={stageOptions}
+        gradeOptions={gradeOptions}
+        groupOptions={groupOptions}
+        allowedYears={allowedYears}
+        setAllowedYears={setAllowedYears}
+        allowedStages={allowedStages}
+        setAllowedStages={setAllowedStages}
+        allowedGrades={allowedGrades}
+        setAllowedGrades={setAllowedGrades}
+        allowedGroups={allowedGroups}
+        setAllowedGroups={setAllowedGroups}
+        toggleAllowed={toggleAllowed}
+      />
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <label
-              htmlFor="certificate-stage"
-              className="text-xs font-bold text-slate-400"
-            >
-              المرحلة الدراسية:
-            </label>
-            <select
-              id="certificate-stage"
-              value={selectedStage}
-              onChange={(event) => setSelectedStage(event.target.value)}
-              className="min-w-36 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-            >
-              {stages.map((stage) => (
-                <option key={stage} value={stage}>
-                  {stage === "الكل" ? "كل المراحل" : stage}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label
-              htmlFor="certificate-year"
-              className="text-xs font-bold text-slate-400"
-            >
-              السنة الدراسية:
-            </label>
-            <select
-              id="certificate-year"
-              value={selectedYear}
-              onChange={(event) => setSelectedYear(event.target.value)}
-              className="min-w-32 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-amber-300 focus:ring-2 focus:ring-amber-100"
-            >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year === "الكل" ? "كل السنوات" : year}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label
-              htmlFor="certificate-grade"
-              className="text-xs font-bold text-slate-400"
-            >
-              الصف الدراسي:
-            </label>
-            <select
-              id="certificate-grade"
-              value={selectedGrade}
-              onChange={(event) => setSelectedGrade(event.target.value)}
-              className="min-w-32 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
-            >
-              {grades.map((grade) => (
-                <option key={grade} value={grade}>
-                  {grade === "الكل" ? "كل الصفوف" : grade}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="relative w-full md:w-80">
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400" />
-            </div>
-            <Input
-              className="pr-10"
-              placeholder="ابحث عن اسم الطالب..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
+      <CertificateFilterBar
+        selectedStage={selectedStage}
+        setSelectedStage={setSelectedStage}
+        selectedYear={selectedYear}
+        setSelectedYear={setSelectedYear}
+        selectedGrade={selectedGrade}
+        setSelectedGrade={setSelectedGrade}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        stages={stages}
+        years={years}
+        grades={grades}
+      />
 
-      {certificates.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
-          <div className="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-            <Award className="w-8 h-8 text-slate-400" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">
-            لا توجد شهادات بعد
-          </h3>
-          <p className="text-slate-500 max-w-md mx-auto mb-6">
-            قم بإنشاء شهادتك الأولى لتبدأ في تقدير طلابك المتميزين وتشجيعهم.
-          </p>
-          <div className="flex justify-center gap-3">
-            <Link href="/teacher/certificates/new">
-              <Button variant="primary">
-                <Plus className="w-4 h-4 ml-2" />
-                إنشاء شهادة جديدة
-              </Button>
-            </Link>
-          </div>
-        </div>
-      ) : filteredCertificates.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
-          <h3 className="text-lg font-bold text-slate-800 mb-2">
-            لا توجد نتائج مطابقة
-          </h3>
-          <p className="text-slate-500">جرب البحث بكلمات مختلفة.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Link href="/teacher/certificates/new">
-            <Card className="h-full min-h-[300px] border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all cursor-pointer flex flex-col items-center justify-center text-slate-500 hover:text-indigo-600 group">
-              <div className="w-16 h-16 rounded-full bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mb-4 transition-colors">
-                <Plus className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-bold">إنشاء شهادة جديدة</h3>
-              <p className="text-sm mt-2 text-center px-4 opacity-70">
-                اضغط هنا لتصميم وإصدار شهادة تقدير جديدة لطلابك
-              </p>
-            </Card>
-          </Link>
-
-          {filteredCertificates.map((cert) => {
-            const certificateImage = cert.data?.image || (cert as any).image;
-            const usesTemplateFallback = !certificateImage;
-            const certificateData = cert.data || cert;
-            const isFemale = certificateData.gender === "FEMALE";
-            const teacherName = certificateData.teacherName || "أحمد غريب";
-            const certificateYear = String(
-              cert.year || cert.issueDate || new Date().getFullYear(),
-            );
-            const certificateDate = String(cert.issueDate || certificateYear);
-
-            return (
-              <Card
-                key={cert.id}
-                className={`overflow-hidden hover:shadow-md transition-shadow flex flex-col ${cert.isPublic === false ? "opacity-70" : ""}`}
-              >
-                {cert.isPublic === false && (
-                  <div className="bg-slate-800 text-white text-xs font-bold text-center py-1.5">
-                    مخفية من الموقع
-                  </div>
-                )}
-                <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
-                  {certificateImage ? (
-                    <img
-                      src={certificateImage}
-                      alt={`شهادة ${cert.studentName}`}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div
-                      dir="rtl"
-                      className="relative w-full h-full bg-center bg-no-repeat bg-cover overflow-hidden"
-                      style={{
-                        backgroundImage: "url('/certification-bg.webp')",
-                        fontFamily: "'Amiri', 'Tajawal', serif",
-                      }}
-                    >
-                      <div className="absolute inset-x-0 top-[28.4%] flex flex-col items-center text-center px-[5%] leading-tight text-[#4A4A4A]">
-                        <p className="text-[clamp(6px,1.9vw,15px)] font-bold">
-                          يسر الأستاذ {teacherName} أن يمنح هذه الشهادة إلى{" "}
-                          {isFemale ? "الطالبة" : "الطالب"}
-                        </p>
-                        <h2 className="mt-[2%] max-w-[80%] text-[clamp(12px,3.5vw,32px)] font-bold text-[#1D4ED8]">
-                          {cert.studentName}
-                        </h2>
-                        <p className="mt-[2%] max-w-[76%] text-[clamp(6px,1.55vw,13px)] font-bold leading-[1.8]">
-                          وذلك تقديرًا{" "}
-                          {isFemale
-                            ? "لأدائها المتميز وتفوقها"
-                            : "لأدائه المتميز وتفوقه"}{" "}
-                          العلمي الملحوظ في مادة
-                          <span className="mx-1 text-[#1D4ED8]">
-                            {cert.subject}
-                          </span>
-                          ، {isFemale ? "متمنيةً لها" : "متمنيًا له"} مستقبلًا
-                          واعدًا ومزيدًا من النجاح والتألق.
-                        </p>
-                      </div>
-                      <span className="absolute left-[50.2%] top-[78.5%] -translate-x-1/2 -translate-y-1/2 text-[clamp(9px,2.4vw,22px)] font-bold text-[#0A192F]">
-                        {cert.score}
-                      </span>
-                      <span className="absolute left-[17.5%] top-[66.7%] -translate-x-1/2 -translate-y-1/2 text-[clamp(5px,1.25vw,12px)] font-bold text-[#0A192F]">
-                        {certificateYear}
-                      </span>
-                      <span
-                        className="absolute left-[33.9%] top-[76.5%] -translate-x-1/2 -translate-y-1/2 text-[clamp(5px,1vw,10px)] font-bold text-[#4A4A4A]"
-                        dir="ltr"
-                      >
-                        {certificateDate}
-                      </span>
-                    </div>
-                  )}
-                  {usesTemplateFallback && (
-                    <span className="sr-only">شهادة {cert.studentName}</span>
-                  )}
-                </div>
-                <div className="p-5 flex-1 flex flex-col">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
-                      <Award className="w-6 h-6" />
-                    </div>
-                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                      {certificateYear}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">
-                    {cert.studentName}
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 flex-wrap">
-                    <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">
-                      {cert.subject}
-                    </span>
-                    <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs">
-                      {cert.score} درجة
-                    </span>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-4">
-                    <span>
-                      {cert.stage}
-                      {cert.grade ? ` - ${cert.grade}` : ""}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleToggleVisibility(cert)}
-                        disabled={togglingId === cert.id}
-                        title={
-                          cert.isPublic === false
-                            ? "إظهار على الموقع"
-                            : "إخفاء من الموقع"
-                        }
-                        className={`font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait flex items-center gap-1 ${
-                          cert.isPublic === false
-                            ? "text-emerald-600 hover:text-emerald-700"
-                            : "text-slate-500 hover:text-slate-700"
-                        }`}
-                      >
-                        {cert.isPublic === false ? (
-                          <Eye className="w-3.5 h-3.5" />
-                        ) : (
-                          <EyeOff className="w-3.5 h-3.5" />
-                        )}
-                        {togglingId === cert.id
-                          ? "جاري..."
-                          : cert.isPublic === false
-                            ? "إظهار"
-                            : "إخفاء"}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(cert.id)}
-                        disabled={deletingId === cert.id}
-                        className="text-red-500 hover:text-red-700 font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait"
-                      >
-                        {deletingId === cert.id ? "جاري الحذف..." : "حذف"}
-                      </button>
-                      {cert.data?.image || (cert as any).image ? (
-                        <a
-                          href={cert.data?.image || (cert as any).image}
-                          download={`شهادة-${cert.studentName}.png`}
-                          className="text-blue-600 hover:text-blue-700 font-medium hover:underline text-xs"
-                        >
-                          تحميل
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <CertificateGrid
+        certificates={certificates}
+        filteredCertificates={filteredCertificates}
+        deletingId={deletingId}
+        togglingId={togglingId}
+        handleToggleVisibility={handleToggleVisibility}
+        handleDelete={handleDelete}
+      />
     </div>
   );
 }
