@@ -242,8 +242,8 @@ export class CourseSubscriptionService {
       this.prisma.studentProfile.findMany({
         where: {
           attendanceMode: AttendanceMode.ONLINE,
-          ...(teacherId ? { teacherId } : {}),
-          enrollments: {
+          ...(teacherId ? { createdById: teacherId } : {}),
+          courseEnrollments: {
             none: {
               courseId: { in: teacherCourseIds },
               status: { in: [CourseEnrollmentStatus.ACTIVE, CourseEnrollmentStatus.PENDING] },

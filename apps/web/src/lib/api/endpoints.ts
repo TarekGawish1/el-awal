@@ -161,6 +161,7 @@ export const API_ENDPOINTS = {
     PUSH_VAPID_KEY: "/notifications/push-vapid-key",
     PUSH_SUBSCRIBE: "/notifications/push-subscribe",
     PUSH_UNSUBSCRIBE: "/notifications/push-unsubscribe",
+    PUSH_TEST: "/notifications/test-push",
     WHATSAPP_STATUS: "/notifications/whatsapp-status",
     WHATSAPP_OVERVIEW: "/notifications/whatsapp-overview",
     WHATSAPP_STATS: "/notifications/whatsapp-stats",

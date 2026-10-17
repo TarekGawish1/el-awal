@@ -54,9 +54,9 @@ export function CourseEnrollmentsView() {
   const [courseFilter, setCourseFilter] = useState("ALL");
   const [studentSearch, setStudentSearch] = useState("");
 
-  const pendingRequests = data?.pendingRequests ?? [];
-  const activeStudents = data?.activeStudents ?? [];
-  const unsubscribedStudents = data?.unsubscribedStudents ?? [];
+  const pendingRequests = Array.isArray(data?.pendingRequests) ? data.pendingRequests : [];
+  const activeStudents = Array.isArray(data?.activeStudents) ? data.activeStudents : [];
+  const unsubscribedStudents = Array.isArray(data?.unsubscribedStudents) ? data.unsubscribedStudents : [];
 
   // Distinct courses for filter dropdown
   const distinctCourses = useMemo(() => {

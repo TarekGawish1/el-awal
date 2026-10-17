@@ -64,27 +64,38 @@ export class CoursesController {
   @Public()
   @Get('catalog')
   @ApiOperation({ summary: 'Public catalog of published courses with Keyset pagination and filters' })
-  getCatalog(@Query() query: CourseQueryDto) {  }
+  getCatalog(@Query() query: CourseQueryDto) {
+    return this.coursesService.getPublishedCatalog(query);
+  }
 
   @Public()
   @Get(':id/public')
   @ApiOperation({ summary: 'Public course outline, modules, and preview lessons' })
-  getPublicCourse(@Param('id') id: string) {  }
+  getPublicCourse(@Param('id') id: string) {
+    return this.coursesService.getPublicCourseDetails(id);
+  }
 
   @Get('teacher')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get all courses created by the authenticated teacher' })
-  getTeacherCourses(@CurrentUser() user: AuthenticatedUser) {  }
+  getTeacherCourses(@CurrentUser() user: AuthenticatedUser) {
+    const { tId } = this.teacherCtx(user);
+    return this.coursesService.getTeacherCourses(tId);
+  }
 
   @Get('teacher/subscriptions')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get all pending requests and active students across teacher courses' })
-  getTeacherSubscriptions(@CurrentUser() user: AuthenticatedUser) {  }
+  getTeacherSubscriptions(@CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.getTeacherSubscriptions(user);
+  }
 
   @Post('lessons/upload-video-credentials')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Generate direct Bunny Stream video upload authorization credentials' })
-  generateVideoUploadCredentials(@Body('title') title: string) {  }
+  generateVideoUploadCredentials(@Body('title') title: string) {
+    return this.coursesService.generateDirectVideoUploadCredentials(title || 'New Course Lesson');
+  }
 
   @Post('lessons/upload-video-stream')
   @UseInterceptors(FastifyFileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
@@ -100,117 +111,177 @@ export class CoursesController {
   @Post()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Create a new online course (Draft) scoped to authenticated instructor' })
-  createCourse(@Body() dto: CreateCourseDto, @CurrentUser() user: AuthenticatedUser) {  }
+  createCourse(@Body() dto: CreateCourseDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId } = this.teacherCtx(user);
+    return this.coursesService.createCourse(tId, dto);
+  }
 
   @Get('my-courses')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Get all enrolled online courses for the authenticated student with progress %' })
-  getMyCourses(@CurrentUser() user: AuthenticatedUser) {  }
+  getMyCourses(@CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.getMyCourses(user.studentProfileId || user.id);
+  }
 
   @Get(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT, UserRole.PARENT)
   @ApiOperation({ summary: 'Get course outline, modules, and ordered lesson list' })
-  getCourseDetails(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {  }
+  getCourseDetails(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.getCourseDetails(id, user);
+  }
 
   @Patch(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Update course metadata or publish status (Ownership protected)' })
-  updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto, @CurrentUser() user: AuthenticatedUser) {   }
+  updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.updateCourse(id, tId, isSec, dto);
+  }
 
   @Delete(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Delete or archive a course' })
-  deleteCourse(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {   }
+  deleteCourse(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.deleteCourse(id, tId, isSec);
+  }
 
   @Post(':id/group-access')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Batch grant course access to students in specified physical AcademicGroups' })
-  grantGroupAccess(@Param('id') courseId: string, @Body() dto: GrantGroupAccessDto, @CurrentUser() user: AuthenticatedUser) {   }
+  grantGroupAccess(@Param('id') courseId: string, @Body() dto: GrantGroupAccessDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.grantGroupAccess(courseId, tId, isSec, dto);
+  }
 
   @Post('modules/reorder')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Bulk reorder modules in a course' })
-  reorderModules(@Body() dto: ReorderModulesDto, @CurrentUser() user: AuthenticatedUser) {   }
+  reorderModules(@Body() dto: ReorderModulesDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.reorderModules(dto.courseId, tId, isSec, dto);
+  }
 
   @Post('lessons/reorder')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Bulk reorder lessons within/across modules in a course' })
-  reorderLessons(@Body() dto: ReorderLessonsDto, @CurrentUser() user: AuthenticatedUser) {   }
+  reorderLessons(@Body() dto: ReorderLessonsDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.reorderLessons(dto.courseId, tId, isSec, dto);
+  }
 
   @Post(':id/modules')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Add a new module/chapter to course outline' })
-  createModule(@Param('id') courseId: string, @Body() dto: CreateModuleDto, @CurrentUser() user: AuthenticatedUser) {   }
+  createModule(@Param('id') courseId: string, @Body() dto: CreateModuleDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.createModule(courseId, tId, isSec, dto);
+  }
 
   @Patch('modules/:moduleId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Update module title, description, or linked unit quiz' })
-  updateModule(@Param('moduleId') moduleId: string, @Body() dto: UpdateModuleDto, @CurrentUser() user: AuthenticatedUser) {   }
+  updateModule(@Param('moduleId') moduleId: string, @Body() dto: UpdateModuleDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.updateModule(moduleId, tId, isSec, dto);
+  }
 
   @Delete('modules/:moduleId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Delete a module and all its lessons' })
-  deleteModule(@Param('moduleId') moduleId: string, @CurrentUser() user: AuthenticatedUser) {   }
+  deleteModule(@Param('moduleId') moduleId: string, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.deleteModule(moduleId, tId, isSec);
+  }
 
   @Post('modules/:moduleId/lessons')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Add a new lesson to a course module with media identifiers' })
-  createLesson(@Param('moduleId') moduleId: string, @Body() dto: CreateLessonDto, @CurrentUser() user: AuthenticatedUser) {   }
+  createLesson(@Param('moduleId') moduleId: string, @Body() dto: CreateLessonDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.createLesson(moduleId, tId, isSec, dto);
+  }
 
   @Patch('lessons/:lessonId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Update lesson metadata, rich summary, or linked quiz' })
-  updateLesson(@Param('lessonId') lessonId: string, @Body() dto: UpdateLessonDto, @CurrentUser() user: AuthenticatedUser) {   }
+  updateLesson(@Param('lessonId') lessonId: string, @Body() dto: UpdateLessonDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.updateLesson(lessonId, tId, isSec, dto);
+  }
 
   @Delete('lessons/:lessonId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Delete a lesson' })
-  deleteLesson(@Param('lessonId') lessonId: string, @CurrentUser() user: AuthenticatedUser) {   }
+  deleteLesson(@Param('lessonId') lessonId: string, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.deleteLesson(lessonId, tId, isSec);
+  }
 
   @Post('lessons/:lessonId/attachments')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Upload and link PDF summaries / worksheets to a lesson' })
-  addLessonAttachment(@Param('lessonId') lessonId: string, @Body() dto: CreateAttachmentDto, @CurrentUser() user: AuthenticatedUser) {   }
+  addLessonAttachment(@Param('lessonId') lessonId: string, @Body() dto: CreateAttachmentDto, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.addLessonAttachment(lessonId, tId, isSec, dto);
+  }
 
   @Delete('lessons/attachments/:attachmentId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Remove a lesson attachment' })
-  deleteLessonAttachment(@Param('attachmentId') attachmentId: string, @CurrentUser() user: AuthenticatedUser) {   }
+  deleteLessonAttachment(@Param('attachmentId') attachmentId: string, @CurrentUser() user: AuthenticatedUser) {
+    const { tId, isSec } = this.teacherCtx(user);
+    return this.coursesService.deleteLessonAttachment(attachmentId, tId, isSec);
+  }
 
   @Get('lessons/:lessonId/questions')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Fetch all timestamped Q&A questions for a lesson' })
-  getLessonQuestions(@Param('lessonId') lessonId: string) {  }
+  getLessonQuestions(@Param('lessonId') lessonId: string) {
+    return this.coursesService.getLessonQuestions(lessonId);
+  }
 
   @Post('lessons/:lessonId/questions')
   @Roles(UserRole.STUDENT, UserRole.TEACHER)
   @ApiOperation({ summary: 'Submit a timestamped question on a lesson video' })
-  createLessonQuestion(@Param('lessonId') lessonId: string, @Body() dto: CreateQuestionDto, @CurrentUser() user: AuthenticatedUser) {  }
+  createLessonQuestion(@Param('lessonId') lessonId: string, @Body() dto: CreateQuestionDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.createLessonQuestion(lessonId, user, dto);
+  }
 
   @Post('questions/:questionId/replies')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Add a reply to a student timestamped question' })
-  createQuestionReply(@Param('questionId') questionId: string, @Body() dto: CreateQuestionReplyDto, @CurrentUser() user: AuthenticatedUser) {  }
+  createQuestionReply(@Param('questionId') questionId: string, @Body() dto: CreateQuestionReplyDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.createQuestionReply(questionId, user, dto);
+  }
 
   @Patch('questions/:questionId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Update a student timestamped question (author or teacher/secretariat)' })
-  updateLessonQuestion(@Param('questionId') questionId: string, @Body() dto: UpdateQuestionDto, @CurrentUser() user: AuthenticatedUser) {  }
+  updateLessonQuestion(@Param('questionId') questionId: string, @Body() dto: UpdateQuestionDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.updateLessonQuestion(questionId, user, dto);
+  }
 
   @Delete('questions/:questionId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Delete a student timestamped question (author or teacher/secretariat)' })
-  deleteLessonQuestion(@Param('questionId') questionId: string, @CurrentUser() user: AuthenticatedUser) {  }
+  deleteLessonQuestion(@Param('questionId') questionId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.deleteLessonQuestion(questionId, user);
+  }
 
   @Patch('questions/replies/:replyId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Update a question reply (author or teacher/secretariat)' })
-  updateQuestionReply(@Param('replyId') replyId: string, @Body() dto: UpdateQuestionReplyDto, @CurrentUser() user: AuthenticatedUser) {  }
+  updateQuestionReply(@Param('replyId') replyId: string, @Body() dto: UpdateQuestionReplyDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.updateQuestionReply(replyId, user, dto);
+  }
 
   @Delete('questions/replies/:replyId')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Delete a question reply (author or teacher/secretariat)' })
-  deleteQuestionReply(@Param('replyId') replyId: string, @CurrentUser() user: AuthenticatedUser) {  }
+  deleteQuestionReply(@Param('replyId') replyId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.deleteQuestionReply(replyId, user);
+  }
 
   @Post(':id/enroll')
   @Roles(UserRole.STUDENT, UserRole.SECRETARIAT)

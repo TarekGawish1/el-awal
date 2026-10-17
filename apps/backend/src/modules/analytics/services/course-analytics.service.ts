@@ -76,7 +76,7 @@ export class CourseAnalyticsService {
       select: {
         id: true,
         title: true,
-        durationMinutes: true,
+        videoDurationSeconds: true,
       },
     });
 
@@ -103,7 +103,7 @@ export class CourseAnalyticsService {
     return lessons.map((l) => ({
       lessonId: l.id,
       title: l.title,
-      durationMinutes: l.durationMinutes || 0,
+      durationMinutes: Math.round((l.videoDurationSeconds || 0) / 60),
       totalWatchTimeMinutes: Math.round((map.get(l.id)?.totalWatchTime || 0) / 60),
       completionsCount: map.get(l.id)?.completedCount || 0,
     }));

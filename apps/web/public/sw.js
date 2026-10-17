@@ -642,7 +642,7 @@ self.addEventListener('push', (event) => {
     dir: 'rtl',
     lang: 'ar',
     vibrate: [200, 100, 200],
-    tag: payload.tag || data.tag || 'el-awal-notification',
+    tag: payload.tag || data.tag || (data.id ? `el-awal-${data.id}` : `el-awal-${Date.now()}`),
     renotify: true,
     requireInteraction: false,
     data: {

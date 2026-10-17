@@ -7,8 +7,16 @@ import { useRealtimeCourseSubscriptions } from "@/lib/realtime/useRealtimeCourse
 import { CourseDetail } from "../types/courses.types";
 
 export function useCourseManagement() {
-  const { data: courses = [], isLoading } = useTeacherCourses();
+  const { data: rawCourses, isLoading } = useTeacherCourses();
   const deleteMutation = useDeleteCourse();
+
+  // Safely extract courses as an array under all possible API response structures
+  const courses: CourseDetail[] = useMemo(() => {
+    if (Array.isArray(rawCourses)) return rawCourses;
+    if (rawCourses && Array.isArray((rawCourses as any).courses)) return (rawCourses as any).courses;
+    if (rawCourses && Array.isArray((rawCourses as any).data)) return (rawCourses as any).data;
+    return [];
+  }, [rawCourses]);
 
   // Real-time subscriptions updates via WebSocket + throttled background safety poll (120s when connected)
   useRealtimeCourseSubscriptions();
@@ -31,10 +39,14 @@ export function useCourseManagement() {
   const [courseToDelete, setCourseToDelete] = useState<{ id: string; title: string } | null>(null);
 
   const filteredCourses = useMemo(() => {
+    if (!Array.isArray(courses)) return [];
     return courses.filter((c: CourseDetail) => {
+      if (!c) return false;
+      const title = c.title || "";
+      const subject = c.subject || "";
       const matchesSearch =
-        c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.subject.toLowerCase().includes(searchTerm.toLowerCase());
+        title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        subject.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesGrade = selectedGrade === "ALL" || c.gradeLevel === selectedGrade;
       const matchesStatus = selectedStatus === "ALL" || c.status === selectedStatus;
       return matchesSearch && matchesGrade && matchesStatus;
@@ -43,9 +55,9 @@ export function useCourseManagement() {
 
   // Overall Stats
   const totalCourses = courses.length;
-  const publishedCourses = courses.filter((c: CourseDetail) => c.status === "PUBLISHED").length;
-  const totalEnrollments = courses.reduce((acc: number, c: CourseDetail) => acc + (c._count?.enrollments || 0), 0);
-  const totalLessons = courses.reduce((acc: number, c: CourseDetail) => acc + (c.totalLessons || 0), 0);
+  const publishedCourses = courses.filter((c: CourseDetail) => c?.status === "PUBLISHED").length;
+  const totalEnrollments = courses.reduce((acc: number, c: CourseDetail) => acc + (c?._count?.enrollments || 0), 0);
+  const totalLessons = courses.reduce((acc: number, c: CourseDetail) => acc + (c?.totalLessons || 0), 0);
 
   return {
     courses,

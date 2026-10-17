@@ -247,6 +247,48 @@ export class WebPushService implements OnModuleInit {
   }
 
   /**
+   * Sends an immediate test Web Push notification to all active devices of a user.
+   */
+  async sendTestPushToUser(userId: string) {
+    const subs = await this.prisma.pushSubscription.findMany({
+      where: { userId },
+    });
+
+    if (subs.length === 0) {
+      return {
+        success: false,
+        totalDevices: 0,
+        deliveredCount: 0,
+        message: 'لا يوجد أي جهاز مسجل في خدمة الإشعارات الفورية لهذا الحساب حالياً.',
+      };
+    }
+
+    const payload: PushPayload = {
+      title: 'منصة الأول التعليمية 🔔',
+      body: 'إشعار تجريبي: الإشعارات الفورية تعمل بنجاح وبسرعة على جهازك!',
+      url: '/teacher/dashboard',
+      data: {
+        type: 'TEST_PUSH',
+        timestamp: Date.now(),
+      },
+    };
+
+    const result = await this.sendBatchSubscriptions(subs, payload);
+
+    return {
+      success: result.successCount > 0,
+      totalDevices: result.totalSubscriptions,
+      deliveredCount: result.successCount,
+      failedCount: result.failureCount,
+      expiredCount: result.expiredCount,
+      message:
+        result.successCount > 0
+          ? `تم إرسال الإشعار التجريبي بنجاح إلى ${result.successCount} جهاز.`
+          : 'تعذر تسليم الإشعار للأجهزة المسجلة (ربما انتهت صلاحية إذن المتصفح).',
+    };
+  }
+
+  /**
    * Dispatches a notification payload to multiple subscriptions.
    *
    * Automatically groups subscriptions:

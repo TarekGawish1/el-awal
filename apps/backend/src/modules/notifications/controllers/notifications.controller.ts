@@ -132,6 +132,13 @@ export class NotificationsController {
     return { success: true, message: 'Push subscription removed' };
   }
 
+  @Post('test-push')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send an immediate test Web Push notification to the authenticated user' })
+  async sendTestPush(@CurrentUser() user: AuthenticatedUser) {
+    return this.webPushService.sendTestPushToUser(user.id);
+  }
+
   @Get('whatsapp-status')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({

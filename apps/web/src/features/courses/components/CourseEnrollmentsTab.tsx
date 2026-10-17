@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Users,
   UserPlus,
@@ -40,8 +40,11 @@ interface CourseEnrollmentsTabProps {
 }
 
 export function CourseEnrollmentsTab({ courseId, courseTitle }: CourseEnrollmentsTabProps) {
-  const { data: students = [], isLoading } = useCourseEnrollments(courseId);
-  const { data: pendingRequests = [], isLoading: isPendingLoading } = usePendingEnrollments(courseId);
+  const { data: rawStudents, isLoading } = useCourseEnrollments(courseId);
+  const { data: rawPendingRequests, isLoading: isPendingLoading } = usePendingEnrollments(courseId);
+
+  const students = useMemo(() => (Array.isArray(rawStudents) ? rawStudents : []), [rawStudents]);
+  const pendingRequests = useMemo(() => (Array.isArray(rawPendingRequests) ? rawPendingRequests : []), [rawPendingRequests]);
 
   const revokeMutation = useRevokeStudentEnrollment(courseId);
   const approveMutation = useApproveEnrollment(courseId);
