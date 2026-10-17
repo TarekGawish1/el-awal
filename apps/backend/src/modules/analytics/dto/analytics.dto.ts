@@ -74,6 +74,14 @@ export class TrackPageViewDto {
   @IsOptional()
   @IsString()
   visitorId?: string;
+
+  @ApiPropertyOptional({
+    description: "Authenticated User ID if available",
+    example: "00000000-0000-0000-0000-000000000000",
+  })
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
 }
 
 export class AnalyticsQueryDto {
@@ -285,6 +293,15 @@ export class StudentRankingQueryDto {
   @Max(100)
   @Type(() => Number)
   limit?: number = 20;
+
+  @ApiPropertyOptional({
+    description: "Role filter for engagement leaderboard: STUDENT or PARENT",
+    enum: ["STUDENT", "PARENT", "ALL"],
+    default: "STUDENT",
+  })
+  @IsOptional()
+  @IsIn(["STUDENT", "PARENT", "ALL"])
+  role?: "STUDENT" | "PARENT" | "ALL" = "STUDENT";
 }
 
 export class VisitorListQueryDto {
@@ -351,6 +368,15 @@ export class VisitorListQueryDto {
   @IsOptional()
   @IsIn(["recent", "visits"])
   sortBy?: "recent" | "visits" = "recent";
+
+  @ApiPropertyOptional({
+    description: "Role filter for visitors: ALL, STUDENT, PARENT, GUEST, registered",
+    enum: ["ALL", "STUDENT", "PARENT", "GUEST", "all", "students", "parents", "guests", "registered"],
+    default: "ALL",
+  })
+  @IsOptional()
+  @IsIn(["ALL", "STUDENT", "PARENT", "GUEST", "all", "students", "parents", "guests", "registered"])
+  role?: string = "ALL";
 }
 
 export class PageEngagementPingDto {
@@ -403,6 +429,15 @@ export class AnalyticsOverviewQueryDto extends AnalyticsQueryDto {
   leaderboardLimit?: number = 15;
 
   @ApiPropertyOptional({
+    description: "Leaderboard target role: STUDENT or PARENT",
+    enum: ["STUDENT", "PARENT", "ALL"],
+    default: "STUDENT",
+  })
+  @IsOptional()
+  @IsIn(["STUDENT", "PARENT", "ALL"])
+  leaderboardRole?: "STUDENT" | "PARENT" | "ALL" = "STUDENT";
+
+  @ApiPropertyOptional({
     description: "Visitors list page (1-based)",
     default: 1,
   })
@@ -422,5 +457,14 @@ export class AnalyticsOverviewQueryDto extends AnalyticsQueryDto {
   @Max(100)
   @Type(() => Number)
   visitorLimit?: number = 10;
+
+  @ApiPropertyOptional({
+    description: "Visitor role filter for overview visitors list",
+    enum: ["ALL", "STUDENT", "PARENT", "GUEST", "all", "students", "parents", "guests", "registered"],
+    default: "ALL",
+  })
+  @IsOptional()
+  @IsIn(["ALL", "STUDENT", "PARENT", "GUEST", "all", "students", "parents", "guests", "registered"])
+  visitorRole?: string = "ALL";
 }
 

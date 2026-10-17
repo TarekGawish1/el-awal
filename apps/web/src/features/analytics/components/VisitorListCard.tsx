@@ -39,16 +39,35 @@ interface VisitorListCardProps {
   from?: string;
   to?: string;
   scope?: AnalyticsScope;
+  roleFilter?: 'all' | 'students' | 'parents' | 'guests';
+  onRoleFilterChange?: (role: 'all' | 'students' | 'parents' | 'guests') => void;
 }
 
-export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListCardProps) {
+export function VisitorListCard({
+  range,
+  from,
+  to,
+  scope = 'all',
+  roleFilter,
+  onRoleFilterChange,
+}: VisitorListCardProps) {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'visits'>('recent');
-  const [filterType, setFilterType] = useState<'all' | 'registered' | 'guests'>('all');
+  const [internalFilterType, setInternalFilterType] = useState<'all' | 'students' | 'parents' | 'guests'>('all');
   const [expandedVisitorHash, setExpandedVisitorHash] = useState<string | null>(null);
+
+  const filterType = roleFilter !== undefined ? roleFilter : internalFilterType;
+
+  const handleFilterChange = (newFilter: 'all' | 'students' | 'parents' | 'guests') => {
+    if (onRoleFilterChange) {
+      onRoleFilterChange(newFilter);
+    }
+    setInternalFilterType(newFilter);
+    setPage(1);
+  };
 
   const { data, isLoading, isFetching } = useVisitorsList({
     range,
@@ -59,12 +78,15 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
     limit,
     search: appliedSearch || undefined,
     sortBy,
+    role: filterType === 'all' ? undefined : filterType,
   });
-
 
   const visitors = data?.visitors || [];
   const totalVisitors = data?.totalVisitors || 0;
   const totalPages = data?.totalPages || 1;
+  const studentsCount = data?.studentsCount ?? 0;
+  const parentsCount = data?.parentsCount ?? 0;
+  const guestsCount = data?.guestsCount ?? 0;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,12 +104,7 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
     setExpandedVisitorHash((prev) => (prev === hash ? null : hash));
   };
 
-  // Filter registered vs guests in view
-  const filteredVisitors = visitors.filter((v) => {
-    if (filterType === 'registered') return !!v.user;
-    if (filterType === 'guests') return !v.user;
-    return true;
-  });
+  const filteredVisitors = visitors;
 
   const formatNumber = (num: number = 0) => {
     return new Intl.NumberFormat('en-US').format(num);
@@ -137,7 +154,7 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
   };
 
   return (
-    <div className="bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs space-y-5">
+    <div id="visitors-list-section" className="bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs space-y-5 scroll-mt-6">
       {/* Header & Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -227,33 +244,63 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
         </form>
 
         {/* User type segmented toggle */}
-        <div className="inline-flex p-1 bg-neutral-100 rounded-xl border border-neutral-200/60 self-start sm:self-auto">
+        <div className="inline-flex p-1 bg-neutral-100 rounded-xl border border-neutral-200/60 self-start sm:self-auto flex-wrap gap-1">
           <button
             type="button"
-            onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            onClick={() => handleFilterChange('all')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               filterType === 'all'
                 ? 'bg-white text-neutral-900 shadow-xs'
                 : 'text-neutral-500 hover:text-neutral-900'
             }`}
           >
-            الكل
+            <span>الكل</span>
+            {totalVisitors > 0 && (
+              <span className="px-1.5 py-0.2 bg-neutral-200/70 text-neutral-700 text-[10px] font-mono rounded-md">
+                {formatNumber(totalVisitors)}
+              </span>
+            )}
           </button>
+
           <button
             type="button"
-            onClick={() => setFilterType('registered')}
+            onClick={() => handleFilterChange('students')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              filterType === 'registered'
-                ? 'bg-white text-emerald-700 shadow-xs'
-                : 'text-neutral-500 hover:text-neutral-900'
+              filterType === 'students'
+                ? 'bg-white text-emerald-700 shadow-xs ring-1 ring-emerald-200'
+                : 'text-neutral-500 hover:text-emerald-700'
             }`}
           >
-            <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>مسجلون</span>
+            <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
+            <span>الطلاب</span>
+            {studentsCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[10px] font-mono rounded-md font-black">
+                {formatNumber(studentsCount)}
+              </span>
+            )}
           </button>
+
           <button
             type="button"
-            onClick={() => setFilterType('guests')}
+            onClick={() => handleFilterChange('parents')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              filterType === 'parents'
+                ? 'bg-white text-purple-700 shadow-xs ring-1 ring-purple-200'
+                : 'text-neutral-500 hover:text-purple-700'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-purple-600" />
+            <span>أولياء الأمور</span>
+            {parentsCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 text-[10px] font-mono rounded-md font-black">
+                {formatNumber(parentsCount)}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleFilterChange('guests')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               filterType === 'guests'
                 ? 'bg-white text-neutral-800 shadow-xs'
@@ -262,6 +309,11 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
           >
             <Globe className="w-3.5 h-3.5 text-neutral-500" />
             <span>زوار غير مسجلين</span>
+            {guestsCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-neutral-200/70 text-neutral-700 text-[10px] font-mono rounded-md">
+                {formatNumber(guestsCount)}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -286,6 +338,8 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
           filteredVisitors.map((visitor) => {
             const isExpanded = expandedVisitorHash === visitor.visitorHash;
             const isRegistered = !!visitor.user;
+            const isStudent = visitor.user?.role === 'STUDENT';
+            const isParent = visitor.user?.role === 'PARENT';
 
             return (
               <div
@@ -293,6 +347,10 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                 className={`rounded-2xl border transition-all duration-200 ${
                   isExpanded
                     ? 'border-primary-300 bg-primary-50/20 shadow-sm ring-2 ring-primary-100'
+                    : isParent
+                    ? 'border-purple-200/80 bg-white hover:border-purple-300 hover:shadow-xs'
+                    : isStudent
+                    ? 'border-emerald-200/80 bg-white hover:border-emerald-300 hover:shadow-xs'
                     : 'border-neutral-200/80 bg-white hover:border-neutral-300 hover:shadow-xs'
                 }`}
               >
@@ -303,20 +361,28 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                     {/* Avatar Icon */}
                     <div
                       className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
-                        isRegistered
+                        isStudent
                           ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-200/60'
+                          : isParent
+                          ? 'bg-purple-100 text-purple-700 ring-2 ring-purple-200/60'
+                          : isRegistered
+                          ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-200/60'
                           : 'bg-neutral-100 text-neutral-600'
                       }`}
                     >
-                      {isRegistered ? (
-                        <UserCheck className="w-6 h-6 text-emerald-600" />
+                      {isStudent ? (
+                        <GraduationCap className="w-6 h-6 text-emerald-600" />
+                      ) : isParent ? (
+                        <Users className="w-6 h-6 text-purple-600" />
+                      ) : isRegistered ? (
+                        <UserCheck className="w-6 h-6 text-blue-600" />
                       ) : (
                         <Globe className="w-5 h-5 text-neutral-500" />
                       )}
                     </div>
 
                     {/* Name, Code, City */}
-                    <div className="min-w-0 space-y-1">
+                    <div className="min-w-0 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         {isRegistered ? (
                           <h3 className="text-sm sm:text-base font-black text-neutral-900 truncate">
@@ -331,13 +397,28 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                           </div>
                         )}
 
-                        {isRegistered && (
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-md border border-emerald-200/60">
-                            {visitor.user?.role === 'STUDENT'
-                              ? 'طالب'
-                              : visitor.user?.role === 'TEACHER'
-                              ? 'معلم'
-                              : 'مستخدم مسجل'}
+                        {isStudent && (
+                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-black rounded-md border border-emerald-200/60 flex items-center gap-1">
+                            <GraduationCap className="w-3 h-3 text-emerald-600" />
+                            <span>طالب</span>
+                          </span>
+                        )}
+
+                        {isParent && (
+                          <span className="px-2.5 py-0.5 bg-purple-50 text-purple-700 text-[11px] font-black rounded-md border border-purple-200/60 flex items-center gap-1">
+                            <Users className="w-3 h-3 text-purple-600" />
+                            <span>
+                              ولي أمر
+                              {visitor.user?.parentInfo?.relationshipType
+                                ? ` (${visitor.user.parentInfo.relationshipType})`
+                                : ''}
+                            </span>
+                          </span>
+                        )}
+
+                        {isRegistered && !isStudent && !isParent && (
+                          <span className="px-2 py-0.5 bg-neutral-100 text-neutral-700 text-[10px] font-black rounded-md border border-neutral-200">
+                            مستخدم مسجل
                           </span>
                         )}
 
@@ -347,6 +428,32 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                           </span>
                         )}
                       </div>
+
+                      {/* Parent child linkage badge */}
+                      {isParent && visitor.user?.parentInfo?.children && visitor.user.parentInfo.children.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {visitor.user.parentInfo.children.map((child, cIdx) => (
+                            <span
+                              key={cIdx}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-900 text-xs font-semibold rounded-lg border border-purple-200/80 shadow-2xs"
+                            >
+                              <GraduationCap className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span>
+                                ولي أمر الطالب:{' '}
+                                <strong className="font-bold text-neutral-900">{child.studentName}</strong>
+                              </span>
+                              {child.gradeLevel && (
+                                <span className="text-[11px] text-purple-700 font-medium">({child.gradeLevel})</span>
+                              )}
+                              {child.studentCode && (
+                                <span className="font-mono text-[10px] text-purple-600 font-bold bg-white/80 px-1 rounded">
+                                  #{child.studentCode}
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Meta subline: location, phone, grade */}
                       <div className="flex items-center gap-3 text-xs text-neutral-500 flex-wrap">
@@ -358,10 +465,16 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                         </span>
 
                         {visitor.user?.phone && (
-                          <span className="flex items-center gap-1 font-mono text-[11px] text-neutral-600">
+                          <a
+                            href={`https://wa.me/${visitor.user.phone.replace(/[^0-9+]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 font-mono text-[11px] text-neutral-700 hover:text-emerald-700 hover:underline bg-neutral-50 hover:bg-emerald-50 px-2 py-0.5 rounded-md border border-neutral-200/60 transition-colors"
+                            title="مراسلة عبر واتساب أو اتصال"
+                          >
                             <Phone className="w-3 h-3 text-neutral-400" />
                             <bdi>{visitor.user.phone}</bdi>
-                          </span>
+                          </a>
                         )}
 
                         {visitor.user?.gradeLevel && (

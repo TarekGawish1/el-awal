@@ -1,5 +1,6 @@
 import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+import { JwtService } from '@nestjs/jwt';
 import { AnalyticsService } from '../services/analytics.service';
 import { AnalyticsController } from '../controllers/analytics.controller';
 import { GeoLocationService } from '../services/geo-location.service';
@@ -17,6 +18,8 @@ describe('Analytics & Telemetry Subsystem', () => {
       count: jest.fn(),
       groupBy: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
+      updateMany: (jest.fn() as any).mockResolvedValue({ count: 0 }),
     },
     landingVisit: {
       create: jest.fn(),
@@ -48,6 +51,10 @@ describe('Analytics & Telemetry Subsystem', () => {
         {
           provide: PrismaService,
           useValue: mockPrisma,
+        },
+        {
+          provide: JwtService,
+          useValue: { decode: jest.fn() },
         },
       ],
     }).compile();
@@ -265,6 +272,97 @@ describe('Analytics & Telemetry Subsystem', () => {
 
       const res = await controller.pingSession({ sessionId: 'b6e3f282-e30c-4395-814e-f82ad31057e0', elapsedSeconds: 30 });
       expect(res.success).toBe(true);
+    });
+  });
+
+  describe('Student and Parent Visitor Statistics & Filtering', () => {
+    it('calculates studentsCount and parentsCount in getStats', async () => {
+      mockPrisma.pageView.count.mockResolvedValue(20);
+      mockPrisma.pageView.groupBy.mockResolvedValue([
+        { visitorHash: 'vh-1', _count: { visitorHash: 2 } },
+        { visitorHash: 'vh-2', _count: { visitorHash: 1 } },
+        { visitorHash: 'vh-3', _count: { visitorHash: 1 } },
+      ]);
+      mockPrisma.pageView.findMany.mockImplementation((args: any) => {
+        if (args?.distinct) {
+          return Promise.resolve([
+            { userId: 'u-student-1', user: { id: 'u-student-1', role: UserRole.STUDENT } },
+            { userId: 'u-parent-1', user: { id: 'u-parent-1', role: UserRole.PARENT } },
+          ]);
+        }
+        return Promise.resolve([
+          {
+            createdAt: new Date(),
+            isLandingPage: false,
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            path: '/',
+          },
+        ]);
+      });
+      mockPrisma.userSession.findMany.mockResolvedValue([
+        { userId: 'u-student-1', durationSeconds: 300, user: { id: 'u-student-1', role: UserRole.STUDENT } },
+        { userId: 'u-parent-1', durationSeconds: 150, user: { id: 'u-parent-1', role: UserRole.PARENT } },
+      ]);
+
+      const res = await service.getStats({ range: 'week' });
+      expect(res.summary.studentsCount).toBe(1);
+      expect(res.summary.parentsCount).toBe(1);
+      expect(res.summary.uniqueVisitors).toBe(3);
+      expect(res.summary.guestsCount).toBe(1);
+    });
+
+    it('returns parentInfo with linked student details in getVisitorsList', async () => {
+      mockPrisma.pageView.groupBy.mockResolvedValue([
+        {
+          visitorHash: 'hash-parent',
+          _count: { visitorHash: 3 },
+          _min: { createdAt: new Date() },
+          _max: { createdAt: new Date() },
+        },
+      ]);
+      mockPrisma.pageView.findMany.mockImplementation((args: any) => {
+        return Promise.resolve([
+          {
+            id: 'pv-1',
+            visitorHash: 'hash-parent',
+            path: '/parent/dashboard',
+            createdAt: new Date(),
+            userId: 'par-1',
+            user: {
+              id: 'par-1',
+              fullName: 'أحمد محمود (ولي أمر)',
+              email: 'parent@test.com',
+              phone: '01011112222',
+              role: UserRole.PARENT,
+              parentProfile: {
+                relationshipType: 'الأب',
+                studentLinks: [
+                  {
+                    student: {
+                      studentCode: 'STU-99',
+                      gradeLevel: 'الصف الأول الثانوي',
+                      user: {
+                        fullName: 'كريم أحمد محمود',
+                        phone: '01099998888',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ]);
+      });
+      mockPrisma.landingVisit.findMany.mockResolvedValue([]);
+      mockPrisma.userSession.findMany.mockResolvedValue([]);
+
+      const res = await service.getVisitorsList({ role: 'PARENT', range: 'week' });
+      expect(res.visitors.length).toBe(1);
+      const visitor = res.visitors[0];
+      expect(visitor.user?.role).toBe(UserRole.PARENT);
+      expect(visitor.user?.parentInfo?.relationshipType).toBe('الأب');
+      expect(visitor.user?.parentInfo?.children[0].studentName).toBe('كريم أحمد محمود');
+      expect(res.parentsCount).toBe(1);
     });
   });
 });

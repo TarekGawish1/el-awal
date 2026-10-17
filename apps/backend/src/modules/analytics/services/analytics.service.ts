@@ -34,6 +34,9 @@ export interface AnalyticsStatsResponse {
     totalDurationSeconds?: number;
     totalDurationFormatted?: string;
     avgDurationPerVisitorFormatted?: string;
+    studentsCount?: number;
+    parentsCount?: number;
+    guestsCount?: number;
   };
 
   timeSeries: {
@@ -92,6 +95,9 @@ export interface StudentLeaderboardItem {
   studentCode: string;
   phone?: string;
   gradeLevel?: string;
+  role?: "STUDENT" | "PARENT";
+  relationshipType?: string;
+  linkedStudentName?: string;
   city: string;
   country: string;
   totalSessions: number;
@@ -113,6 +119,13 @@ export interface IndividualVisitItem {
   durationFormatted?: string;
 }
 
+export interface ParentLinkedChild {
+  studentName: string;
+  studentCode?: string;
+  gradeLevel?: string;
+  phone?: string;
+}
+
 export interface VisitorListItem {
   visitorHash: string;
   shortHash: string;
@@ -129,6 +142,10 @@ export interface VisitorListItem {
     role: string;
     studentCode?: string;
     gradeLevel?: string;
+    parentInfo?: {
+      relationshipType?: string | null;
+      children: ParentLinkedChild[];
+    } | null;
   } | null;
   country: string;
   city: string;
@@ -142,6 +159,9 @@ export interface VisitorListItem {
 export interface VisitorListResponse {
   visitors: VisitorListItem[];
   totalVisitors: number;
+  studentsCount?: number;
+  parentsCount?: number;
+  guestsCount?: number;
   totalDurationSeconds: number;
   totalDurationFormatted: string;
   avgDurationFormatted: string;
@@ -417,6 +437,27 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
+    const visitorHash = this.generateVisitorHash(
+      ipAddress,
+      userAgent,
+      dto.visitorId,
+    );
+
+    // Link any previous unauthenticated page views from this visitor to this user
+    try {
+      await this.prisma.pageView.updateMany({
+        where: {
+          visitorHash,
+          userId: null,
+        },
+        data: {
+          userId,
+        },
+      });
+    } catch {
+      // safe fallback
+    }
+
     this.logger.debug(
       `[Session] Started session ${session.id} for user ${userId} in ${geo.city}, ${geo.country}`,
     );
@@ -629,6 +670,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
           to: query.to,
           limit: query.leaderboardLimit || 15,
           tenantId: query.tenantId,
+          role: query.leaderboardRole || "STUDENT",
         },
         userTenantId,
       ),
@@ -642,6 +684,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
           limit: query.visitorLimit || 10,
           sortBy: "recent",
           tenantId: query.tenantId,
+          role: query.visitorRole || "ALL",
         },
         userTenantId,
       ),
@@ -795,6 +838,65 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     const avgDurationPerVisitorFormatted =
       this.formatDurationArabic(avgDurationSeconds);
 
+    // Compute unique students & parents who visited or had sessions in this period
+    const pageViewUsers = await this.prisma.pageView.findMany({
+      where: {
+        ...where,
+        userId: { not: null },
+      },
+      select: {
+        userId: true,
+        user: {
+          select: {
+            id: true,
+            role: true,
+          },
+        },
+      },
+      distinct: ["userId"],
+    });
+
+    let sessionUsers: { userId: string; user: { id: string; role: UserRole } }[] = [];
+    if (scope !== "landing") {
+      sessionUsers = await this.prisma.userSession.findMany({
+        where: {
+          startedAt: { gte: startDate, lte: endDate },
+          ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+          user: {
+            role: { in: [UserRole.STUDENT, UserRole.PARENT] },
+          },
+        },
+        select: {
+          userId: true,
+          user: {
+            select: {
+              id: true,
+              role: true,
+            },
+          },
+        },
+        distinct: ["userId"],
+      });
+    }
+
+    const studentUserIds = new Set<string>();
+    const parentUserIds = new Set<string>();
+
+    for (const pu of pageViewUsers) {
+      if (pu.user?.role === UserRole.STUDENT) studentUserIds.add(pu.userId!);
+      else if (pu.user?.role === UserRole.PARENT) parentUserIds.add(pu.userId!);
+    }
+
+    for (const su of sessionUsers) {
+      if (su.user?.role === UserRole.STUDENT) studentUserIds.add(su.userId);
+      else if (su.user?.role === UserRole.PARENT) parentUserIds.add(su.userId);
+    }
+
+    const studentsCount = studentUserIds.size;
+    const parentsCount = parentUserIds.size;
+    const registeredCount = studentsCount + parentsCount;
+    const guestsCount = Math.max(0, uniqueVisitors - registeredCount);
+
     return {
       summary: {
         totalViews,
@@ -807,6 +909,9 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         totalDurationSeconds,
         totalDurationFormatted,
         avgDurationPerVisitorFormatted,
+        studentsCount,
+        parentsCount,
+        guestsCount,
       },
 
       timeSeries,
@@ -1178,15 +1283,17 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     );
     const effectiveTenantId = query.tenantId || userTenantId;
 
+    const targetRole = query.role === "PARENT" ? UserRole.PARENT : UserRole.STUDENT;
+
     const where: any = {
       startedAt: { gte: startDate, lte: endDate },
       ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
       user: {
-        role: "STUDENT",
+        role: targetRole,
       },
     };
 
-    // Aggregate sessions strictly for students
+    // Aggregate sessions for students or parents
     const sessions = await this.prisma.userSession.findMany({
       where,
       select: {
@@ -1234,7 +1341,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
       return { students: [], sortBy };
     }
 
-    // Fetch user details with student profiles
+    // Fetch user details with student or parent profiles
     const users = await this.prisma.user.findMany({
       where: {
         id: { in: userIds },
@@ -1243,10 +1350,31 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         id: true,
         fullName: true,
         phone: true,
+        role: true,
         studentProfile: {
           select: {
             studentCode: true,
             gradeLevel: true,
+          },
+        },
+        parentProfile: {
+          select: {
+            relationshipType: true,
+            studentLinks: {
+              select: {
+                student: {
+                  select: {
+                    studentCode: true,
+                    gradeLevel: true,
+                    user: {
+                      select: {
+                        fullName: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -1268,13 +1396,28 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         const agg = studentMap.get(uid)!;
         const details = userDetailsMap.get(uid);
 
+        let linkedStudentName: string | undefined;
+        let relationshipType: string | undefined;
+        if (details?.parentProfile) {
+          relationshipType = details.parentProfile.relationshipType || "ولي أمر";
+          const firstChild = details.parentProfile.studentLinks?.[0]?.student;
+          if (firstChild) {
+            linkedStudentName = firstChild.user?.fullName
+              ? `${firstChild.user.fullName}${firstChild.gradeLevel ? ` (${firstChild.gradeLevel})` : ""}`
+              : undefined;
+          }
+        }
+
         return {
           rank: 0,
           userId: uid,
-          studentName: details?.fullName || "طالب",
-          studentCode: details?.studentProfile?.studentCode || "STU-000",
+          studentName: details?.fullName || (targetRole === UserRole.PARENT ? "ولي أمر" : "طالب"),
+          studentCode: details?.studentProfile?.studentCode || (targetRole === UserRole.PARENT ? "PAR-000" : "STU-000"),
           phone: details?.phone || undefined,
           gradeLevel: details?.studentProfile?.gradeLevel || undefined,
+          role: details?.role as any,
+          relationshipType,
+          linkedStudentName,
           city: agg.city,
           country: agg.country,
           totalSessions: agg.sessionsCount,
@@ -2017,6 +2160,19 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
                 studentCode: { contains: searchTerm, mode: "insensitive" },
               },
             },
+            {
+              parentProfile: {
+                studentLinks: {
+                  some: {
+                    student: {
+                      user: {
+                        fullName: { contains: searchTerm, mode: "insensitive" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           ],
         },
         select: { id: true },
@@ -2038,10 +2194,23 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
       ],
     };
 
+    const requestedRole = (query.role || "ALL").toUpperCase();
+    let roleWhere: any = {};
+    if (requestedRole === "STUDENT" || requestedRole === "STUDENTS") {
+      roleWhere = { user: { role: UserRole.STUDENT } };
+    } else if (requestedRole === "PARENT" || requestedRole === "PARENTS") {
+      roleWhere = { user: { role: UserRole.PARENT } };
+    } else if (requestedRole === "GUEST" || requestedRole === "GUESTS") {
+      roleWhere = { userId: null };
+    } else if (requestedRole === "REGISTERED") {
+      roleWhere = { userId: { not: null } };
+    }
+
     const where: any = {
       ...baseDateCondition,
       ...scopeCondition,
       ...teacherExclusion,
+      ...roleWhere,
       ...(searchUserIds !== undefined ? { userId: { in: searchUserIds } } : {}),
     };
 
@@ -2079,10 +2248,54 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     const pagedGroups = groups.slice((page - 1) * limit, page * limit);
     const pagedHashes = pagedGroups.map((g) => g.visitorHash);
 
+    // Compute overall role counts without role filter for tabs
+    const baseFilterWithoutRole = {
+      ...baseDateCondition,
+      ...scopeCondition,
+      ...teacherExclusion,
+    };
+
+    const roleGroups = await this.prisma.pageView.findMany({
+      where: {
+        ...baseFilterWithoutRole,
+        userId: { not: null },
+      },
+      select: {
+        userId: true,
+        user: { select: { role: true } },
+      },
+      distinct: ["userId"],
+    });
+
+    let overallStudentsCount = 0;
+    let overallParentsCount = 0;
+    for (const rg of roleGroups) {
+      if (rg.user?.role === UserRole.STUDENT) overallStudentsCount++;
+      else if (rg.user?.role === UserRole.PARENT) overallParentsCount++;
+    }
+
+    const allGroupsCount =
+      requestedRole === "ALL"
+        ? totalVisitors
+        : (
+            await this.prisma.pageView.groupBy({
+              by: ["visitorHash"],
+              where: baseFilterWithoutRole,
+            })
+          ).length;
+
+    const overallGuestsCount = Math.max(
+      0,
+      allGroupsCount - (overallStudentsCount + overallParentsCount),
+    );
+
     if (pagedHashes.length === 0) {
       return {
         visitors: [],
         totalVisitors,
+        studentsCount: overallStudentsCount,
+        parentsCount: overallParentsCount,
+        guestsCount: overallGuestsCount,
         page,
         limit,
         totalPages,
@@ -2121,6 +2334,28 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
               select: {
                 studentCode: true,
                 gradeLevel: true,
+              },
+            },
+            parentProfile: {
+              select: {
+                relationshipType: true,
+                studentLinks: {
+                  select: {
+                    student: {
+                      select: {
+                        studentCode: true,
+                        gradeLevel: true,
+                        user: {
+                          select: {
+                            id: true,
+                            fullName: true,
+                            phone: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -2162,7 +2397,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
       viewsMap.set(v.visitorHash, list);
     }
 
-    // Fetch user sessions for authenticated users in current page (strictly students)
+    // Fetch user sessions for authenticated users in current page (students & parents)
     const userIds = views
       .filter(
         (v) =>
@@ -2301,6 +2536,21 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
               studentCode:
                 userView.user.studentProfile?.studentCode || undefined,
               gradeLevel: userView.user.studentProfile?.gradeLevel || undefined,
+              parentInfo:
+                userView.user.role === UserRole.PARENT && (userView.user as any).parentProfile
+                  ? {
+                      relationshipType:
+                        (userView.user as any).parentProfile.relationshipType || "ولي أمر",
+                      children: (
+                        (userView.user as any).parentProfile.studentLinks || []
+                      ).map((link: any) => ({
+                        studentName: link.student?.user?.fullName || "طالب مسجل",
+                        studentCode: link.student?.studentCode || undefined,
+                        gradeLevel: link.student?.gradeLevel || undefined,
+                        phone: link.student?.user?.phone || undefined,
+                      })),
+                    }
+                  : null,
             }
           : null,
         country,
@@ -2325,6 +2575,9 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     return {
       visitors,
       totalVisitors,
+      studentsCount: overallStudentsCount,
+      parentsCount: overallParentsCount,
+      guestsCount: overallGuestsCount,
       totalDurationSeconds: totalAllVisitorsDurationSeconds,
       totalDurationFormatted,
       avgDurationFormatted,

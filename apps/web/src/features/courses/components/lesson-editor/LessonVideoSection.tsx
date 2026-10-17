@@ -71,8 +71,23 @@ export function LessonVideoSection({
   handleCancelUpload,
   handleRemoveVideo,
 }: LessonVideoSectionProps) {
+  const isBunny = Boolean(
+    bunnyVideoId ||
+      videoEmbedUrl?.includes("mediadelivery.net") ||
+      videoEmbedUrl?.startsWith("bunny:") ||
+      streamAuth?.videoId
+  );
+
+  // Active Video URL Priority:
+  // 1. If background upload task just completed in this modal -> use its fresh embedUrl
+  // 2. If this is a Bunny video and streamAuth provides a fresh signed embedUrl -> ALWAYS prefer streamAuth (avoids stale/expired tokens)
+  // 3. Fallback to videoEmbedUrl or streamAuth?.embedUrl
   const activeVideoUrl =
-    videoEmbedUrl || streamAuth?.embedUrl || backgroundUploadTask?.embedUrl;
+    backgroundUploadTask?.embedUrl ||
+    (isBunny && streamAuth?.embedUrl ? streamAuth.embedUrl : null) ||
+    streamAuth?.embedUrl ||
+    videoEmbedUrl;
+
   const hasVideo = Boolean(
     bunnyVideoId || videoEmbedUrl || streamAuth?.videoId || backgroundUploadTask?.videoId
   );
@@ -143,21 +158,11 @@ export function LessonVideoSection({
               className="relative w-full aspect-video bg-black rounded-t-2xl overflow-hidden flex items-center justify-center"
               style={{ aspectRatio: "16 / 9", width: "100%" }}
             >
-              {activeVideoUrl?.includes(".b-cdn.net") ||
-              activeVideoUrl?.includes("iframe.mediadelivery.net") ||
-              streamAuth?.embedUrl ? (
+              {activeVideoUrl ? (
                 <iframe
                   src={activeVideoUrl}
                   loading="lazy"
-                  className="w-full h-full border-0 absolute inset-0 block"
-                  style={{ width: "100%", height: "100%", border: 0 }}
-                  allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
-                  allowFullScreen
-                />
-              ) : activeVideoUrl ? (
-                <iframe
-                  src={activeVideoUrl}
-                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
                   className="w-full h-full border-0 absolute inset-0 block"
                   style={{ width: "100%", height: "100%", border: 0 }}
                   allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"

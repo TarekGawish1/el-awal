@@ -112,7 +112,13 @@ export function useLessonVideoUpload({
       setBunnyVideoId((prev) => prev || streamAuth.videoId);
     }
     if (streamAuth?.embedUrl) {
-      setVideoEmbedUrl((prev) => prev || streamAuth.embedUrl);
+      setVideoEmbedUrl((prev) => {
+        // If prev is empty, or is a Bunny URL (which might have an expired token or stale link), update to fresh signed streamAuth
+        if (!prev || prev.includes("mediadelivery.net") || prev.startsWith("bunny:")) {
+          return streamAuth.embedUrl;
+        }
+        return prev;
+      });
     }
   }, [streamAuth]);
 

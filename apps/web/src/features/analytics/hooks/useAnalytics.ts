@@ -118,7 +118,7 @@ export function useStudentLeaderboard(params: StudentLeaderboardParams) {
   const isOnline = useOnlineStatus();
 
   return useQuery<StudentLeaderboardResponse>({
-    queryKey: ['analytics-student-ranking', params.sortBy, params.range, params.from, params.to, params.tenantId, params.limit],
+    queryKey: ['analytics-student-ranking', params.sortBy, params.range, params.from, params.to, params.tenantId, params.limit, params.role],
     queryFn: () => fetchStudentLeaderboard(params),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
@@ -155,6 +155,7 @@ export function useVisitorsList(params: VisitorListParams) {
       params.search,
       params.sortBy,
       params.tenantId,
+      params.role,
     ],
     queryFn: () => fetchVisitorsList(params),
     placeholderData: keepPreviousData,

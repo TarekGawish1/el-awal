@@ -173,6 +173,7 @@ export function LessonVideoPlayer({
           data-testid="bunny-stream-iframe"
           src={data.embedUrl}
           loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
           className={`w-full h-full border-0 block transition-opacity duration-300 ${
             isObscured ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}

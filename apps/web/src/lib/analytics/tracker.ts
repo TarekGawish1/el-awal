@@ -1,5 +1,6 @@
 import { API_BASE_URL, API_ENDPOINTS } from "../api/endpoints";
 import { getCachedGeoHint, getClientGeoHint } from "./geo-client";
+import { getStoredAccessToken } from "@/features/auth/utils/auth-tokens";
 
 const VISITOR_STORAGE_KEY = "elawal_vid";
 
@@ -37,6 +38,7 @@ export interface TrackPageViewOptions {
   city?: string;
   country?: string;
   visitorId?: string;
+  userId?: string;
 }
 
 /**
@@ -61,6 +63,7 @@ export function trackPageView({
   city,
   country,
   visitorId,
+  userId,
 }: TrackPageViewOptions): void {
   if (typeof window === "undefined") return;
 
@@ -84,6 +87,7 @@ export function trackPageView({
       isLandingPage: isLanding,
       tenantId: tenantId || undefined,
       visitorId: resolvedVisitorId || undefined,
+      userId: userId || undefined,
       city: city || geoHint?.city || undefined,
       country: country || geoHint?.country || undefined,
       metadata: {
@@ -109,10 +113,12 @@ export function trackPageView({
     }
 
     // Fallback: non-blocking fetch with keepalive: true
+    const accessToken = getStoredAccessToken();
     fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: payloadStr,
       keepalive: true,

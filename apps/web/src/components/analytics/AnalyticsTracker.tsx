@@ -63,6 +63,7 @@ export function AnalyticsTracker() {
       path: pathname,
       isLandingPage: isLandingPath(pathname),
       tenantId,
+      userId: user?.id,
       metadata: {
         query: queryString || undefined,
         userRole: user?.role,

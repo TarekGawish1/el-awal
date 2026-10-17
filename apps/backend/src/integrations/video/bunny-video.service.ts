@@ -296,6 +296,7 @@ export class BunnyVideoService {
             AccessKey: this.apiKey,
             Accept: 'application/json',
           },
+          signal: AbortSignal.timeout(3500),
         },
       );
 

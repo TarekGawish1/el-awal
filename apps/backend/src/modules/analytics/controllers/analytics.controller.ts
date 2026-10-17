@@ -34,12 +34,16 @@ import {
   CurrentUser,
   AuthenticatedUser,
 } from "../../../core/security/decorators/current-user.decorator";
+import { JwtService } from "@nestjs/jwt";
 import { UserRole } from "@prisma/client";
 
 @ApiTags("Analytics & Telemetry")
 @Controller("analytics")
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   private extractClientIp(req: any): string {
     const forwarded = req.headers?.["x-forwarded-for"];
@@ -66,9 +70,31 @@ export class AnalyticsController {
   async trackPageView(@Body() dto: TrackPageViewDto, @Req() req: any) {
     const ipAddress = this.extractClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
-    const authenticatedUser = (req as any).user as
+    let authenticatedUser = (req as any).user as
       | AuthenticatedUser
       | undefined;
+
+    // If request has Authorization header and req.user wasn't populated due to @Public()
+    if (!authenticatedUser) {
+      const authHeader = req.headers?.["authorization"] || req.headers?.["Authorization"];
+      if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+        try {
+          const token = authHeader.substring(7).trim();
+          const decoded = this.jwtService.decode(token) as any;
+          if (decoded?.sub) {
+            authenticatedUser = {
+              id: decoded.sub,
+              role: decoded.role,
+              teacherProfileId: decoded.teacherProfileId,
+            } as any;
+          }
+        } catch {
+          // ignore invalid token in public telemetry
+        }
+      }
+    }
+
+    const resolvedUserId = authenticatedUser?.id || dto.userId;
 
     // Exclude teachers, assistants, and administrative pages from tracking
     if (
@@ -86,7 +112,7 @@ export class AnalyticsController {
       ...dto,
       ipAddress,
       userAgent,
-      userId: authenticatedUser?.id,
+      userId: resolvedUserId,
       tenantId: dto.tenantId || authenticatedUser?.teacherProfileId,
       headers: req.headers,
     });

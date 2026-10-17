@@ -9,16 +9,15 @@ import { apiClient } from '../api/client';
 import { getStoredAccessToken, getStoredRefreshToken } from '@/features/auth/utils/auth-tokens';
 import { QueryClient } from '@tanstack/react-query';
 
-export type BootstrapEventType = 'START' | 'PROGRESS' | 'SUCCESS' | 'ERROR' | 'OFFLINE_FALLBACK';
+import {
+  BootstrapEventType,
+  BootstrapEvent,
+  BootstrapListener,
+  BootstrapResult,
+} from './types/bootstrap.types';
+import { invalidateBootstrapQueries } from './bootstrap-cache';
 
-export interface BootstrapEvent {
-  type: BootstrapEventType;
-  percentage: number;
-  message: string;
-  data?: any;
-}
-
-export type BootstrapListener = (event: BootstrapEvent) => void;
+export type { BootstrapEventType, BootstrapEvent, BootstrapListener, BootstrapResult };
 
 class BootstrapManager {
   private isBootstrappingState: boolean = false;
@@ -322,26 +321,7 @@ class BootstrapManager {
       }
 
       // Automatically refresh in-memory UI caches if any data was updated
-      if (qc) {
-        if (payload.students.length > 0) qc.invalidateQueries({ queryKey: ['students'] });
-        if (payload.groups.length > 0) qc.invalidateQueries({ queryKey: ['groups'] });
-        if (payload.sessions.length > 0) {
-          qc.invalidateQueries({ queryKey: ['today-sessions'] });
-          qc.invalidateQueries({ queryKey: ['sessions'] });
-        }
-        if (payload.attendance.length > 0) {
-          qc.invalidateQueries({ queryKey: ['attendance'] });
-          qc.invalidateQueries({ queryKey: ['sessions'] });
-          qc.invalidateQueries({ queryKey: ['today-sessions'] });
-        }
-        if (payload.homework.length > 0) {
-          qc.invalidateQueries({ queryKey: ['homework-records'] });
-          qc.invalidateQueries({ queryKey: ['sessions'] });
-        }
-        if (payload.payments.length > 0) qc.invalidateQueries({ queryKey: ['payments'] });
-        if (payload.booklets.length > 0) qc.invalidateQueries({ queryKey: ['booklets'] });
-        if (payload.assessments.length > 0) qc.invalidateQueries({ queryKey: ['assessments'] });
-      }
+      invalidateBootstrapQueries(qc, payload);
 
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();
       const syncVersion = response.snapshotVersion || rootData.snapshotVersion || 'v1';

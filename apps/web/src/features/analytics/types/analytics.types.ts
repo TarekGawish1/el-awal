@@ -14,6 +14,9 @@ export interface AnalyticsSummary {
   totalDurationSeconds?: number;
   totalDurationFormatted?: string;
   avgDurationPerVisitorFormatted?: string;
+  studentsCount?: number;
+  parentsCount?: number;
+  guestsCount?: number;
 }
 
 
@@ -108,6 +111,9 @@ export interface StudentLeaderboardItem {
   studentCode: string;
   phone?: string;
   gradeLevel?: string;
+  role?: 'STUDENT' | 'PARENT';
+  relationshipType?: string;
+  linkedStudentName?: string;
   city: string;
   country: string;
   totalSessions: number;
@@ -128,6 +134,7 @@ export interface StudentLeaderboardParams {
   to?: string;
   tenantId?: string;
   limit?: number;
+  role?: 'STUDENT' | 'PARENT' | 'ALL';
 }
 
 export interface LandingStatsResponse {
@@ -148,6 +155,13 @@ export interface IndividualVisitItem {
   durationFormatted?: string;
 }
 
+export interface ParentLinkedChild {
+  studentName: string;
+  studentCode?: string;
+  gradeLevel?: string;
+  phone?: string;
+}
+
 export interface VisitorListItem {
   visitorHash: string;
   shortHash: string;
@@ -164,6 +178,10 @@ export interface VisitorListItem {
     role: string;
     studentCode?: string;
     gradeLevel?: string;
+    parentInfo?: {
+      relationshipType?: string | null;
+      children: ParentLinkedChild[];
+    } | null;
   } | null;
   country: string;
   city: string;
@@ -177,6 +195,9 @@ export interface VisitorListItem {
 export interface VisitorListResponse {
   visitors: VisitorListItem[];
   totalVisitors: number;
+  studentsCount?: number;
+  parentsCount?: number;
+  guestsCount?: number;
   totalDurationSeconds: number;
   totalDurationFormatted: string;
   avgDurationFormatted: string;
@@ -196,6 +217,7 @@ export interface VisitorListParams {
   limit?: number;
   search?: string;
   sortBy?: 'recent' | 'visits';
+  role?: 'ALL' | 'STUDENT' | 'PARENT' | 'GUEST' | 'all' | 'students' | 'parents' | 'guests' | 'registered';
 }
 
 export interface AnalyticsOverviewResponse {
@@ -211,5 +233,7 @@ export interface AnalyticsOverviewParams extends AnalyticsQueryParams {
   leaderboardLimit?: number;
   visitorPage?: number;
   visitorLimit?: number;
+  visitorRole?: string;
+  leaderboardRole?: 'STUDENT' | 'PARENT' | 'ALL';
 }
 
