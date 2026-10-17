@@ -3,6 +3,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
+import { AuthTokenService } from './services/auth-token.service';
+import { AuthSessionService } from './services/auth-session.service';
+import { AuthCredentialsService } from './services/auth-credentials.service';
+import { AuthGroupRegistrationService } from './services/auth-group-registration.service';
 import { StudentRegistrationService } from './services/student-registration.service';
 import { AuthVerificationService } from './services/auth-verification.service';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -22,7 +26,23 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, StudentRegistrationService, AuthVerificationService],
-  exports: [AuthService, JwtModule, AuthVerificationService],
+  providers: [
+    AuthTokenService,
+    AuthSessionService,
+    AuthCredentialsService,
+    AuthGroupRegistrationService,
+    AuthService,
+    StudentRegistrationService,
+    AuthVerificationService,
+  ],
+  exports: [
+    AuthTokenService,
+    AuthSessionService,
+    AuthCredentialsService,
+    AuthGroupRegistrationService,
+    AuthService,
+    JwtModule,
+    AuthVerificationService,
+  ],
 })
 export class AuthModule {}

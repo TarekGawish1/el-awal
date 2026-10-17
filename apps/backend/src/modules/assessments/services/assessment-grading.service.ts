@@ -1,0 +1,474 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { QuestionType, SubmissionStatus } from '@prisma/client';
+import { PrismaService } from '../../../core/database/prisma.service';
+import { GradeSubmissionDto } from '../dto/grade-submission.dto';
+import { MemoryCache } from '../../../common/utils/memory-cache.util';
+import { AssessmentQueryService } from './assessment-query.service';
+import { isAnswerCorrect } from '../helpers/assessment-evaluator.helper';
+import { resolveOfficialSubmission } from '../utils/submission-grade.util';
+
+@Injectable()
+export class AssessmentGradingService {
+  private readonly logger = new Logger(AssessmentGradingService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly queryService: AssessmentQueryService,
+    @Optional() private readonly assessmentsListCache?: MemoryCache,
+  ) {}
+
+  /**
+   * Manual grading for essay/subjective questions by instructor.
+   */
+  async gradeSubmission(
+    submissionId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: GradeSubmissionDto,
+  ) {
+    const submission = await this.prisma.assessmentSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        assessment: {
+          include: { questions: true },
+        },
+        answers: true,
+      },
+    });
+
+    if (!submission) {
+      throw new NotFoundException(`Submission [${submissionId}] not found`);
+    }
+
+    if (!isSecretariat && submission.assessment.teacherId !== teacherId) {
+      throw new ForbiddenException(
+        'You do not have permission to grade this assessment submission',
+      );
+    }
+
+    const questionMap = new Map(
+      submission.assessment.questions.map((q) => [q.id, q]),
+    );
+    for (const grade of dto.manualGrades) {
+      const q = questionMap.get(grade.questionId);
+      if (q && grade.pointsEarned > Number(q.points)) {
+        throw new BadRequestException(
+          `الدرجة الممنوحة للسؤال (${grade.pointsEarned}) تتجاوز الحد الأقصى للسؤال (${Number(q.points)})`,
+        );
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const questionIds = dto.manualGrades.map((g) => g.questionId);
+      const existingAnswers = await tx.studentAnswer.findMany({
+        where: {
+          submissionId,
+          questionId: { in: questionIds },
+        },
+      });
+      const existingMap = new Map(existingAnswers.map((a) => [a.questionId, a]));
+
+      const updates: Promise<any>[] = [];
+      const creates: any[] = [];
+
+      for (const grade of dto.manualGrades) {
+        const existingAnswer = existingMap.get(grade.questionId);
+        if (existingAnswer) {
+          updates.push(
+            tx.studentAnswer.update({
+              where: { id: existingAnswer.id },
+              data: {
+                pointsEarned: grade.pointsEarned,
+                teacherFeedback: grade.teacherFeedback,
+                isCorrect: grade.pointsEarned > 0,
+              },
+            }),
+          );
+        } else {
+          const q = questionMap.get(grade.questionId);
+          creates.push({
+            submissionId,
+            questionId: grade.questionId,
+            selectedAnswer: '',
+            pointsEarned: grade.pointsEarned,
+            maxPointsSnapshot: q?.points ?? 1,
+            teacherFeedback: grade.teacherFeedback,
+            isCorrect: grade.pointsEarned > 0,
+          });
+        }
+      }
+
+      if (creates.length > 0) {
+        updates.push(tx.studentAnswer.createMany({ data: creates }));
+      }
+      await Promise.all(updates);
+
+      const allAnswers = await tx.studentAnswer.findMany({
+        where: { submissionId },
+      });
+
+      const totalScore = allAnswers.reduce(
+        (sum, a) => sum + (Number(a.pointsEarned) || 0),
+        0,
+      );
+
+      const maxTotal = Number(submission.assessment.totalScore);
+      if (totalScore > maxTotal) {
+        throw new BadRequestException(
+          `مجموع الدرجات (${totalScore}) يتجاوز الدرجة الكلية للاختبار (${maxTotal})`,
+        );
+      }
+
+      const passingScore = Number(submission.assessment.passingScore || 0);
+      const isPassed = totalScore >= passingScore;
+
+      const graderName = isSecretariat ? 'المساعد' : 'المعلم';
+      const updatedSubmission = await tx.assessmentSubmission.update({
+        where: { id: submissionId },
+        data: {
+          status: SubmissionStatus.GRADED,
+          scoreObtained: totalScore,
+          teacherFeedback: dto.feedback,
+          gradedAt: new Date(),
+          gradedById: teacherId,
+          gradedByName: graderName,
+        },
+        include: {
+          answers: { include: { question: true } },
+          student: {
+            include: { user: { select: { fullName: true, phone: true } } },
+          },
+        },
+      });
+
+      this.eventEmitter.emit('assessment.graded', {
+        submissionId: updatedSubmission.id,
+        assessmentId: submission.assessmentId,
+        studentId: submission.studentId,
+        scoreObtained: totalScore,
+      });
+
+      this.logger.log(
+        `Submission [${submissionId}] manually graded. Score: ${totalScore}/${maxTotal}`,
+      );
+
+      this.assessmentsListCache?.clear();
+      return {
+        id: updatedSubmission.id,
+        assessmentId: updatedSubmission.assessmentId,
+        student: (updatedSubmission as any).student,
+        status: updatedSubmission.status,
+        scoreObtained: Number(updatedSubmission.scoreObtained),
+        totalScore: maxTotal,
+        isPassed,
+        teacherFeedback: updatedSubmission.teacherFeedback,
+        gradedAt: updatedSubmission.gradedAt,
+        answers: (updatedSubmission as any).answers,
+      };
+    });
+
+    await this.queryService.invalidatePortalCaches(submission.studentId);
+    return result;
+  }
+
+  /**
+   * Retrieves all student submissions for an instructor's assessment.
+   */
+  async getAssessmentSubmissions(
+    assessmentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    if (!isSecretariat && assessment.teacherId !== teacherId) {
+      throw new ForbiddenException(
+        'You do not have permission to view these submissions',
+      );
+    }
+
+    const submissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId },
+      orderBy: { submittedAt: 'desc' },
+      include: {
+        student: {
+          include: {
+            user: { select: { fullName: true, phone: true, email: true } },
+          },
+        },
+        _count: { select: { answers: true } },
+      },
+    });
+
+    const attemptsByStudent = new Map<string, typeof submissions>();
+    for (const s of submissions) {
+      const existing = attemptsByStudent.get(s.studentId);
+      if (existing) existing.push(s);
+      else attemptsByStudent.set(s.studentId, [s]);
+    }
+    const officialSubmissionIds = new Set<string>();
+    for (const [, attempts] of attemptsByStudent) {
+      const official = resolveOfficialSubmission(attempts);
+      if (official) officialSubmissionIds.add(official.id);
+    }
+
+    return {
+      assessmentId,
+      assessmentTitle: assessment.title,
+      totalScore: Number(assessment.totalScore),
+      totalSubmissions: submissions.length,
+      totalStudents: attemptsByStudent.size,
+      submissions: submissions.map((s) => ({
+        id: s.id,
+        studentId: s.studentId,
+        studentName: s.student.user.fullName,
+        studentPhone: s.student.user.phone,
+        attemptNumber: s.attemptNumber,
+        isOfficial: officialSubmissionIds.has(s.id),
+        status: s.status,
+        scoreObtained: s.scoreObtained != null ? Number(s.scoreObtained) : null,
+        submittedAt: s.submittedAt,
+        gradedAt: s.gradedAt,
+        isAutoGraded: s.isAutoGraded,
+      })),
+    };
+  }
+
+  /**
+   * Retrieves full details of a specific submission including answers for grading.
+   */
+  async getSubmissionById(
+    submissionId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const submission = await this.prisma.assessmentSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        assessment: {
+          include: {
+            questions: true,
+          },
+        },
+        student: {
+          include: {
+            user: { select: { fullName: true, phone: true, email: true } },
+          },
+        },
+        answers: {
+          include: {
+            question: true,
+          },
+        },
+      },
+    });
+
+    if (!submission) {
+      throw new NotFoundException(`Submission [${submissionId}] not found`);
+    }
+
+    if (!isSecretariat && submission.assessment.teacherId !== teacherId) {
+      throw new ForbiddenException(
+        'You do not have permission to view this submission',
+      );
+    }
+
+    return {
+      id: submission.id,
+      attemptNumber: submission.attemptNumber,
+      status: submission.status,
+      scoreObtained:
+        submission.scoreObtained != null ? Number(submission.scoreObtained) : null,
+      isAutoGraded: submission.isAutoGraded,
+      submittedAt: submission.submittedAt,
+      gradedAt: submission.gradedAt,
+      attachmentUrl: submission.attachmentUrl,
+      teacherFeedback: submission.teacherFeedback,
+      student: {
+        id: submission.studentId,
+        user: {
+          fullName: submission.student.user.fullName,
+          phone: submission.student.user.phone,
+          email: submission.student.user.email,
+        },
+        studentCode: submission.student.studentCode,
+      },
+      assessment: {
+        id: submission.assessment.id,
+        title: submission.assessment.title,
+        totalScore: Number(submission.assessment.totalScore),
+        questions: submission.assessment.questions.map((q) => ({
+          id: q.id,
+          questionNumber: q.questionNumber,
+          questionText: q.questionText,
+          questionType: q.questionType,
+          imageUrl: q.imageUrl,
+          points: Number(q.points),
+          correctAnswer: q.correctAnswer,
+          optionsData: q.optionsData ? q.optionsData : undefined,
+          optionImages: (q as any).optionImages
+            ? (q as any).optionImages
+            : undefined,
+          explanation: q.explanation,
+        })),
+      },
+      answers: submission.answers.map((ans) => ({
+        id: ans.id,
+        questionId: ans.questionId,
+        answerGiven: ans.selectedAnswer,
+        isCorrect: ans.isCorrect,
+        pointsAwarded:
+          ans.pointsEarned != null ? Number(ans.pointsEarned) : null,
+        teacherFeedback: ans.teacherFeedback,
+      })),
+    };
+  }
+
+  /**
+   * Batch re-evaluate auto-graded (MCQ / True-False) questions for all submissions of an assessment.
+   */
+  async reEvaluateAutoGradedSubmissions(
+    assessmentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      include: {
+        questions: true,
+        submissions: {
+          include: {
+            answers: true,
+          },
+        },
+      },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    if (!isSecretariat && assessment.teacherId !== teacherId) {
+      throw new ForbiddenException(
+        'You do not have permission to re-evaluate this assessment',
+      );
+    }
+
+    const hasEssayQuestions = assessment.questions.some(
+      (q) => q.questionType === QuestionType.ESSAY,
+    );
+
+    let updatedSubmissionsCount = 0;
+
+    await this.prisma.$transaction(async (tx) => {
+      const answersToCreate: any[] = [];
+      const answerUpdates: Promise<any>[] = [];
+      const submissionUpdates: Promise<any>[] = [];
+
+      for (const submission of assessment.submissions) {
+        let totalScore = 0;
+        let hasPendingManualEssay = false;
+
+        for (const question of assessment.questions) {
+          const ans = submission.answers.find((a) => a.questionId === question.id);
+          const maxPoints = Number(question.points);
+
+          if (
+            question.questionType === QuestionType.MULTIPLE_CHOICE ||
+            question.questionType === QuestionType.TRUE_FALSE
+          ) {
+            const isCorrect = isAnswerCorrect(
+              question.questionType,
+              ans?.selectedAnswer,
+              question.correctAnswer,
+            );
+            const pointsEarned = isCorrect ? maxPoints : 0;
+            totalScore += pointsEarned;
+
+            if (ans) {
+              answerUpdates.push(
+                tx.studentAnswer.update({
+                  where: { id: ans.id },
+                  data: {
+                    isCorrect,
+                    pointsEarned,
+                    maxPointsSnapshot: question.points,
+                  },
+                }),
+              );
+            } else {
+              answersToCreate.push({
+                submissionId: submission.id,
+                questionId: question.id,
+                selectedAnswer: '',
+                isCorrect,
+                pointsEarned,
+                maxPointsSnapshot: question.points,
+              });
+            }
+          } else if (question.questionType === QuestionType.ESSAY) {
+            if (ans && ans.pointsEarned !== null) {
+              totalScore += Number(ans.pointsEarned);
+            } else {
+              hasPendingManualEssay = true;
+            }
+          }
+        }
+
+        const isFullyGraded = !hasPendingManualEssay;
+
+        submissionUpdates.push(
+          tx.assessmentSubmission.update({
+            where: { id: submission.id },
+            data: {
+              ...(isFullyGraded
+                ? {
+                    status: SubmissionStatus.GRADED,
+                    scoreObtained: totalScore,
+                    isAutoGraded: !hasEssayQuestions,
+                    gradedAt: submission.gradedAt || new Date(),
+                  }
+                : {
+                    status: submission.status,
+                  }),
+            },
+          }),
+        );
+
+        updatedSubmissionsCount++;
+      }
+
+      if (answersToCreate.length > 0) {
+        await tx.studentAnswer.createMany({ data: answersToCreate });
+      }
+      await Promise.all([...answerUpdates, ...submissionUpdates]);
+    });
+
+    this.logger.log(
+      `Re-evaluated ${updatedSubmissionsCount} submissions for assessment [${assessmentId}]`,
+    );
+
+    this.assessmentsListCache?.clear();
+    return {
+      success: true,
+      assessmentId,
+      reEvaluatedCount: updatedSubmissionsCount,
+      message: `تمت إعادة تقييم ${updatedSubmissionsCount} تسليم بنجاح`,
+    };
+  }
+}

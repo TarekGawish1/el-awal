@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { NotificationsController } from './controllers/notifications.controller';
 import { NotificationsService } from './services/notifications.service';
+import { NotificationDispatchService } from './services/notification-dispatch.service';
+import { NotificationTemplatesService } from './services/notification-templates.service';
+import { NotificationEventsService } from './services/notification-events.service';
 import { WebPushService } from '../../services/webpush.service';
 import { WhatsAppService } from '../../services/whatsapp/whatsapp.service';
 import { WhatsAppDispatcherService } from '../whatsapp/services/whatsapp-dispatcher.service';
 import { SchedulersService } from '../../jobs/schedulers';
 import { DeadlineReminderCron } from './crons/deadline-reminder.cron';
-
 import { NotificationSettingsService } from './services/notification-settings.service';
 import { WebPushDispatcherService } from './services/webpush-dispatcher.service';
 
@@ -15,6 +17,9 @@ import { WebPushDispatcherService } from './services/webpush-dispatcher.service'
   providers: [
     // Core notification services
     NotificationSettingsService,
+    NotificationTemplatesService,
+    NotificationDispatchService,
+    NotificationEventsService,
     NotificationsService,
     WebPushService,
     WebPushDispatcherService,
@@ -29,6 +34,9 @@ import { WebPushDispatcherService } from './services/webpush-dispatcher.service'
   ],
   exports: [
     NotificationSettingsService,
+    NotificationTemplatesService,
+    NotificationDispatchService,
+    NotificationEventsService,
     NotificationsService,
     WebPushService,
     WebPushDispatcherService,
