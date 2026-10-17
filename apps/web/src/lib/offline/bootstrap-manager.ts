@@ -350,7 +350,17 @@ class BootstrapManager {
       // Warm Service Worker App Shell & RSC caches for instant zero-redirect offline subpage navigation
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
         try {
-          navigator.serviceWorker.controller.postMessage({ type: 'WARM_OFFLINE_SHELL' });
+          navigator.serviceWorker.controller.postMessage({
+            type: 'WARM_OFFLINE_SHELL',
+            urls: [
+              '/teacher/dashboard',
+              '/teacher/attendance',
+              '/teacher/finance',
+              '/teacher/groups',
+              '/teacher/students',
+              '/teacher/schedules',
+            ],
+          });
         } catch {}
       }
 

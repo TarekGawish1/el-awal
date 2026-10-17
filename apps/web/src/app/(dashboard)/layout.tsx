@@ -172,13 +172,16 @@ export default function DashboardLayout({
     if (isMounted && isOnline && isAuthenticated) {
       const offlineRoutes =
         user?.role === 'STUDENT'
-          ? ['/student/dashboard', '/student/group', '/student/attendance']
+          ? ['/student/dashboard', '/student/group', '/student/attendance', '/student/payments']
           : user?.role === 'PARENT'
           ? ['/parent/dashboard']
           : [
               '/teacher/dashboard',
               '/teacher/attendance',
+              '/teacher/finance',
               '/teacher/groups',
+              '/teacher/students',
+              '/teacher/schedules',
             ];
 
       const startBackgroundWarming = () => {
@@ -200,19 +203,19 @@ export default function DashboardLayout({
             try {
               router.prefetch(route);
             } catch {}
-          }, idx * 1200);
+          }, idx * 800);
         });
       };
 
-      // Defer background warming until well after critical rendering & LCP (6s delay)
+      // Warm Service Worker shell promptly (1.5s delay) to ensure offline resilience
       let idleId: number | undefined;
       const timer = setTimeout(() => {
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          idleId = (window as any).requestIdleCallback(startBackgroundWarming, { timeout: 10000 });
+          idleId = (window as any).requestIdleCallback(startBackgroundWarming, { timeout: 6000 });
         } else {
           startBackgroundWarming();
         }
-      }, 6000);
+      }, 1500);
 
       return () => {
         clearTimeout(timer);

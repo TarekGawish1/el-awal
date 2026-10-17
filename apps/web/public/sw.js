@@ -9,9 +9,9 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v11';
-const RUNTIME_CACHE = 'el-awal-runtime-v11';
-const RSC_CACHE = 'el-awal-rsc-v11';
+const CACHE_NAME = 'el-awal-core-v12';
+const RUNTIME_CACHE = 'el-awal-runtime-v12';
+const RSC_CACHE = 'el-awal-rsc-v12';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
 const MAX_RUNTIME_ITEMS = 300;
@@ -207,6 +207,18 @@ self.addEventListener('fetch', (event) => {
           if (groupRsc) return groupRsc;
         }
 
+        if (url.pathname.startsWith('/teacher/finance')) {
+          const financeParentReq = new Request('/teacher/finance', { headers: { RSC: '1' } });
+          const financeRsc = (await rscCache.match(financeParentReq)) || (await runtimeCache.match(financeParentReq));
+          if (financeRsc) return financeRsc;
+        }
+
+        if (url.pathname.startsWith('/teacher/schedules')) {
+          const schedulesParentReq = new Request('/teacher/schedules', { headers: { RSC: '1' } });
+          const schedulesRsc = (await rscCache.match(schedulesParentReq)) || (await runtimeCache.match(schedulesParentReq));
+          if (schedulesRsc) return schedulesRsc;
+        }
+
         if (url.pathname.startsWith('/teacher/assessments/')) {
           const assessParentReq = new Request('/teacher/assessments', { headers: { RSC: '1' } });
           const assessRsc = await rscCache.match(assessParentReq);
@@ -286,12 +298,20 @@ self.addEventListener('fetch', (event) => {
         }
 
         // 4. For subpages (e.g. /teacher/students/123), try parent route document before falling back to dashboard
+        if (url.pathname.startsWith('/teacher/finance')) {
+          const parentDoc = (await coreCache.match('/teacher/finance')) || (await runtimeCache.match('/teacher/finance'));
+          if (parentDoc) return parentDoc;
+        }
         if (url.pathname.startsWith('/teacher/students/')) {
           const parentDoc = (await coreCache.match('/teacher/students')) || (await runtimeCache.match('/teacher/students'));
           if (parentDoc) return parentDoc;
         }
         if (url.pathname.startsWith('/teacher/groups/')) {
           const parentDoc = (await coreCache.match('/teacher/groups')) || (await runtimeCache.match('/teacher/groups'));
+          if (parentDoc) return parentDoc;
+        }
+        if (url.pathname.startsWith('/teacher/schedules')) {
+          const parentDoc = (await coreCache.match('/teacher/schedules')) || (await runtimeCache.match('/teacher/schedules'));
           if (parentDoc) return parentDoc;
         }
         if (url.pathname.startsWith('/teacher/assessments/')) {
@@ -301,13 +321,26 @@ self.addEventListener('fetch', (event) => {
 
         // 5. Scoped Role App Shell Fallback (CRITICAL: ZERO REDIRECT TO ROOT '/' FOR DASHBOARD ROUTES)
         if (url.pathname.startsWith('/teacher')) {
-          const teacherShell =
+          let teacherShell =
             (await coreCache.match(url.pathname)) ||
-            (await runtimeCache.match(url.pathname)) ||
-            (await coreCache.match('/teacher/dashboard')) ||
-            (await runtimeCache.match('/teacher/dashboard')) ||
-            (await coreCache.match('/teacher/attendance')) ||
-            (await coreCache.match('/teacher/finance'));
+            (await runtimeCache.match(url.pathname));
+
+          if (!teacherShell) {
+            if (url.pathname.startsWith('/teacher/finance')) {
+              teacherShell = (await coreCache.match('/teacher/finance')) || (await runtimeCache.match('/teacher/finance'));
+            } else if (url.pathname.startsWith('/teacher/attendance')) {
+              teacherShell = (await coreCache.match('/teacher/attendance')) || (await runtimeCache.match('/teacher/attendance'));
+            } else if (url.pathname.startsWith('/teacher/students')) {
+              teacherShell = (await coreCache.match('/teacher/students')) || (await runtimeCache.match('/teacher/students'));
+            } else if (url.pathname.startsWith('/teacher/groups')) {
+              teacherShell = (await coreCache.match('/teacher/groups')) || (await runtimeCache.match('/teacher/groups'));
+            } else if (url.pathname.startsWith('/teacher/schedules')) {
+              teacherShell = (await coreCache.match('/teacher/schedules')) || (await runtimeCache.match('/teacher/schedules'));
+            } else if (url.pathname === '/teacher/dashboard' || url.pathname === '/teacher') {
+              teacherShell = (await coreCache.match('/teacher/dashboard')) || (await runtimeCache.match('/teacher/dashboard'));
+            }
+          }
+
           if (teacherShell) {
             return teacherShell;
           }
@@ -486,7 +519,10 @@ self.addEventListener('message', (event) => {
       : [
           '/teacher/dashboard',
           '/teacher/attendance',
+          '/teacher/finance',
+          '/teacher/groups',
           '/teacher/students',
+          '/teacher/schedules',
         ];
     event.waitUntil(
       (async () => {
