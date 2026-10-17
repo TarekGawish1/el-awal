@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import {
   AssessmentType,
   ExamTimingType,
@@ -172,5 +172,137 @@ export function evaluatePreviewSubmission(
     answers: answersToCreate,
     lessonId: linkedLesson?.id,
     courseId: linkedLesson?.module?.courseId,
+  };
+}
+
+export async function validateCourseSequentialPrerequisites(
+  prisma: any,
+  assessment: any,
+  studentId: string,
+) {
+  if (assessment.courseFinalQuizOf?.enforceSequentialLessons) {
+    const course = assessment.courseFinalQuizOf;
+    const allCourseLessons = course.modules.flatMap((m: any) => m.lessons);
+    const allCourseLessonIds = allCourseLessons.map((l: any) => l.id);
+
+    if (allCourseLessonIds.length > 0) {
+      const completedCount = await prisma.courseProgress.count({
+        where: {
+          studentId,
+          lessonId: { in: allCourseLessonIds },
+          isCompleted: true,
+        },
+      });
+      if (completedCount < allCourseLessonIds.length) {
+        throw new ForbiddenException(
+          'الامتحان النهائي للكورس مقفل: يجب إتمام جميع دروس المنهج أولاً وفقاً لترتيب المنهج المحدد من المعلم',
+        );
+      }
+    }
+
+    const unitQuizIds = course.modules
+      .filter(
+        (m: any) =>
+          m.unitQuiz && !m.unitQuiz.isOptional && m.unitQuiz.id !== assessment.id,
+      )
+      .map((m: any) => m.unitQuiz!.id);
+
+    if (unitQuizIds.length > 0) {
+      const distinctSubmissions =
+        await prisma.assessmentSubmission.findMany({
+          where: {
+            studentId,
+            assessmentId: { in: unitQuizIds },
+          },
+          select: { assessmentId: true },
+          distinct: ['assessmentId'],
+        });
+      if (distinctSubmissions.length < unitQuizIds.length) {
+        throw new ForbiddenException(
+          'الامتحان النهائي للكورس مقفل: يجب إنهاء اختبارات جميع الوحدات أولاً قبل دخول الامتحان النهائي',
+        );
+      }
+    }
+  } else if (assessment.unitQuizOf?.course?.enforceSequentialLessons) {
+    const unit = assessment.unitQuizOf;
+    const unitLessonIds = unit.lessons.map((l: any) => l.id);
+
+    if (unitLessonIds.length > 0) {
+      const completedCount = await prisma.courseProgress.count({
+        where: {
+          studentId,
+          lessonId: { in: unitLessonIds },
+          isCompleted: true,
+        },
+      });
+      if (completedCount < unitLessonIds.length) {
+        throw new ForbiddenException(
+          'اختبار الوحدة الشامل مقفل: يجب إتمام جميع دروس الوحدة أولاً وفقاً لترتيب المنهج المحدد من المعلم',
+        );
+      }
+    }
+  }
+}
+
+export function computeSubmissionAnswers(
+  questions: any[],
+  dtoAnswers: { questionId: string; answerGiven: string }[],
+) {
+  const answerSubmissionMap = new Map(
+    dtoAnswers.map((a) => [a.questionId, a.answerGiven]),
+  );
+  let totalScoreObtained = 0;
+  let hasPendingEssay = false;
+  const answersToCreate = [];
+
+  for (const question of questions) {
+    const studentGivenAnswer = answerSubmissionMap.get(question.id) || '';
+
+    if (
+      question.questionType === QuestionType.MULTIPLE_CHOICE ||
+      question.questionType === QuestionType.TRUE_FALSE
+    ) {
+      const isCorrect = isAnswerCorrect(
+        question.questionType,
+        studentGivenAnswer,
+        question.correctAnswer,
+      );
+
+      const pointsEarned = isCorrect ? Number(question.points) : 0;
+      totalScoreObtained += pointsEarned;
+
+      answersToCreate.push({
+        questionId: question.id,
+        selectedAnswer: studentGivenAnswer,
+        isCorrect,
+        pointsEarned,
+        maxPointsSnapshot: question.points,
+      });
+    } else if (question.questionType === QuestionType.ESSAY) {
+      hasPendingEssay = true;
+      answersToCreate.push({
+        questionId: question.id,
+        selectedAnswer: studentGivenAnswer,
+        isCorrect: null,
+        pointsEarned: null,
+        maxPointsSnapshot: question.points,
+      });
+    }
+  }
+
+  const status = hasPendingEssay
+    ? SubmissionStatus.SUBMITTED
+    : SubmissionStatus.GRADED;
+  const finalScore = hasPendingEssay ? null : totalScoreObtained;
+  const isAutoGraded = !hasPendingEssay;
+  const gradedAt = hasPendingEssay ? null : new Date();
+
+  return {
+    answersToCreate,
+    status,
+    finalScore,
+    isAutoGraded,
+    gradedAt,
+    hasPendingEssay,
   };
 }
