@@ -8,7 +8,6 @@ import {
   PieChart,
   Search,
   Users,
-  Filter,
   RefreshCw,
   AlertCircle,
   GraduationCap,
@@ -20,136 +19,12 @@ import { useFinanceDashboardAnalytics } from '../hooks/useFinance';
 import { GroupFinancialCard } from './GroupFinancialCard';
 import { OnlineCourseFinancialCard } from './OnlineCourseFinancialCard';
 import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
-import { FinanceDashboardMetric } from '../types/finance.types';
 import { matchesSearch } from '@/lib/utils/search';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { FinanceMetricCard, TERM_MONTHS, MONTH_NAMES } from './overview/FinanceMetricCard';
+import { FinanceOverviewFilterBar } from './overview/FinanceOverviewFilterBar';
 
-export const TERM_MONTHS: Record<'FIRST_TERM' | 'SECOND_TERM', number[]> = {
-  FIRST_TERM: [8, 9, 10, 11, 12, 1],
-  SECOND_TERM: [2, 3, 4, 5, 6, 7],
-};
-
-const MONTH_NAMES = [
-  'يناير',
-  'فبراير',
-  'مارس',
-  'أبريل',
-  'مايو',
-  'يونيو',
-  'يوليو',
-  'أغسطس',
-  'سبتمبر',
-  'أكتوبر',
-  'نوفمبر',
-  'ديسمبر',
-];
-
-interface MetricCardProps {
-  title: string;
-  subtitle: string;
-  metric: FinanceDashboardMetric;
-  icon: React.ReactNode;
-  accentColor: 'indigo' | 'amber' | 'purple' | 'emerald';
-}
-
-function MetricCard({ title, subtitle, metric, icon, accentColor }: MetricCardProps) {
-  const { expected, collected, remaining, rate } = metric;
-  const rateClamped = Math.min(100, Math.max(0, rate || 0));
-
-  const colorStyles = {
-    indigo: {
-      border: 'border-indigo-100',
-      bg: 'bg-indigo-50/60',
-      text: 'text-indigo-700',
-      iconBg: 'bg-indigo-600',
-      badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      bar: 'bg-indigo-600',
-    },
-    amber: {
-      border: 'border-amber-100',
-      bg: 'bg-amber-50/60',
-      text: 'text-amber-700',
-      iconBg: 'bg-amber-500',
-      badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
-      bar: 'bg-amber-500',
-    },
-    purple: {
-      border: 'border-purple-100',
-      bg: 'bg-purple-50/60',
-      text: 'text-purple-700',
-      iconBg: 'bg-purple-600',
-      badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
-      bar: 'bg-purple-600',
-    },
-    emerald: {
-      border: 'border-emerald-100',
-      bg: 'bg-emerald-50/60',
-      text: 'text-emerald-700',
-      iconBg: 'bg-emerald-600',
-      badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      bar: 'bg-emerald-600',
-    },
-  }[accentColor];
-
-  return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border ${colorStyles.border} bg-white p-5 shadow-sm transition-all hover:shadow-md`}
-    >
-      {/* Top Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${colorStyles.iconBg} text-white shadow-sm`}>
-            {icon}
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-800 text-sm sm:text-base">{title}</h4>
-            <p className="text-xs text-slate-400 font-medium">{subtitle}</p>
-          </div>
-        </div>
-
-        <span
-          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-extrabold ${colorStyles.badgeBg}`}
-        >
-          {rate}%
-        </span>
-      </div>
-
-      {/* Primary 3-column stats */}
-      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl bg-slate-50 p-2 border border-slate-100">
-          <span className="text-[10px] font-medium text-slate-400 block">إجمالي المطلوب</span>
-          <span className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5 block">
-            {expected.toLocaleString()} <span className="text-[10px] font-normal">ج.م</span>
-          </span>
-        </div>
-
-        <div className="rounded-xl bg-emerald-50/80 p-2 border border-emerald-100/60">
-          <span className="text-[10px] font-semibold text-emerald-600 block">المحصل الفعلي</span>
-          <span className="text-xs sm:text-sm font-bold text-emerald-700 mt-0.5 block">
-            {collected.toLocaleString()} <span className="text-[10px] font-normal">ج.م</span>
-          </span>
-        </div>
-
-        <div className="rounded-xl bg-rose-50/80 p-2 border border-rose-100/60">
-          <span className="text-[10px] font-semibold text-rose-600 block">المتبقي</span>
-          <span className="text-xs sm:text-sm font-bold text-rose-700 mt-0.5 block">
-            {remaining.toLocaleString()} <span className="text-[10px] font-normal">ج.م</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="mt-3.5 space-y-1">
-        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${colorStyles.bar} rounded-full transition-all duration-500`}
-            style={{ width: `${rateClamped}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+export { TERM_MONTHS, MONTH_NAMES };
 
 interface FinanceOverviewTabProps {
   academicYear: string;
@@ -247,91 +122,21 @@ export function FinanceOverviewTab({
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Top Filter Bar */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {/* Term Selector */}
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">الفترة الدراسية</label>
-            <select
-              aria-label="الفترة الدراسية"
-              value={academicTerm}
-              onChange={(e) => onTermChange(e.target.value as 'FIRST_TERM' | 'SECOND_TERM')}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="FIRST_TERM">{academicYear} - ترم أول</option>
-              <option value="SECOND_TERM">{academicYear} - ترم ثان</option>
-            </select>
-          </div>
-
-          {/* Month Selector */}
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">الشهر</label>
-            <select
-              aria-label="الشهر"
-              value={periodMonth ?? ''}
-              onChange={(e) => onMonthChange(Number(e.target.value))}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="">الترم كاملاً</option>
-              {(TERM_MONTHS[academicTerm] || []).map((m) => (
-                <option key={m} value={m}>
-                  شهر {m} ({MONTH_NAMES[m - 1]})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Stage Selector */}
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">المرحلة الدراسية</label>
-            <select
-              aria-label="المرحلة الدراسية"
-              value={selectedStage}
-              onChange={(e) => handleStageChange(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="">جميع المراحل</option>
-              <option value="SECONDARY">المرحلة الثانوية</option>
-              <option value="PREPARATORY">المرحلة الإعدادية</option>
-              <option value="PRIMARY">المرحلة الابتدائية</option>
-            </select>
-          </div>
-
-          {/* Grade Selector */}
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">الصف الدراسي</label>
-            <select
-              aria-label="الصف الدراسي"
-              value={selectedGrade}
-              onChange={(e) => setSelectedGrade(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="">جميع الصفوف</option>
-              {availableGrades.map((grade) => (
-                <option key={grade} value={grade}>
-                  {grade}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Group Selector */}
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">المجموعة الدراسية</label>
-            <select
-              aria-label="المجموعة الدراسية"
-              value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="">جميع المجموعات</option>
-              {(analyticsData?.groups || []).map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+      <FinanceOverviewFilterBar
+        academicYear={academicYear}
+        academicTerm={academicTerm}
+        periodMonth={periodMonth}
+        onTermChange={onTermChange}
+        onMonthChange={onMonthChange}
+        selectedStage={selectedStage}
+        onStageChange={handleStageChange}
+        selectedGrade={selectedGrade}
+        onGradeChange={setSelectedGrade}
+        availableGrades={availableGrades}
+        selectedGroupId={selectedGroupId}
+        onGroupIdChange={setSelectedGroupId}
+        groupsList={analyticsData?.groups || groupsList}
+      />
 
       {/* Offline Guidance Alert */}
       {!isOnline && (
@@ -410,8 +215,7 @@ export function FinanceOverviewTab({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* 1. Monthly Subscriptions */}
-            <MetricCard
+            <FinanceMetricCard
               title="الاشتراكات الشهرية"
               subtitle="اشتراكات الحصص بالمجموعات"
               metric={overview.subscriptions}
@@ -419,8 +223,7 @@ export function FinanceOverviewTab({
               accentColor="indigo"
             />
 
-            {/* 2. Booklets */}
-            <MetricCard
+            <FinanceMetricCard
               title="المذكرات والملازم"
               subtitle="مبيعات الملازم الدراسية"
               metric={overview.booklets}
@@ -428,8 +231,7 @@ export function FinanceOverviewTab({
               accentColor="amber"
             />
 
-            {/* 3. Online Courses */}
-            <MetricCard
+            <FinanceMetricCard
               title="الكورسات والدورات"
               subtitle="مبيعات منصة الكورسات أونلاين"
               metric={overview.onlineCourses}
@@ -437,8 +239,7 @@ export function FinanceOverviewTab({
               accentColor="purple"
             />
 
-            {/* 4. Grand Total */}
-            <MetricCard
+            <FinanceMetricCard
               title="المؤشر المالي العام"
               subtitle="الإجمالي الشامل للإيرادات"
               metric={overview.grandTotal}
@@ -525,7 +326,7 @@ export function FinanceOverviewTab({
               <button
                 type="button"
                 onClick={() => setCourseSearchQuery('')}
-                className="text-xs font-bold text-purple-600 hover:text-purple-800 px-2 py-1 transition-colors shrink-0"
+                className="text-xs font-bold text-purple-600 hover:text-purple-800 px-2 py-1 transition-colors shrink-0 cursor-pointer"
               >
                 إعادة ضبط
               </button>

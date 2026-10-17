@@ -1,17 +1,16 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { X, Loader2, Plus, Trash2, Clock, ChevronDown, MapPin, Users } from 'lucide-react';
+import React from 'react';
+import { X, Loader2, Plus, Trash2, Clock, MapPin, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { Select } from '@/components/ui/Select';
-import { useUpdateGroup, useGroups } from '../hooks/useGroups';
-import { CreateGroupPayload, GroupWithDetails } from '../types/groups.types';
-import { findGroupScheduleConflict, describeConflict } from '../utils/scheduleConflict';
+import { GroupWithDetails } from '../types/groups.types';
 import { LocationSelect } from './LocationSelect';
 import { AcademicYearSelect } from './AcademicYearSelect';
-import toast from 'react-hot-toast';
+import { TimeSelect, addOneHour } from './TimeSelect';
+import { useEditGroupModalState } from '../hooks/useEditGroupModalState';
 
 interface EditGroupModalProps {
   isOpen: boolean;
@@ -19,303 +18,23 @@ interface EditGroupModalProps {
   group: GroupWithDetails | null | undefined;
 }
 
-const generateTimeOptions = () => {
-  const options = [];
-  for (let i = 6; i <= 23; i++) {
-    for (let j = 0; j < 60; j += 15) {
-      const hour24 = i.toString().padStart(2, '0');
-      const minute = j.toString().padStart(2, '0');
-      const value = `${hour24}:${minute}`;
-      
-      const hour12 = i % 12 || 12;
-      const hour12Str = hour12 < 10 ? `0${hour12}` : `${hour12}`;
-      const ampm = i < 12 ? 'ص' : 'م';
-      const label = `${hour12Str}:${minute} ${ampm}`;
-      
-      options.push({ label, value });
-    }
-  }
-  // إضافة 12 منتصف الليل
-  options.push({ label: '12:00 ص', value: '00:00' });
-  return options;
-};
-
-const addOneHour = (time: string) => {
-  const [hours, minutes] = time.split(':').map(Number);
-  if (isNaN(hours) || isNaN(minutes)) return time;
-  let newHours = hours + 1;
-  if (newHours === 24) newHours = 0;
-  return `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-};
-
-const timeOptions = generateTimeOptions();
-
-const DAY_PAIRS: Record<number, number> = {
-  0: 3, // الأحد  -> الأربعاء
-  1: 4, // الإثنين -> الخميس
-  2: 5, // الثلاثاء -> الجمعة
-  3: 0, // الأربعاء -> الأحد
-  4: 1, // الخميس  -> الإثنين
-  5: 2, // الجمعة  -> الثلاثاء
-  6: 2, // السبت   -> الثلاثاء
-};
-
-function TimeSelect({ value, onChange, label, disabled }: { value: string, onChange: (val: string) => void, label: string, disabled?: boolean }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const selectedRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // لما القائمة تفتح، انزل تلقائيًا للوقت المختار وخلّيه في نص القائمة
-  useEffect(() => {
-    if (isOpen && listRef.current && selectedRef.current) {
-      const list = listRef.current;
-      const selected = selectedRef.current;
-      list.scrollTop = selected.offsetTop - list.clientHeight / 2 + selected.clientHeight / 2;
-    }
-  }, [isOpen]);
-
-  const selectedOption = timeOptions.find(t => t.value === value);
-
-  return (
-    <div className="flex-1 relative" ref={containerRef}>
-      <label className="block text-xs font-semibold text-neutral-700 mb-1.5">{label}</label>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between appearance-none rounded-md border border-neutral-300 bg-white px-3.5 py-2 text-sm text-neutral-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:bg-neutral-100 transition-colors"
-      >
-        <span dir="ltr">{selectedOption ? selectedOption.label : 'اختر الوقت'}</span>
-        <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div ref={listRef} className="absolute z-[100] mt-1 w-full max-h-60 overflow-y-auto rounded-md border border-neutral-200 bg-white shadow-xl py-1" style={{ scrollbarWidth: 'thin' }}>
-          {timeOptions.map((opt) => (
-            <button
-              key={opt.value}
-              ref={value === opt.value ? selectedRef : null}
-              type="button"
-              dir="ltr"
-              className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary-50 transition-colors ${value === opt.value ? 'bg-primary-50 text-primary-700 font-bold' : 'text-neutral-700'}`}
-              onClick={() => {
-                onChange(opt.value);
-                setIsOpen(false);
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) {
-  const [formData, setFormData] = useState<CreateGroupPayload>({
-    name: group?.name || '',
-    gradeLevel: group?.gradeLevel || '',
-    academicYear: group?.academicYear || '2026-2027',
-    academicTerm: group?.academicTerm || 'FIRST_TERM',
-    maxCapacity: group?.maxCapacity || 50,
-    monthlyFee: group?.monthlyFee || 100,
-    schedules: group?.schedules?.map((s: any) => ({
-      dayOfWeek: s.dayOfWeek,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      location: s.location || '',
-    })) || [],
-  });
-  const [educationalStage, setEducationalStage] = useState('');
-  const [groupLocation, setGroupLocation] = useState(group?.schedules?.[0]?.location || '');
-  // false = user already customized slot 1 manually (don't override)
-  const [slot1Suggested, setSlot1Suggested] = useState(false);
-
-  // Auto-suggest second slot when first slot day OR time changes
-  useEffect(() => {
-    const schedules = formData.schedules || [];
-    if (schedules.length < 2 || !slot1Suggested) return;
-    const first = schedules[0];
-    const suggestedDay = DAY_PAIRS[first.dayOfWeek] ?? schedules[1].dayOfWeek;
-    setFormData(prev => {
-      const newSchedules = [...(prev.schedules || [])];
-      if (newSchedules.length < 2) return prev;
-      newSchedules[1] = {
-        ...newSchedules[1],
-        dayOfWeek: suggestedDay,
-        startTime: first.startTime,
-        endTime: first.endTime,
-      };
-      return { ...prev, schedules: newSchedules };
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    (formData.schedules || [])[0]?.dayOfWeek,
-    (formData.schedules || [])[0]?.startTime,
-    (formData.schedules || [])[0]?.endTime,
+  const {
+    formData,
+    setFormData,
+    educationalStage,
+    setEducationalStage,
+    groupLocation,
+    setGroupLocation,
     slot1Suggested,
-  ]);
-
-  // Re-initialize when group changes
-  useEffect(() => {
-    if (group) {
-      setFormData({
-        name: group.name,
-        gradeLevel: group.gradeLevel,
-        academicYear: group.academicYear || '2026-2027',
-        academicTerm: group.academicTerm || 'FIRST_TERM',
-        maxCapacity: group.maxCapacity || 50,
-        monthlyFee: group.monthlyFee || 100,
-        schedules: group.schedules?.map((s: any) => ({
-          dayOfWeek: s.dayOfWeek,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          location: s.location || '',
-        })) || [],
-      });
-      // Try to determine stage from gradeLevel
-      if (group.gradeLevel.includes('الابتدائي')) setEducationalStage('PRIMARY');
-      else if (group.gradeLevel.includes('الإعدادي')) setEducationalStage('MIDDLE');
-      else if (group.gradeLevel.includes('الثانوي')) setEducationalStage('SECONDARY');
-
-      // Initialize location if exists
-      if (group.schedules && group.schedules.length > 0 && group.schedules[0].location) {
-        setGroupLocation(group.schedules[0].location);
-      }
-    }
-  }, [group]);
-  
-  const gradeOptions: Record<string, { label: string; value: string }[]> = {
-    PRIMARY: [
-      { label: 'الصف الأول الابتدائي', value: 'الصف الأول الابتدائي' },
-      { label: 'الصف الثاني الابتدائي', value: 'الصف الثاني الابتدائي' },
-      { label: 'الصف الثالث الابتدائي', value: 'الصف الثالث الابتدائي' },
-      { label: 'الصف الرابع الابتدائي', value: 'الصف الرابع الابتدائي' },
-      { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
-      { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
-    ],
-    MIDDLE: [
-      { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
-      { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
-      { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
-    ],
-    SECONDARY: [
-      { label: 'الصف الأول الثانوي', value: 'الصف الأول الثانوي' },
-      { label: 'الصف الثاني الثانوي', value: 'الصف الثاني الثانوي' },
-      { label: 'الصف الثالث الثانوي', value: 'الصف الثالث الثانوي' },
-    ],
-  };
-
-  const academicYearOptions = [
-    { label: '2026-2027', value: '2026-2027' },
-    { label: '2027-2028', value: '2027-2028' },
-    { label: '2028-2029', value: '2028-2029' },
-    { label: '2025-2026', value: '2025-2026' },
-  ];
-
-  const academicTermOptions = [
-    { label: 'الفصل الدراسي الأول', value: 'FIRST_TERM' },
-    { label: 'الفصل الدراسي الثاني', value: 'SECOND_TERM' },
-  ];
-
-  useEffect(() => {
-    const daysMap = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-    const schedules = formData.schedules || [];
-    const days = schedules.map(s => daysMap[s.dayOfWeek]);
-    const uniqueDays = Array.from(new Set(days));
-    let expectedName = '';
-    
-    // Format the first schedule time to 12h Arabic
-    let timeString = '';
-    if (schedules.length > 0 && schedules[0].startTime) {
-      const [h, m] = schedules[0].startTime.split(':').map(Number);
-      if (!isNaN(h) && !isNaN(m)) {
-        const hour12 = h % 12 || 12;
-        const ampm = h < 12 ? 'ص' : 'م';
-        timeString = `(الساعة ${hour12}:${m.toString().padStart(2, '0')} ${ampm})`;
-      }
-    }
-    
-    if (uniqueDays.length > 0) {
-      expectedName = `مجموعة ${uniqueDays.join(' و ')} ${timeString}`.trim();
-      if (formData.gradeLevel) {
-        expectedName += ` - ${formData.gradeLevel}`;
-      }
-    } else if (formData.gradeLevel) {
-      expectedName = `مجموعة ${formData.gradeLevel}`;
-    }
-    
-    if (expectedName && groupLocation) {
-      expectedName += ` - ${groupLocation}`;
-    }
-    
-    if (expectedName) {
-      setFormData(prev => {
-        if (prev.name === expectedName) return prev;
-        return { ...prev, name: expectedName };
-      });
-    }
-  }, [formData.schedules, formData.gradeLevel, groupLocation]);
-
-  const { data: existingGroups } = useGroups();
-  const updateGroup = useUpdateGroup();
+    setSlot1Suggested,
+    updateGroup,
+    handleSubmit,
+    gradeOptions,
+    academicTermOptions,
+  } = useEditGroupModalState({ group, onClose });
 
   if (!isOpen || !group) return null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Reject the edit when the new schedule clashes (same day + overlapping time)
-    // with another group in the same academic year + term (excluding this group).
-    const conflict = findGroupScheduleConflict(
-      {
-        schedules: formData.schedules,
-        academicYear: formData.academicYear,
-        academicTerm: formData.academicTerm,
-      },
-      existingGroups,
-      { excludeGroupId: group.id },
-    );
-    if (conflict) {
-      toast.error(describeConflict(conflict));
-      return;
-    }
-
-    // Inject the shared location into all schedules
-    const schedulesWithLocation = formData.schedules?.map(s => ({
-      ...s,
-      location: groupLocation
-    })) || [];
-
-    updateGroup.mutate(
-      {
-        id: group.id,
-        payload: {
-          ...formData,
-          schedules: schedulesWithLocation,
-          maxCapacity: formData.maxCapacity ? Number(formData.maxCapacity) : undefined,
-          monthlyFee: formData.monthlyFee ? Number(formData.monthlyFee) : undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          onClose();
-        },
-      }
-    );
-  };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {

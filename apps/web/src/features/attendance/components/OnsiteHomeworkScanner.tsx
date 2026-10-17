@@ -1,33 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic';
-
-const Scanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
-  { ssr: false }
-);
-import { offlineDb, HomeworkRecordEntity } from '@/lib/offline/db';
-import { parseStudentQr } from '@/lib/qr/qr-parser';
-import { Alert } from '@/components/ui/Alert';
+import React from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import {
-  RefreshCcw,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  ClipboardCheck,
-  UserCheck,
-  Sparkles,
-  Volume2,
-  VolumeX,
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useSessionReport } from '../hooks/use-attendance';
-import { apiClient } from '@/lib/api/client';
-import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import { initQrDetector } from '@/lib/qr/qr-detector-init';
+import { ClipboardCheck, UserCheck, Volume2, VolumeX } from 'lucide-react';
+import { useOnsiteHomeworkScanner } from '../hooks/useOnsiteHomeworkScanner';
+import { HomeworkScannerViewport } from './homework-scanner/HomeworkScannerViewport';
+import { HomeworkRecentActivityList } from './homework-scanner/HomeworkRecentActivityList';
 
 interface OnsiteHomeworkScannerProps {
   sessionId: string;
@@ -44,373 +23,24 @@ export function OnsiteHomeworkScanner({
   assessmentTitle = 'واجب الحصة الدراسية',
   onSuccess,
 }: OnsiteHomeworkScannerProps) {
-  const [locked, setLocked] = useState(false);
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [cameraKey, setCameraKey] = useState(0);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'error' | null>(null);
-  const [recentChecked, setRecentChecked] = useState<
-    Array<{
-      studentId: string;
-      studentName: string;
-      studentCode: string;
-      time: string;
-    }>
-  >([]);
-  const [lastScanResult, setLastScanResult] = useState<{
-    success: boolean;
-    studentName?: string;
-    studentCode?: string;
-    message: string;
-    attendanceRecorded?: boolean;
-  } | null>(null);
-  const [checkedCount, setCheckedCount] = useState<number>(0);
-  const { data: sessionReport } = useSessionReport(sessionId);
-
-  // Load initial checked homework count & hydrate students from report
-  useEffect(() => {
-    let isMounted = true;
-
-    // Hydrate students and homework records from session report into IndexedDB
-    if (sessionReport?.records && Array.isArray(sessionReport.records)) {
-      for (const r of sessionReport.records) {
-        if (r.studentId) {
-          offlineDb.putStudent({
-            id: r.studentId,
-            fullName: r.fullName || r.studentName || 'طالب',
-            studentCode: r.studentCode || '',
-            qrCodeToken: r.qrCodeToken || '',
-            groupId: sessionReport.groupId || groupId || '',
-            gradeLevel: r.gradeLevel || '',
-          }).catch(() => {});
-        }
-      }
-    }
-
-    const absentStudentIds = new Set<string>(
-      sessionReport?.records?.filter((r: any) => r.status === 'ABSENT').map((r: any) => String(r.studentId)) || []
-    );
-
-    if (sessionReport?.homeworkRecords && Array.isArray(sessionReport.homeworkRecords)) {
-      for (const hr of sessionReport.homeworkRecords) {
-        if (absentStudentIds.has(hr.studentId)) continue;
-        offlineDb.homework_records
-          .put({
-            id: hr.id,
-            assessmentId: hr.assessmentId,
-            studentId: hr.studentId,
-            sessionId: hr.sessionId,
-            status: hr.status,
-            score: hr.score !== null && hr.score !== undefined ? Number(hr.score) : undefined,
-            feedback: hr.feedback,
-            recordedMethod: hr.recordedMethod,
-            clientTimestamp: hr.clientTimestamp ? new Date(hr.clientTimestamp).getTime() : Date.now(),
-            syncStatus: 'SYNCED',
-          })
-          .catch(() => {});
-      }
-    }
-
-    // Clean up any absent students from offlineDb homework records for this session
-    for (const absentId of absentStudentIds) {
-      offlineDb.deleteHomeworkForSessionStudent(sessionId, absentId).catch(() => {});
-    }
-
-    offlineDb
-      .getHomeworkRecordsForSession(sessionId, assessmentId)
-      .then((records) => {
-        if (isMounted) {
-          const validRecords = records.filter((r) => !absentStudentIds.has(r.studentId));
-          const localCount = validRecords.filter((r) => r.status === 'CHECKED_ONSITE').length;
-          const serverCount =
-            sessionReport?.metrics?.homeworkCheckedCount ??
-            sessionReport?.records?.filter((r: any) => r.status !== 'ABSENT' && r.homeworkStatus === 'CHECKED_ONSITE').length ??
-            0;
-          setCheckedCount(Math.max(localCount, serverCount));
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, [sessionId, assessmentId, sessionReport, groupId]);
-
-  // Pure Web Audio API Synthesizer (Crystal Clear Chimes & Buzzers)
-  const playBeep = useCallback(
-    (type: 'success' | 'duplicate' | 'error') => {
-      if (!soundEnabled) return;
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-
-        if (type === 'success') {
-          // Pleasant high chime: 880Hz -> 1320Hz
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(880, ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
-          gain.gain.setValueAtTime(0.3, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.25);
-        } else if (type === 'duplicate') {
-          // Dual warning pulse (587.33Hz)
-          const osc1 = ctx.createOscillator();
-          const gain1 = ctx.createGain();
-          osc1.connect(gain1);
-          gain1.connect(ctx.destination);
-          osc1.type = 'triangle';
-          osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
-          gain1.gain.setValueAtTime(0.35, ctx.currentTime);
-          gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-          osc1.start(ctx.currentTime);
-          osc1.stop(ctx.currentTime + 0.12);
-
-          const osc2 = ctx.createOscillator();
-          const gain2 = ctx.createGain();
-          osc2.connect(gain2);
-          gain2.connect(ctx.destination);
-          osc2.type = 'triangle';
-          osc2.frequency.setValueAtTime(587.33, ctx.currentTime + 0.14);
-          gain2.gain.setValueAtTime(0.35, ctx.currentTime + 0.14);
-          gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.26);
-          osc2.start(ctx.currentTime + 0.14);
-          osc2.stop(ctx.currentTime + 0.26);
-        } else {
-          // Low error buzz: 220Hz sawtooth
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(220, ctx.currentTime);
-          gain.gain.setValueAtTime(0.3, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.28);
-        }
-      } catch {}
-    },
-    [soundEnabled],
-  );
-
-  const handleScan = async (detectedCodes: any[]) => {
-    if (locked) return;
-    const rawValue = detectedCodes?.[0]?.rawValue;
-    if (!rawValue || typeof rawValue !== 'string') return;
-
-    setLocked(true);
-
-    try {
-      const parsed = parseStudentQr(rawValue);
-      if (!parsed.isValid) {
-        playBeep('error');
-        setFlashType('error');
-        setLastScanResult({
-          success: false,
-          message: parsed.errorMessage || 'رمز الـ QR غير صالح أو لا يتبع المنصة.',
-        });
-        toast.error(parsed.errorMessage || 'رمز الـ QR غير صالح');
-        setTimeout(() => {
-          setLocked(false);
-          setFlashType(null);
-        }, 1800);
-        return;
-      }
-
-      const cleanToken = parsed.token || parsed.studentId || parsed.studentCode || rawValue.trim();
-      const effectiveGroupId = groupId || sessionReport?.groupId;
-
-      // 1. Find student in local IndexedDB
-      let matchQr = await offlineDb.findStudentByQrToken(rawValue, effectiveGroupId);
-      if (!matchQr && cleanToken !== rawValue) {
-        matchQr = await offlineDb.findStudentByQrToken(cleanToken, effectiveGroupId);
-      }
-      let student = matchQr?.student;
-      if (!student) {
-        student = await offlineDb.getStudentByIdOffline(cleanToken);
-      }
-
-      // 2. Search through all offline students
-      if (!student) {
-        const allStudents = await offlineDb.getStudentsOffline();
-        student = allStudents.find(
-          (s: any) =>
-            s.qrCodeToken === cleanToken ||
-            s.qrCodeToken === rawValue ||
-            s.studentCode === cleanToken ||
-            (parsed.studentCode && s.studentCode === parsed.studentCode) ||
-            s.id === cleanToken ||
-            (parsed.studentId && s.id === parsed.studentId),
-        );
-      }
-
-      // 3. Check session report records
-      if (!student && sessionReport?.records) {
-        const match = sessionReport.records.find(
-          (r: any) =>
-            r.studentId === cleanToken ||
-            (r.qrCodeToken && (r.qrCodeToken === cleanToken || r.qrCodeToken === rawValue)) ||
-            (r.studentCode && (r.studentCode === cleanToken || r.studentCode === parsed.studentCode)) ||
-            (parsed.studentId && r.studentId === parsed.studentId),
-        );
-        if (match) {
-          student = {
-            id: match.studentId,
-            fullName: match.fullName || match.studentName || 'طالب',
-            studentCode: match.studentCode || '',
-            qrCodeToken: match.qrCodeToken || cleanToken,
-            groupId: sessionReport.groupId || groupId || '',
-            gradeLevel: match.gradeLevel || '',
-          };
-          offlineDb.putStudent(student).catch(() => {});
-        }
-      }
-
-      // 4. Check group roster if still not resolved
-      if (!student && effectiveGroupId) {
-        const roster = await offlineDb.getRoster(effectiveGroupId);
-        if (roster?.students) {
-          const match = roster.students.find(
-            (s: any) =>
-              s.id === cleanToken ||
-              s.qrCodeToken === cleanToken ||
-              s.qrCodeToken === rawValue ||
-              s.studentCode === cleanToken ||
-              (parsed.studentCode && s.studentCode === parsed.studentCode),
-          );
-          if (match) {
-            student = match;
-            offlineDb.putStudent(student).catch(() => {});
-          }
-        }
-      }
-
-      // 5. Online dynamic lookup fallback
-      if (!student && typeof navigator !== 'undefined' && navigator.onLine) {
-        try {
-          const searchRes = await apiClient<any>(`/students?search=${encodeURIComponent(cleanToken)}&limit=1`, {
-            method: 'GET',
-          });
-          const searchList = searchRes?.data || searchRes?.students || searchRes?.data?.data || [];
-          if (Array.isArray(searchList) && searchList.length > 0) {
-            const onlineStudent = searchList[0];
-            student = {
-              id: onlineStudent.id,
-              fullName: onlineStudent.fullName || onlineStudent.user?.fullName || 'طالب',
-              studentCode: onlineStudent.studentCode || '',
-              qrCodeToken: onlineStudent.qrCodeToken || cleanToken,
-              groupId: onlineStudent.groupId || groupId || '',
-              gradeLevel: onlineStudent.gradeLevel || '',
-            };
-            offlineDb.putStudent(student).catch(() => {});
-          }
-        } catch {
-          // Fall through to not found error
-        }
-      }
-
-      if (!student) {
-        playBeep('error');
-        setFlashType('error');
-        setLastScanResult({
-          success: false,
-          message: 'بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى التأكد من مسح رمز الطالب الصحيح أو تحديث البيانات عند توفر الإنترنت.',
-        });
-        toast.error('بيانات الطالب غير مسجلة محلياً');
-        setTimeout(() => {
-          setLocked(false);
-          setFlashType(null);
-        }, 1800);
-        return;
-      }
-
-      // Check if homework is already checked locally or on server
-      const existingHw = await offlineDb.getHomeworkRecordsForSession(sessionId, assessmentId);
-      const isAlreadyCheckedLocal = existingHw.some(
-        (h) => h.studentId === student.id && h.status === 'CHECKED_ONSITE',
-      );
-      const isAlreadyCheckedServer = sessionReport?.records?.some(
-        (r: any) => r.studentId === student.id && r.homeworkStatus === 'CHECKED_ONSITE',
-      );
-      const isAlreadyChecked = isAlreadyCheckedLocal || !!isAlreadyCheckedServer;
-
-      // Record homework onsite + automated attendance roll-call
-      const studentName = student.fullName || student.name || 'طالب';
-      const studentCode = student.studentCode || '';
-
-      const { homeworkRecord, attendanceRecord } = await offlineDb.recordHomeworkOnsiteOffline({
-        assessmentId,
-        studentId: student.id,
-        sessionId,
-        status: 'CHECKED_ONSITE',
-        recordedMethod: 'QR_SCAN',
-        studentName,
-        studentCode,
-        qrCodeToken: student.qrCodeToken,
-      });
-
-      if (isAlreadyChecked) {
-        playBeep('duplicate');
-        setFlashType('duplicate');
-        setLastScanResult({
-          success: true,
-          studentName,
-          studentCode,
-          message: `تم فحص وتأكيد واجب الطالب مسبقاً في هذه الحصة: ${studentName}`,
-          attendanceRecorded: true,
-        });
-        toast('تم تأكيد تسليم الواجب والحضور مسبقاً', { icon: '⚠️' });
-      } else {
-        playBeep('success');
-        setFlashType('success');
-        setCheckedCount((prev) => prev + 1);
-        setRecentChecked((prev) => [
-          {
-            studentId: student.id,
-            studentName,
-            studentCode,
-            time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          },
-          ...prev.slice(0, 7),
-        ]);
-        setLastScanResult({
-          success: true,
-          studentName,
-          studentCode,
-          message: `تم تسجيل تسليم الواجب + رصد الحضور بنجاح للطالب: ${studentName}`,
-          attendanceRecorded: true,
-        });
-        toast.success(`تم استلام الواجب + حضور: ${studentName}`);
-      }
-
-      if (onSuccess) {
-        onSuccess(student);
-      }
-
-      // Resume camera scanning after 1.8 seconds debounce
-      setTimeout(() => {
-        setLocked(false);
-        setFlashType(null);
-      }, 1800);
-    } catch (err: any) {
-      playBeep('error');
-      setFlashType('error');
-      setLastScanResult({
-        success: false,
-        message: err.message || 'حدث خطأ أثناء معالجة مسح الكود',
-      });
-      toast.error('حدث خطأ أثناء رصد الواجب');
-      setTimeout(() => {
-        setLocked(false);
-        setFlashType(null);
-      }, 1500);
-    }
-  };
+  const {
+    locked,
+    facingMode,
+    cameraKey,
+    soundEnabled,
+    setSoundEnabled,
+    flashType,
+    recentChecked,
+    lastScanResult,
+    checkedCount,
+    handleScan,
+    toggleFacingMode,
+  } = useOnsiteHomeworkScanner({
+    sessionId,
+    groupId,
+    assessmentId,
+    onSuccess,
+  });
 
   return (
     <div className="space-y-6">
@@ -453,91 +83,14 @@ export function OnsiteHomeworkScanner({
       {/* Main Scanner Section */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         <div className="md:col-span-6 flex flex-col items-center">
-          <div
-            className={`w-full max-w-sm aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-200 shadow-md relative transition-all duration-300 ring-4 ${
-              flashType === 'success'
-                ? 'ring-emerald-500 shadow-xl shadow-emerald-500/20'
-                : flashType === 'duplicate'
-                ? 'ring-amber-500 shadow-xl shadow-amber-500/20'
-                : flashType === 'error'
-                ? 'ring-rose-500 shadow-xl shadow-rose-500/20'
-                : 'ring-emerald-100'
-            }`}
-          >
-            <Scanner
-              key={cameraKey}
-              onScan={handleScan}
-              onError={(err: any) => {
-                const msg = err?.message || '';
-                if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
-                  initQrDetector();
-                } else if (msg.includes('timed out') || msg.includes('timeout')) {
-                  console.warn('Camera stream startup delay - waiting for camera warmup');
-                }
-              }}
-              paused={locked}
-              scanDelay={350}
-              startTimeoutMs={30000}
-              formats={['qr_code']}
-              constraints={{
-                facingMode: { ideal: facingMode },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              }}
-              styles={{
-                container: { width: '100%', height: '100%', position: 'relative' },
-                video: {
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-                },
-              }}
-            />
-
-            {/* Camera Switch & Reload Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
-                setCameraKey((prev) => prev + 1);
-              }}
-              className="absolute top-4 right-4 z-20 bg-black/40 hover:bg-black/60 text-white backdrop-blur-md p-2.5 rounded-full transition-colors focus:outline-none shadow-sm cursor-pointer"
-              title="تبديل / إعادة تشغيل الكاميرا"
-            >
-              <RefreshCcw className="w-5 h-5" />
-            </button>
-
-            {/* Processing Spinner Overlay */}
-            {locked && (
-              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10 backdrop-blur-xs">
-                <div className="animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent mb-2" />
-                <span className="text-xs font-bold text-white">جاري رصد الواجب والحضور...</span>
-              </div>
-            )}
-
-            {/* Color-Coded Live Banner Overlay */}
-            {flashType === 'success' && (
-              <div className="absolute bottom-3 inset-x-3 bg-emerald-600/95 text-white p-2.5 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-lg backdrop-blur-xs animate-in slide-in-from-bottom-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
-                <span className="truncate">🟢 تم تسجيل تسليم الواجب + الحضور</span>
-              </div>
-            )}
-
-            {flashType === 'duplicate' && (
-              <div className="absolute bottom-3 inset-x-3 bg-amber-500/95 text-slate-950 p-2.5 rounded-2xl flex items-center gap-2 text-xs font-black shadow-lg backdrop-blur-xs animate-in slide-in-from-bottom-2">
-                <AlertTriangle className="w-4 h-4 text-amber-950 shrink-0" />
-                <span className="truncate">🟡 مسجل مسبقاً (مكرر)</span>
-              </div>
-            )}
-
-            {flashType === 'error' && (
-              <div className="absolute bottom-3 inset-x-3 bg-rose-600/95 text-white p-2.5 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-lg backdrop-blur-xs animate-in slide-in-from-bottom-2">
-                <XCircle className="w-4 h-4 text-rose-200 shrink-0" />
-                <span className="truncate">🔴 رمز QR غير صالح</span>
-              </div>
-            )}
-          </div>
+          <HomeworkScannerViewport
+            cameraKey={cameraKey}
+            facingMode={facingMode}
+            locked={locked}
+            flashType={flashType}
+            onScan={handleScan}
+            onToggleFacingMode={toggleFacingMode}
+          />
 
           <p className="text-xs text-slate-400 mt-3 text-center">
             قم بتوجيه كاميرا الهاتف نحو كود الطالب لمسح الواجب ورصد حضوره تلقائياً.
@@ -545,80 +98,10 @@ export function OnsiteHomeworkScanner({
         </div>
 
         {/* Live Result Feedback & Recent Checkins */}
-        <div className="md:col-span-6 space-y-4">
-          {/* Last Result Card */}
-          {lastScanResult && (
-            <Alert
-              variant={lastScanResult.success ? 'success' : 'error'}
-              className="p-4 rounded-2xl border transition-all"
-            >
-              <div className="flex items-start gap-3">
-                {lastScanResult.success ? (
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
-                )}
-                <div className="space-y-1">
-                  <p className="font-bold text-sm text-slate-800">
-                    {lastScanResult.success ? 'تم رصد الواجب والحضور بنجاح' : 'تعذر مسح الكود'}
-                  </p>
-                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                    {lastScanResult.message}
-                  </p>
-                  {lastScanResult.studentCode && (
-                    <span className="inline-block text-[11px] font-mono bg-white/70 px-2 py-0.5 rounded-md text-slate-700 mt-1 border border-slate-200">
-                      كود الطالب: {lastScanResult.studentCode}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </Alert>
-          )}
-
-          {/* Recent Activity List */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>الطلاب الذين تم تسليم واجبهم مؤخراً ({recentChecked.length})</span>
-              </h4>
-            </div>
-
-            {recentChecked.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                لم يتم فحص أي واجب بعد في هذه الجلسة.
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {recentChecked.map((item, idx) => (
-                  <div
-                    key={`${item.studentId}-${idx}`}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors text-xs"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                        ✓
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-800">{item.studentName}</p>
-                        {item.studentCode && (
-                          <p className="text-[10px] text-slate-400 font-mono">{item.studentCode}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="text-left">
-                      <Badge variant="success" className="text-[10px] py-0.5 px-2 font-semibold">
-                        حاضر + واصل
-                      </Badge>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-mono">{item.time}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <HomeworkRecentActivityList
+          lastScanResult={lastScanResult}
+          recentChecked={recentChecked}
+        />
       </div>
     </div>
   );

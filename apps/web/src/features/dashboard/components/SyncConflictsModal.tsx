@@ -7,220 +7,26 @@ import {
   RefreshCw,
   X,
   ShieldX,
-  BookOpen,
   Loader2,
-  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { formatArabicTime } from '@/lib/utils/formatters';
 import { syncEngine } from '@/lib/offline/sync-engine';
-import { SyncConflictRecord, BookletEntity, offlineDb } from '@/lib/offline/db';
+import { SyncConflictRecord } from '@/lib/offline/db';
+import { parseConflictReason, domainLabel } from './conflicts/conflict-helpers';
+import { BookletConflictCard } from './conflicts/BookletConflictCard';
 
 // ---------------------------------------------------------------------------
-// Error message humaniser
+// Main modal
 // ---------------------------------------------------------------------------
 
-interface ParsedError {
-  type: 'auth' | 'booklet' | 'duplicate' | 'other';
-  title: string;
-  description: string;
-}
-
-function parseConflictReason(reason: string, payload?: any): ParsedError {
-  const r = reason ?? '';
-
-  if (
-    r.includes('Authentication required') ||
-    r.includes('Unauthorized') ||
-    r.includes('401') ||
-    r.includes('انتهت صلاحية')
-  ) {
-    return {
-      type: 'auth',
-      title: 'انتهت صلاحية جلسة تسجيل الدخول أثناء المزامنة',
-      description:
-        'تم انتهاء الجلسة قبل اكتمال رفع البيانات. اضغط "إعادة المحاولة" لتحديث الجلسة ورفع العمليات تلقائياً.',
-    };
-  }
-
-  if (
-    r.includes('BOOKLET_GRADE_MISMATCH') ||
-    r.includes('INVALID_BOOKLET_FOR_STUDENT') ||
-    r.includes('غير مطابقة للمرحلة') ||
-    r.includes('booklet') ||
-    (payload?.paymentType === 'BOOKLET' && (r.includes('400') || r.includes('غير مخصصة')))
-  ) {
-    // Extract grade levels from the reason when present (e.g. "Grade A != Grade B")
-    const match = r.match(/\(([^)]+)\s*!=\s*([^)]+)\)/);
-    const bookletGrade = match?.[1]?.trim() ?? payload?.bookletGrade ?? '';
-    const studentGrade = match?.[2]?.trim() ?? payload?.studentGrade ?? '';
-    const details =
-      bookletGrade && studentGrade
-        ? `المذكرة مخصصة لـ "${bookletGrade}"، بينما الطالب في "${studentGrade}".`
-        : 'المذكرة المختارة لا تتطابق مع الصف الدراسي للطالب.';
-
-    return {
-      type: 'booklet',
-      title: 'تعارض في الصف الدراسي للمذكرة',
-      description: details,
-    };
-  }
-
-  if (
-    r.includes('already registered') ||
-    r.includes('مسجل مسبقاً') ||
-    r.includes('Collision') ||
-    r.includes('409')
-  ) {
-    return {
-      type: 'duplicate',
-      title: 'السجل موجود بالفعل على الخادم',
-      description: 'هذه العملية مسجلة مسبقاً في قاعدة البيانات وتم تجاهل الإعادة.',
-    };
-  }
-
-  // Strip internal prefixes before showing the user
-  const cleaned = r
-    .replace(/تجاوز الحد الأقصى للمحاولات \(3\):\s*/g, '')
-    .replace(/تعذر إتمام العملية على الخادم:\s*/g, '');
-
-  return {
-    type: 'other',
-    title: 'تعذر إتمام العملية',
-    description: cleaned || r,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Domain label helper
-// ---------------------------------------------------------------------------
-
-function domainLabel(domain: string): string {
-  const map: Record<string, string> = {
-    attendance: 'حضور وغياب',
-    finance: 'سداد اشتراكات',
-    students: 'تسجيل الطلاب',
-    groups: 'المجموعات الدراسية',
-    assessments: 'الاختبارات والواجبات',
-  };
-  return map[domain] ?? domain;
-}
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
-interface SyncConflictsModalProps {
+export interface SyncConflictsModalProps {
   isOpen: boolean;
   onClose: () => void;
   conflicts: SyncConflictRecord[];
   onResolve: (id: string, note?: string) => Promise<void>;
 }
-
-// ---------------------------------------------------------------------------
-// Booklet-conflict inline card
-// ---------------------------------------------------------------------------
-
-interface BookletConflictCardProps {
-  conflict: SyncConflictRecord;
-  onDiscard: () => void;
-}
-
-function BookletConflictCard({ conflict, onDiscard }: BookletConflictCardProps) {
-  const [booklets, setBooklets] = useState<BookletEntity[]>([]);
-  const [selectedId, setSelectedId] = useState('');
-  const [isReplacing, setIsReplacing] = useState(false);
-
-  const studentGrade: string =
-    conflict.payload?.studentGrade ?? conflict.payload?.gradeLevel ?? '';
-
-  useEffect(() => {
-    offlineDb.getBookletsOffline({ gradeLevel: studentGrade || undefined, isActive: true })
-      .then((list) => {
-        const eligible = list.filter((b) => b.isActive);
-        setBooklets(eligible);
-        if (eligible.length > 0) setSelectedId(eligible[0].id);
-      })
-      .catch(() => setBooklets([]));
-  }, [studentGrade]);
-
-  const handleReplace = async () => {
-    if (!selectedId) return;
-    setIsReplacing(true);
-    try {
-      // Enqueue a corrected payment mutation then mark this conflict resolved
-      await syncEngine.retryConflicts([conflict.id]);
-      // The re-enqueue above will use the original payload; we need a corrected one
-      // so we discard the re-enqueued mutation and create a new corrected one.
-      // Since retryConflicts already resolved the conflict, we just need to
-      // notify the user to re-scan with the correct booklet.
-      toast.success('تم تجاهل العملية القديمة. يرجى إعادة السداد باختيار المذكرة المناسبة.');
-    } catch {
-      toast.error('تعذرت المعالجة، يرجى المحاولة لاحقاً');
-    } finally {
-      setIsReplacing(false);
-    }
-  };
-
-  return (
-    <div className="mt-3 p-3 bg-white border border-amber-100 rounded-xl space-y-3">
-      <div className="flex items-center gap-2 text-xs font-bold text-amber-800">
-        <BookOpen className="w-3.5 h-3.5 shrink-0" />
-        <span>خيارات الحل</span>
-      </div>
-
-      {booklets.length > 0 ? (
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-600">
-            اختر مذكرة مناسبة لصف الطالب:
-          </label>
-          <select
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-          >
-            {booklets.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.title} — {b.gradeLevel} ({b.price} ج.م)
-              </option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={handleReplace}
-            disabled={isReplacing}
-            className="text-xs rounded-lg gap-1.5"
-          >
-            {isReplacing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            تعديل المذكرة وإعادة المحاولة
-          </Button>
-        </div>
-      ) : (
-        <p className="text-xs text-slate-500">
-          {studentGrade
-            ? `لا توجد مذكرات نشطة لصف "${studentGrade}". قم بإضافة مذكرة مناسبة أولاً.`
-            : 'لا توجد مذكرات نشطة متاحة.'}
-        </p>
-      )}
-
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={onDiscard}
-        className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg gap-1.5 w-full"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-        إلغاء العملية وحذفها
-      </Button>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main modal
-// ---------------------------------------------------------------------------
 
 export function SyncConflictsModal({
   isOpen,
