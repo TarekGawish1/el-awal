@@ -12,10 +12,20 @@ import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicStatus } from '../types/students.types';
 import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft, Eye, KeyRound, Filter, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { Pagination } from '@/components/ui/Pagination';
-import { StudentDetailsModal } from './StudentDetailsModal';
-import { StudentPasswordModal } from './StudentPasswordModal';
 import { CreatorBadge } from '@/components/ui/CreatorBadge';
+
+const StudentDetailsModal = dynamic(
+  () => import('./StudentDetailsModal').then((mod) => mod.StudentDetailsModal),
+  { ssr: false }
+);
+
+const StudentPasswordModal = dynamic(
+  () => import('./StudentPasswordModal').then((mod) => mod.StudentPasswordModal),
+  { ssr: false }
+);
+
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -816,19 +826,24 @@ export function StudentList() {
       </div>
 
       {/* Quick View Student Modal */}
-      <StudentDetailsModal
-        studentId={selectedStudentForModal}
-        isOpen={!!selectedStudentForModal}
-        onClose={() => setSelectedStudentForModal(null)}
-      />
+      {selectedStudentForModal && (
+        <StudentDetailsModal
+          studentId={selectedStudentForModal}
+          isOpen={!!selectedStudentForModal}
+          onClose={() => setSelectedStudentForModal(null)}
+        />
+      )}
 
       {/* Quick Student Password & Credentials Modal */}
-      <StudentPasswordModal
-        studentId={selectedStudentForPassword?.id || null}
-        studentName={selectedStudentForPassword?.name || 'الطالب'}
-        isOpen={!!selectedStudentForPassword}
-        onClose={() => setSelectedStudentForPassword(null)}
-      />
+      {selectedStudentForPassword && (
+        <StudentPasswordModal
+          studentId={selectedStudentForPassword?.id || null}
+          studentName={selectedStudentForPassword?.name || 'الطالب'}
+          isOpen={!!selectedStudentForPassword}
+          onClose={() => setSelectedStudentForPassword(null)}
+        />
+      )}
     </div>
+
   );
 }

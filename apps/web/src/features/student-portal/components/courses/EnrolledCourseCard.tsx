@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -23,7 +23,7 @@ export interface EnrolledCourseCardProps {
   onOpenCertificate: (data: { title: string; teacherName?: string }) => void;
 }
 
-export function EnrolledCourseCard({
+export const EnrolledCourseCard = memo(function EnrolledCourseCard({
   course: c,
   onWatchPreview,
   onOpenPendingSubscription,
@@ -253,4 +253,5 @@ export function EnrolledCourseCard({
       </CardContent>
     </Card>
   );
-}
+});
+

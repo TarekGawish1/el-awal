@@ -1,14 +1,20 @@
 'use client';
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { X } from 'lucide-react';
 import { LessonQAPanel } from './LessonQAPanel';
 import { LessonSummaryTab } from './LessonSummaryTab';
 import { LessonResourcesTab } from './LessonResourcesTab';
 import { LessonQuizTab } from './LessonQuizTab';
 import { CourseSyllabusSidebar } from './CourseSyllabusSidebar';
-import { CourseCertificateModal } from './CourseCertificateModal';
 import { useLearningRoom } from '../hooks/useLearningRoom';
+
+const CourseCertificateModal = dynamic(
+  () => import('./CourseCertificateModal').then((mod) => mod.CourseCertificateModal),
+  { ssr: false }
+);
+
 import { LearningRoomHeader } from './learning-room/LearningRoomHeader';
 import { LearningRoomVideoPlayer } from './learning-room/LearningRoomVideoPlayer';
 import { LearningRoomBanners } from './learning-room/LearningRoomBanners';
@@ -82,11 +88,14 @@ export function StudentCourseLearningRoom({
   return (
     <div className="space-y-6 text-right animate-in fade-in">
       {/* Certificate Modal */}
-      <CourseCertificateModal
-        isOpen={room.isCertificateOpen && room.progress.isCourseFullyCompleted}
-        onClose={() => room.setIsCertificateOpen(false)}
-        data={room.certData}
-      />
+      {room.isCertificateOpen && room.progress.isCourseFullyCompleted && (
+        <CourseCertificateModal
+          isOpen={room.isCertificateOpen && room.progress.isCourseFullyCompleted}
+          onClose={() => room.setIsCertificateOpen(false)}
+          data={room.certData}
+        />
+      )}
+
 
       {/* Banners & Prompt Modals */}
       <LearningRoomBanners

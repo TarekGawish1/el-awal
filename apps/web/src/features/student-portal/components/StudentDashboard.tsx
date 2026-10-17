@@ -11,8 +11,18 @@ import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock,
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
-import { CourseCertificateModal } from './CourseCertificateModal';
-import { CourseSubscriptionModal } from './CourseSubscriptionModal';
+import dynamic from 'next/dynamic';
+
+const CourseCertificateModal = dynamic(
+  () => import('./CourseCertificateModal').then((mod) => mod.CourseCertificateModal),
+  { ssr: false }
+);
+
+const CourseSubscriptionModal = dynamic(
+  () => import('./CourseSubscriptionModal').then((mod) => mod.CourseSubscriptionModal),
+  { ssr: false }
+);
+
 import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';

@@ -1,13 +1,27 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import { Trash2, X, Video } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { LessonEditorModal } from "../LessonEditorModal";
-import { EditCourseModal } from "../EditCourseModal";
-import { CourseGroupAccessModal } from "../CourseGroupAccessModal";
 import { CourseLesson } from "../../types/courses.types";
 import { AssessmentToDeleteState, LessonModalState } from "../../types/course-builder.types";
+
+const LessonEditorModal = dynamic(
+  () => import("../LessonEditorModal").then((mod) => mod.LessonEditorModal),
+  { ssr: false }
+);
+
+const EditCourseModal = dynamic(
+  () => import("../EditCourseModal").then((mod) => mod.EditCourseModal),
+  { ssr: false }
+);
+
+const CourseGroupAccessModal = dynamic(
+  () => import("../CourseGroupAccessModal").then((mod) => mod.CourseGroupAccessModal),
+  { ssr: false }
+);
+
 
 export interface CourseBuilderModalsProps {
   courseId: string;

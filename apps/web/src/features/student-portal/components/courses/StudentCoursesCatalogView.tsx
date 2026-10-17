@@ -15,13 +15,27 @@ import {
 } from 'lucide-react';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
-import { CourseSubscriptionModal } from '@/features/student-portal/components/CourseSubscriptionModal';
-import { CourseCertificateModal } from '@/features/student-portal/components/CourseCertificateModal';
+import dynamic from 'next/dynamic';
 import { EnrolledCourseCard } from './EnrolledCourseCard';
 import { AvailableCoursesCatalogTab } from './AvailableCoursesCatalogTab';
 import { CourseDetailsView } from './CourseDetailsView';
 import { LessonViewer } from './LessonViewer';
-import { PreviewPromoVideoModal } from './PreviewPromoVideoModal';
+
+const CourseSubscriptionModal = dynamic(
+  () => import('@/features/student-portal/components/CourseSubscriptionModal').then((mod) => mod.CourseSubscriptionModal),
+  { ssr: false }
+);
+
+const CourseCertificateModal = dynamic(
+  () => import('@/features/student-portal/components/CourseCertificateModal').then((mod) => mod.CourseCertificateModal),
+  { ssr: false }
+);
+
+const PreviewPromoVideoModal = dynamic(
+  () => import('./PreviewPromoVideoModal').then((mod) => mod.PreviewPromoVideoModal),
+  { ssr: false }
+);
+
 
 export function StudentCoursesCatalogView() {
   const isOnline = useOnlineStatus();

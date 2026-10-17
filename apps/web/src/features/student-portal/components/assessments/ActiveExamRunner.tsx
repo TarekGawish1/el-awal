@@ -10,12 +10,22 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useExamSession } from '../../hooks/useExamSession';
 import { ExamQuestionRenderer } from './ExamQuestionRenderer';
 import { ExamSubmissionReviewList } from './ExamSubmissionReviewList';
-import { ExamResultsReviewModal } from './ExamResultsReviewModal';
 import { ExamHeaderOverview } from './ExamHeaderOverview';
-import { ExamSubmitConfirmModal } from './ExamSubmitConfirmModal';
+
+const ExamResultsReviewModal = dynamic(
+  () => import('./ExamResultsReviewModal').then((mod) => mod.ExamResultsReviewModal),
+  { ssr: false }
+);
+
+const ExamSubmitConfirmModal = dynamic(
+  () => import('./ExamSubmitConfirmModal').then((mod) => mod.ExamSubmitConfirmModal),
+  { ssr: false }
+);
+
 
 export interface ActiveExamRunnerProps {
   assessment: any;

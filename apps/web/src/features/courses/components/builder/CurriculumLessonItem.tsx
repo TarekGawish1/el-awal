@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import Link from "next/link";
 import {
   GripVertical,
@@ -34,7 +34,7 @@ export interface CurriculumLessonItemProps {
   onRequestDeleteAssessment: (assessment: AssessmentToDeleteState) => void;
 }
 
-export function CurriculumLessonItem({
+export const CurriculumLessonItem = memo(function CurriculumLessonItem({
   les,
   lesIndex,
   modId,
@@ -267,4 +267,5 @@ export function CurriculumLessonItem({
       </div>
     </div>
   );
-}
+});
+

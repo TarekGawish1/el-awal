@@ -29,15 +29,37 @@ import { formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 
+import dynamic from 'next/dynamic';
 import { MiniCalendar } from './MiniCalendar';
 import { WeeklyCalendarView } from './WeeklyCalendarView';
 import { MonthlyCalendarView } from './MonthlyCalendarView';
 import { DailyCalendarView } from './DailyCalendarView';
-import { SessionDetailsModal } from './SessionDetailsModal';
-import { CreateSessionModal } from './CreateSessionModal';
-import { EditSessionModal } from './EditSessionModal';
-import { GenerateSessionsModal } from './GenerateSessionsModal';
-import { UploadModal } from '@/features/content/components/UploadModal';
+
+const SessionDetailsModal = dynamic(
+  () => import('./SessionDetailsModal').then((mod) => mod.SessionDetailsModal),
+  { ssr: false }
+);
+
+const CreateSessionModal = dynamic(
+  () => import('./CreateSessionModal').then((mod) => mod.CreateSessionModal),
+  { ssr: false }
+);
+
+const EditSessionModal = dynamic(
+  () => import('./EditSessionModal').then((mod) => mod.EditSessionModal),
+  { ssr: false }
+);
+
+const GenerateSessionsModal = dynamic(
+  () => import('./GenerateSessionsModal').then((mod) => mod.GenerateSessionsModal),
+  { ssr: false }
+);
+
+const UploadModal = dynamic(
+  () => import('@/features/content/components/UploadModal').then((mod) => mod.UploadModal),
+  { ssr: false }
+);
+
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -473,40 +495,48 @@ export function TeacherSessionsCalendar() {
       </div>
 
       {/* Session Details Modal (Opened when clicking ANY session) */}
-      <SessionDetailsModal
-        isOpen={!!activeSession}
-        session={activeSession}
-        onClose={() => setActiveSession(null)}
-        onEdit={(session) => setEditingSession(session)}
-        onUploadAttachment={(session) => setUploadSession(session)}
-      />
+      {activeSession && (
+        <SessionDetailsModal
+          isOpen={!!activeSession}
+          session={activeSession}
+          onClose={() => setActiveSession(null)}
+          onEdit={(session) => setEditingSession(session)}
+          onUploadAttachment={(session) => setUploadSession(session)}
+        />
+      )}
 
       {/* Create Session Modal */}
-      <CreateSessionModal
-        isOpen={isCreateOpen}
-        onClose={() => {
-          setIsCreateOpen(false);
-          setCreateDatePrefill(undefined);
-          setCreateTimePrefill(undefined);
-        }}
-        initialDate={createDatePrefill}
-        initialTime={createTimePrefill}
-        sessions={rawSessions}
-      />
+      {isCreateOpen && (
+        <CreateSessionModal
+          isOpen={isCreateOpen}
+          onClose={() => {
+            setIsCreateOpen(false);
+            setCreateDatePrefill(undefined);
+            setCreateTimePrefill(undefined);
+          }}
+          initialDate={createDatePrefill}
+          initialTime={createTimePrefill}
+          sessions={rawSessions}
+        />
+      )}
 
       {/* Edit Session Modal */}
-      <EditSessionModal
-        isOpen={!!editingSession}
-        session={editingSession}
-        onClose={() => setEditingSession(null)}
-        sessions={rawSessions}
-      />
+      {editingSession && (
+        <EditSessionModal
+          isOpen={!!editingSession}
+          session={editingSession}
+          onClose={() => setEditingSession(null)}
+          sessions={rawSessions}
+        />
+      )}
 
       {/* Generate Sessions Modal */}
-      <GenerateSessionsModal
-        isOpen={isGenerateOpen}
-        onClose={() => setIsGenerateOpen(false)}
-      />
+      {isGenerateOpen && (
+        <GenerateSessionsModal
+          isOpen={isGenerateOpen}
+          onClose={() => setIsGenerateOpen(false)}
+        />
+      )}
 
       {/* Upload Attachment Modal */}
       {uploadSession && (
@@ -520,5 +550,6 @@ export function TeacherSessionsCalendar() {
         />
       )}
     </div>
+
   );
 }

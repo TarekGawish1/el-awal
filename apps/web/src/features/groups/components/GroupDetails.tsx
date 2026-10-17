@@ -42,14 +42,33 @@ import { useGroup, useDeleteGroup } from '../hooks/useGroups';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
+import dynamic from 'next/dynamic';
 import { Alert } from '@/components/ui/Alert';
 import { StudentList } from './StudentList';
 import { GroupSessionAttachments } from './GroupSessionAttachments';
-import { AddStudentModal } from './AddStudentModal';
-import { DeleteGroupModal } from './DeleteGroupModal';
-import { EditGroupModal } from './EditGroupModal';
-import { GroupQrPrintModal } from './GroupQrPrintModal';
+
+const AddStudentModal = dynamic(
+  () => import('./AddStudentModal').then((mod) => mod.AddStudentModal),
+  { ssr: false }
+);
+
+const DeleteGroupModal = dynamic(
+  () => import('./DeleteGroupModal').then((mod) => mod.DeleteGroupModal),
+  { ssr: false }
+);
+
+const EditGroupModal = dynamic(
+  () => import('./EditGroupModal').then((mod) => mod.EditGroupModal),
+  { ssr: false }
+);
+
+const GroupQrPrintModal = dynamic(
+  () => import('./GroupQrPrintModal').then((mod) => mod.GroupQrPrintModal),
+  { ssr: false }
+);
+
 import toast from 'react-hot-toast';
+
 
 interface GroupDetailsProps {
   id: string;
@@ -317,25 +336,31 @@ export function GroupDetails({ id }: GroupDetailsProps) {
         </div>
       </div>
 
-      <AddStudentModal 
-        isOpen={isAddStudentModalOpen}
-        onClose={() => setIsAddStudentModalOpen(false)}
-        groupId={id}
-      />
+      {isAddStudentModalOpen && (
+        <AddStudentModal 
+          isOpen={isAddStudentModalOpen}
+          onClose={() => setIsAddStudentModalOpen(false)}
+          groupId={id}
+        />
+      )}
 
-      <DeleteGroupModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleConfirmDelete}
-        isDeleting={deleteGroup.isPending}
-        groupName={group.name}
-      />
+      {isDeleteModalOpen && (
+        <DeleteGroupModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleConfirmDelete}
+          isDeleting={deleteGroup.isPending}
+          groupName={group.name}
+        />
+      )}
 
-      <EditGroupModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        group={group}
-      />
+      {isEditModalOpen && (
+        <EditGroupModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          group={group}
+        />
+      )}
 
       {isQrModalOpen && (
         <GroupQrPrintModal

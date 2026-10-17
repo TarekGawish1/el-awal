@@ -1,13 +1,19 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import NextImage from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, PlayCircle } from 'lucide-react';
 import { usePublicCatalog } from '@/hooks/usePublicContent';
 import { resolveAssetUrl } from '@/lib/utils/asset-url';
-import { CoursePreviewModal } from './CoursePreviewModal';
+
+const CoursePreviewModal = dynamic(
+  () => import('./CoursePreviewModal').then((mod) => mod.CoursePreviewModal),
+  { ssr: false }
+);
+
 
 const COURSES = [
   {

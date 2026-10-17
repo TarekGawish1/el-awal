@@ -1,13 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { Users, ArrowLeft, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { CreatorBadge } from '@/components/ui/CreatorBadge';
 import { Group } from '../types/groups.types';
-import { GroupQrPrintModal } from './GroupQrPrintModal';
+
+const GroupQrPrintModal = dynamic(
+  () => import('./GroupQrPrintModal').then((mod) => mod.GroupQrPrintModal),
+  { ssr: false }
+);
 
 interface GroupCardProps {
   group: Group;
@@ -15,7 +20,7 @@ interface GroupCardProps {
   onClick?: () => void;
 }
 
-export function GroupCard({ group, enrollmentCountOverride, onClick }: GroupCardProps) {
+export const GroupCard = memo(function GroupCard({ group, enrollmentCountOverride, onClick }: GroupCardProps) {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const isSecondTerm = group.academicTerm === 'SECOND_TERM';
   const termText = isSecondTerm ? 'ترم ثانٍ' : 'ترم أول';
@@ -131,4 +136,5 @@ export function GroupCard({ group, enrollmentCountOverride, onClick }: GroupCard
       )}
     </>
   );
-}
+});
+

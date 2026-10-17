@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import Link from "next/link";
 import { Video, Layers, Users, Edit, Settings2, Trash2 } from "lucide-react";
 import { resolveCoverUrl } from "@/lib/utils/asset-url";
@@ -12,7 +12,7 @@ export interface CourseCatalogCardProps {
   onRequestDeleteCourse: (course: { id: string; title: string }) => void;
 }
 
-export function CourseCatalogCard({
+export const CourseCatalogCard = memo(function CourseCatalogCard({
   course,
   onEditCourse,
   onRequestDeleteCourse,
@@ -134,4 +134,5 @@ export function CourseCatalogCard({
       </div>
     </div>
   );
-}
+});
+

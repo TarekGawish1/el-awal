@@ -16,15 +16,25 @@ import { useTeacherCourses, useTeacherSubscriptions } from "../../hooks/useCours
 import { coursesApi } from "../../api/courses.api";
 import { QUERY_KEYS } from "@/lib/api/query-keys";
 import { useRealtimeCourseSubscriptions } from "@/lib/realtime/useRealtimeCourseSubscriptions";
+import dynamic from "next/dynamic";
 import {
   SelectedReceiptState,
   RejectTargetState,
   CancelModalTargetState,
   DirectEnrollTargetState,
 } from "../../types/course-management.types";
-import { CourseReceiptModal } from "./CourseReceiptModal";
-import { CourseEnrollmentActionModals } from "./CourseEnrollmentActionModals";
 import { CourseEnrollmentsTable } from "./CourseEnrollmentsTable";
+
+const CourseReceiptModal = dynamic(
+  () => import("./CourseReceiptModal").then((mod) => mod.CourseReceiptModal),
+  { ssr: false }
+);
+
+const CourseEnrollmentActionModals = dynamic(
+  () => import("./CourseEnrollmentActionModals").then((mod) => mod.CourseEnrollmentActionModals),
+  { ssr: false }
+);
+
 
 export function CourseEnrollmentsView() {
   const queryClient = useQueryClient();

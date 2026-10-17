@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useGroupDefaulters } from '../hooks/useFinance';
@@ -8,11 +10,17 @@ import { FinanceHeader } from './dashboard/FinanceHeader';
 import { FinanceQuickActions } from './dashboard/FinanceQuickActions';
 import { FinanceQrScannerModal } from './dashboard/FinanceQrScannerModal';
 import { RecordPaymentModal } from './RecordPaymentModal';
-import { StudentHistoryModal } from './StudentHistoryModal';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import { FinanceSettingsTab } from './FinanceSettingsTab';
 import { FinanceOverviewTab } from './FinanceOverviewTab';
+
+const StudentHistoryModal = dynamic(
+  () => import('./StudentHistoryModal').then((mod) => mod.StudentHistoryModal),
+  { ssr: false }
+);
+
+
 import {
   DEFAULT_ACADEMIC_TERM,
   STORAGE_TERM_KEY,
@@ -148,15 +156,18 @@ export function FinanceDashboard() {
       )}
 
       {/* Modals */}
-      <FinanceQrScannerModal 
-        isOpen={isQrModalOpen}
-        onClose={() => setIsQrModalOpen(false)}
-        onSwitchToManual={() => setIsRecordModalOpen(true)}
-        groupId={selectedGroupId}
-        groupName={selectedGroup?.name}
-        periodYear={periodYear}
-        periodMonth={periodMonth}
-      />
+      {isQrModalOpen && (
+        <FinanceQrScannerModal 
+          isOpen={isQrModalOpen}
+          onClose={() => setIsQrModalOpen(false)}
+          onSwitchToManual={() => setIsRecordModalOpen(true)}
+          groupId={selectedGroupId}
+          groupName={selectedGroup?.name}
+          periodYear={periodYear}
+          periodMonth={periodMonth}
+        />
+      )}
+
       
       {isRecordModalOpen && (
         <RecordPaymentModal 

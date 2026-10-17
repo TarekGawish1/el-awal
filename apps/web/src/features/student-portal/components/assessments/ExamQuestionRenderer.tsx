@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import {
   CheckCircle2,
@@ -21,7 +21,7 @@ export interface ExamQuestionRendererProps {
   fileInputRef: (el: HTMLInputElement | null) => void;
 }
 
-export function ExamQuestionRenderer({
+export const ExamQuestionRenderer = memo(function ExamQuestionRenderer({
   question,
   currentAnswer,
   onSelectOption,
@@ -255,4 +255,5 @@ export function ExamQuestionRenderer({
       )}
     </div>
   );
-}
+});
+
