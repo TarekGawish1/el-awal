@@ -1,25 +1,22 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-  ForbiddenException,
-  Logger,
-  Optional,
-} from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AttendanceRepository } from '../repositories/attendance.repository';
 import { BatchAttendanceDto } from '../dto/batch-attendance.dto';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
-import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
+import { AttendanceStatus } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
-import { getSessionEndUtcDate } from '../utils/attendance.util';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { RedisCacheService } from '../../../core/cache/redis-cache.service';
+import { AttendanceQrService } from './attendance-qr.service';
+import { AttendanceBatchService } from './attendance-batch.service';
+import { AttendanceQueriesService } from './attendance-queries.service';
 
 @Injectable()
 export class AttendanceService {
-  private readonly logger = new Logger(AttendanceService.name);
+  private readonly qrService: AttendanceQrService;
+  private readonly batchService: AttendanceBatchService;
+  private readonly queriesService: AttendanceQueriesService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -27,7 +24,35 @@ export class AttendanceService {
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly realtimeGateway?: RealtimeGateway,
     @Optional() private readonly redisCache?: RedisCacheService,
-  ) {}
+    @Optional() qrService?: AttendanceQrService,
+    @Optional() batchService?: AttendanceBatchService,
+    @Optional() queriesService?: AttendanceQueriesService,
+  ) {
+    this.qrService =
+      qrService ??
+      new AttendanceQrService(
+        this.prisma,
+        this.attendanceRepository,
+        this.eventEmitter,
+        this.realtimeGateway,
+        this.redisCache,
+      );
+    this.batchService =
+      batchService ??
+      new AttendanceBatchService(
+        this.prisma,
+        this.eventEmitter,
+        this.realtimeGateway,
+        this.redisCache,
+      );
+    this.queriesService =
+      queriesService ??
+      new AttendanceQueriesService(
+        this.prisma,
+        this.attendanceRepository,
+        this.redisCache,
+      );
+  }
 
   /**
    * 7-Tier Verification Pipeline for QR Code Roll-call Check-in.
@@ -38,547 +63,21 @@ export class AttendanceService {
     user: AuthenticatedUser,
     allowCrossGroup = false,
   ) {
-    // 1. Session Verification
-    const session = await this.prisma.lessonSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        group: {
-          include: {
-            _count: {
-              select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } },
-            },
-          },
-        },
-      },
-    });
-
-    if (!session) {
-      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
-    }
-
-    // Authorization: If user is teacher, ensure teacher owns the group
-    if (user.role === UserRole.TEACHER) {
-      const teacherId = user.teacherProfileId || user.id;
-      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
-        throw new ForbiddenException('You do not own the academic group for this session');
-      }
-    }
-
-    // 2. Token Resolution (supports QR token, studentCode, or UUID)
-    const trimmedToken = qrCodeToken?.trim();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
-
-    const student = await this.prisma.studentProfile.findFirst({
-      where: {
-        OR: [
-          { qrCodeToken: trimmedToken },
-          { studentCode: trimmedToken },
-          ...(isUuid ? [{ id: trimmedToken }] : []),
-        ],
-      },
-      include: {
-        user: { select: { fullName: true, isActive: true, phone: true } },
-        groupEnrollments: {
-          where: { status: GroupEnrollmentStatus.ACTIVE },
-          include: { group: true },
-        },
-      },
-    });
-
-    if (!student || !student.user.isActive) {
-      throw new BadRequestException('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
-    }
-
-    // 3. Cohort Enrollment Check (Strict to selected session group)
-    const directEnrollment = student.groupEnrollments.find(
-      (e) => e.groupId === session.groupId,
-    );
-
-    if (!directEnrollment) {
-      if (!allowCrossGroup) {
-        const registeredGroup = student.groupEnrollments[0]?.group?.name;
-        const extraInfo = registeredGroup ? ` (مسجل في: ${registeredGroup})` : '';
-
-        throw new BadRequestException({
-          statusCode: 400,
-          error: 'STUDENT_NOT_ENROLLED',
-          message: `عذراً، الطالب [${student.user.fullName}] غير مقيد في هذه المجموعة الدراسية (${session.group.name})${extraInfo}.`,
-          studentName: student.user.fullName,
-          studentId: student.id,
-          studentCode: student.studentCode,
-          gradeLevel: student.gradeLevel,
-          enrolledGroups: student.groupEnrollments.map((e) => e.group?.name).filter(Boolean),
-          originalGroupId: student.groupEnrollments[0]?.groupId || null,
-          originalGroupName: registeredGroup || null,
-        });
-      }
-    }
-
-    // 4. Atomic Record Creation (Handles race condition & idempotency)
-    const notes = !directEnrollment
-      ? `حضور استثنائي / تعويض (المجموعة الأصلية: ${student.groupEnrollments[0]?.group?.name || 'أخرى'})`
-      : undefined;
-
-    let result;
-    try {
-      result = await this.attendanceRepository.recordQrScan(
-        session.id,
-        student.id,
-        user.id,
-        notes,
-      );
-    } catch (error: any) {
-      if (error.message.includes('CONFLICT_MANUAL_OVERRIDE')) {
-        throw new BadRequestException({
-          statusCode: 400,
-          error: 'MANUAL_OVERRIDE_EXISTS',
-          message: error.message.replace('CONFLICT_MANUAL_OVERRIDE: ', 'عذراً، '), // Return a friendly error message to the client
-          studentName: student.user.fullName,
-        });
-      }
-      throw error;
-    }
-
-    // 5. Emit domain event if this was the first successful scan
-    if (!result.isDuplicate) {
-      if (this.redisCache) {
-        await this.redisCache.del(`student:dashboard:${student.id}`);
-        await this.redisCache.del(`parent:overview:${student.id}`);
-      }
-      this.eventEmitter.emit('attendance.recorded', {
-        sessionId: session.id,
-        studentId: student.id,
-        status: AttendanceStatus.PRESENT,
-      });
-      
-      // Repeated lateness detection (3 consecutive times)
-      if (session.startTime) {
-        const recordedAtInCairo = new Date(result.record.recordedAt.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }));
-        const [startH, startM] = session.startTime.split(':').map(Number);
-        
-        // Treat as late if more than 10 minutes past start time
-        const isLate = recordedAtInCairo.getHours() > startH || 
-          (recordedAtInCairo.getHours() === startH && recordedAtInCairo.getMinutes() > startM + 10);
-        
-        if (isLate) {
-          const last3Records = await this.prisma.attendanceRecord.findMany({
-            where: { studentId: student.id, status: AttendanceStatus.PRESENT },
-            orderBy: { session: { sessionDate: 'desc' } },
-            take: 3,
-            include: { session: true }
-          });
-          
-          let consecutiveLateCount = 0;
-          for (const record of last3Records) {
-            if (!record.session.startTime) break;
-            const recTime = new Date(record.recordedAt.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }));
-            const [sH, sM] = record.session.startTime.split(':').map(Number);
-            if (recTime.getHours() > sH || (recTime.getHours() === sH && recTime.getMinutes() > sM + 10)) {
-              consecutiveLateCount++;
-            } else {
-              break;
-            }
-          }
-          
-          if (consecutiveLateCount >= 3) {
-            this.eventEmitter.emit('student.repeated.lateness', {
-              studentId: student.id,
-              groupName: session.group.name,
-            });
-          }
-        }
-      }
-    }
-
-    // 6. Compute real-time session statistics
-    const totalPresent = await this.prisma.attendanceRecord.count({
-      where: { sessionId, status: AttendanceStatus.PRESENT },
-    });
-
-    const recordedTimeStr = result.record.recordedAt
-      ? new Date(result.record.recordedAt).toLocaleTimeString('ar-EG', {
-          timeZone: 'Africa/Cairo',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '';
-
-    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
-
-    return {
-      isDuplicate: result.isDuplicate,
-      isCrossGroupSuccess: !directEnrollment,
-      student: {
-        id: student.id,
-        fullName: student.user.fullName,
-        studentCode: student.studentCode,
-        gradeLevel: student.gradeLevel,
-      },
-      studentGroup: student.groupEnrollments[0]?.group
-        ? {
-            id: student.groupEnrollments[0].groupId,
-            name: student.groupEnrollments[0].group.name,
-            gradeLevel: student.groupEnrollments[0].group.gradeLevel,
-          }
-        : undefined,
-      sessionGroup: {
-        id: session.groupId,
-        name: session.group.name,
-        gradeLevel: session.group.gradeLevel,
-      },
-      attendance: result.record,
-      sessionStats: {
-        totalPresent,
-        totalEnrolled: session.group._count.enrollments,
-      },
-      message: result.isDuplicate
-        ? `⚠️ تم تسجيل حضور الطالب [${student.user.fullName}] لهذه الحصة مسبقاً ${recordedTimeStr ? `في تمام الساعة ${recordedTimeStr}` : ''}`
-        : !directEnrollment
-        ? `تم تسجيل حضور استثنائي للطالب [${student.user.fullName}] بنجاح (تعويض حصة)`
-        : `تم تسجيل حضور الطالب [${student.user.fullName}] بنجاح`,
-    };
+    return this.qrService.processQrScan(sessionId, qrCodeToken, user, allowCrossGroup);
   }
 
   /**
    * Manual Roll-Call batch update within an atomic Prisma transaction.
    */
   async recordManualBatch(sessionId: string, dto: BatchAttendanceDto, user: AuthenticatedUser) {
-    const session = await this.prisma.lessonSession.findUnique({
-      where: { id: sessionId },
-      include: { group: true },
-    });
-
-    if (!session) {
-      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
-    }
-
-    // Authorization: Verify group ownership for teacher
-    if (user.role === UserRole.TEACHER) {
-      const teacherId = user.teacherProfileId || user.id;
-      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
-        throw new ForbiddenException('You do not own the academic group for this session');
-      }
-    }
-
-    // Verify all students are actively enrolled in the session group before upserting
-    const studentIds = dto.records.map((r) => r.studentId);
-    const activeEnrollments = await this.prisma.groupEnrollment.findMany({
-      where: {
-        groupId: session.groupId,
-        studentId: { in: studentIds },
-        status: GroupEnrollmentStatus.ACTIVE,
-      },
-      select: { studentId: true },
-    });
-
-    const enrolledSet = new Set(activeEnrollments.map((e) => e.studentId));
-    const nonEnrolled = studentIds.filter((id) => !enrolledSet.has(id));
-    if (nonEnrolled.length > 0) {
-      throw new BadRequestException(
-        `Cannot record attendance for non-enrolled students: ${nonEnrolled.join(', ')}`,
-      );
-    }
-
-    const targetStudentIds = Array.from(
-      new Set([...studentIds, ...(dto.removedStudentIds || [])]),
-    );
-
-    const existingRecords = await this.prisma.attendanceRecord.findMany({
-      where: {
-        sessionId,
-        studentId: { in: targetStudentIds },
-      },
-      select: {
-        studentId: true,
-        status: true,
-      },
-    });
-    const previousStatusMap = new Map(existingRecords.map((r) => [r.studentId, r.status]));
-
-    const absentStudentIds = dto.records
-      .filter((r) => r.status === AttendanceStatus.ABSENT)
-      .map((r) => r.studentId);
-
-    await this.prisma.$transaction(async (tx) => {
-      // 1. Bulk delete existing records for the targeted students
-      if (studentIds.length > 0) {
-        await tx.attendanceRecord.deleteMany({
-          where: {
-            sessionId,
-            studentId: { in: studentIds },
-          },
-        });
-
-        // 2. Bulk insert all new attendance records in a single query
-        await tx.attendanceRecord.createMany({
-          data: dto.records.map((item) => ({
-            sessionId,
-            studentId: item.studentId,
-            status: item.status,
-            recordingMethod: RecordingMethod.MANUAL,
-            recordedById: user.id,
-            notes: item.notes,
-            recordedAt: new Date(),
-          })),
-        });
-      }
-
-      // 3. Bulk remove homework records for newly absent students
-      if (absentStudentIds.length > 0 && typeof tx.homeworkRecord?.deleteMany === 'function') {
-        await tx.homeworkRecord.deleteMany({
-          where: {
-            sessionId,
-            studentId: { in: absentStudentIds },
-          },
-        });
-      }
-
-      // 4. Bulk delete for removedStudentIds if specified
-      if (dto.removedStudentIds && dto.removedStudentIds.length > 0) {
-        await tx.attendanceRecord.deleteMany({
-          where: {
-            sessionId,
-            studentId: { in: dto.removedStudentIds },
-          },
-        });
-
-        if (typeof tx.homeworkRecord?.deleteMany === 'function') {
-          await tx.homeworkRecord.deleteMany({
-            where: {
-              sessionId,
-              studentId: { in: dto.removedStudentIds },
-            },
-          });
-        }
-      }
-    });
-
-    // 5. Emit domain notification events asynchronously without holding the DB transaction
-    for (const item of dto.records) {
-      const prevStatus = previousStatusMap.get(item.studentId);
-      if (item.status === AttendanceStatus.ABSENT && prevStatus !== AttendanceStatus.ABSENT) {
-        this.eventEmitter.emit('student.absence.recorded', {
-          studentId: item.studentId,
-          groupName: session.group.name,
-          date: session.sessionDate,
-          sessionId,
-        });
-      } else if (item.status !== AttendanceStatus.ABSENT && prevStatus === AttendanceStatus.ABSENT) {
-        this.eventEmitter.emit('student.absence.corrected', {
-          studentId: item.studentId,
-          groupName: session.group.name,
-          date: session.sessionDate,
-          sessionId,
-        });
-      }
-    }
-
-    if (dto.removedStudentIds && dto.removedStudentIds.length > 0) {
-      for (const removedId of dto.removedStudentIds) {
-        if (previousStatusMap.get(removedId) === AttendanceStatus.ABSENT) {
-          this.eventEmitter.emit('student.absence.corrected', {
-            studentId: removedId,
-            groupName: session.group.name,
-            date: session.sessionDate,
-            sessionId,
-          });
-        }
-      }
-    }
-
-    let presentCount = 0;
-    let absentCount = 0;
-    let excusedCount = 0;
-    let totalEnrolled = 0;
-
-    if (typeof this.prisma.attendanceRecord?.groupBy === 'function') {
-      try {
-        const [attendanceGroups, enrolled] = await Promise.all([
-          this.prisma.attendanceRecord.groupBy({
-            by: ['status'],
-            where: { sessionId },
-            _count: { _all: true },
-          }),
-          this.prisma.groupEnrollment.count({
-            where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
-          }),
-        ]);
-        totalEnrolled = enrolled;
-        for (const ag of attendanceGroups) {
-          const c = (ag as any)._count?._all ?? (ag as any)._count ?? 0;
-          if (ag.status === AttendanceStatus.PRESENT) presentCount = c;
-          else if (ag.status === AttendanceStatus.ABSENT) absentCount = c;
-          else if (ag.status === AttendanceStatus.EXCUSED) excusedCount = c;
-        }
-      } catch {
-        // Fallback for mock environments
-        const [p, a, e, enrolled] = await Promise.all([
-          this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.PRESENT } }),
-          this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.ABSENT } }),
-          this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.EXCUSED } }),
-          this.prisma.groupEnrollment.count({
-            where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
-          }),
-        ]);
-        presentCount = p;
-        absentCount = a;
-        excusedCount = e;
-        totalEnrolled = enrolled;
-      }
-    } else {
-      const [p, a, e, enrolled] = await Promise.all([
-        this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.PRESENT } }),
-        this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.ABSENT } }),
-        this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.EXCUSED } }),
-        this.prisma.groupEnrollment.count({
-          where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
-        }),
-      ]);
-      presentCount = p;
-      absentCount = a;
-      excusedCount = e;
-      totalEnrolled = enrolled;
-    }
-
-    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
-
-    if (this.redisCache && targetStudentIds.length > 0) {
-      const cacheDeletions = targetStudentIds.flatMap((sid) => [
-        this.redisCache!.del(`student:dashboard:${sid}`),
-        this.redisCache!.del(`parent:overview:${sid}`),
-      ]);
-      await Promise.allSettled(cacheDeletions);
-    }
-
-    return {
-      sessionId,
-      updatedCount: dto.records.length,
-      sessionStats: {
-        totalPresent: presentCount,
-        totalAbsent: absentCount,
-        totalExcused: excusedCount,
-        totalEnrolled,
-      },
-    };
+    return this.batchService.recordManualBatch(sessionId, dto, user);
   }
 
   /**
    * Comprehensive session attendance KPI report.
    */
   async getSessionReport(sessionId: string, user: AuthenticatedUser) {
-    const session = await this.prisma.lessonSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        group: {
-          include: {
-            enrollments: {
-              where: { status: GroupEnrollmentStatus.ACTIVE },
-              include: {
-                student: {
-                  include: {
-                    user: { select: { id: true, fullName: true, phone: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-        attendanceRecords: {
-          include: {
-            student: {
-              include: {
-                user: { select: { id: true, fullName: true, phone: true } },
-              },
-            },
-            recordedBy: { select: { id: true, fullName: true } },
-          },
-        },
-        homeworkRecords: {
-          select: {
-            id: true,
-            assessmentId: true,
-            studentId: true,
-            sessionId: true,
-            status: true,
-            checkedByRole: true,
-            recordedMethod: true,
-            score: true,
-            feedback: true,
-            clientTimestamp: true,
-          },
-        },
-      },
-    });
-
-    if (!session) {
-      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
-    }
-
-    // Authorization: Verify group ownership for teacher
-    if (user.role === UserRole.TEACHER) {
-      const teacherId = user.teacherProfileId || user.id;
-      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
-        throw new ForbiddenException('You do not own the academic group for this session');
-      }
-    }
-
-    const sessionEndTime = getSessionEndUtcDate(
-      session.sessionDate,
-      session.startTime,
-      session.endTime,
-    );
-
-    // Only students who were enrolled BEFORE the session ended are eligible.
-    // Students who enrolled after the session finished are never considered absent.
-    const eligibleEnrollments = session.group.enrollments.filter(
-      (e) => !e.enrolledAt || (sessionEndTime ? new Date(e.enrolledAt).getTime() <= sessionEndTime.getTime() : true),
-    );
-
-    const totalEnrolled = eligibleEnrollments.length;
-    const presentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
-    const absentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.ABSENT).length;
-    const excusedCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
-    const attendanceRate = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
-    const homeworkCheckedCount = session.homeworkRecords?.filter((h) => h.status === 'CHECKED_ONSITE').length || 0;
-
-    return {
-      sessionId: session.id,
-      sessionDate: session.sessionDate,
-      topic: session.topic,
-      groupId: session.groupId,
-      groupName: session.group.name,
-      metrics: {
-        totalEnrolled,
-        presentCount,
-        absentCount,
-        excusedCount,
-        attendanceRatePercentage: attendanceRate,
-        homeworkCheckedCount,
-      },
-      homeworkRecords: session.homeworkRecords || [],
-      records: eligibleEnrollments.map((e) => {
-        const r = session.attendanceRecords.find((ar) => ar.studentId === e.studentId);
-        const hw = session.homeworkRecords?.find((hr) => hr.studentId === e.studentId);
-        return {
-          id: r?.id || `unrecorded-${e.studentId}`,
-          studentId: e.studentId,
-          studentCode: e.student.studentCode,
-          qrCodeToken: e.student.qrCodeToken || '',
-          fullName: e.student.user.fullName,
-          phone: e.student.user.phone,
-          status: r?.status || null,
-          recordingMethod: r?.recordingMethod || null,
-          recordedAt: r?.recordedAt || null,
-          recordedBy: r?.recordedBy?.fullName || null,
-          notes: r?.notes || null,
-          homeworkStatus: hw?.status || 'NOT_SUBMITTED',
-          isHomeworkSubmitted: !!hw && (hw.status === 'CHECKED_ONSITE' || hw.status === 'SUBMITTED_ONLINE'),
-          homeworkScore: hw?.score ? Number(hw.score) : null,
-          homeworkFeedback: hw?.feedback || null,
-          homeworkCheckedAt: hw?.clientTimestamp || null,
-        };
-      }),
-    };
+    return this.queriesService.getSessionReport(sessionId, user);
   }
 
   /**
@@ -590,155 +89,20 @@ export class AttendanceService {
     status?: AttendanceStatus,
     user?: AuthenticatedUser,
   ) {
-    if (user) {
-      if (user.role === UserRole.STUDENT) {
-        const myStudentId = user.studentProfileId || user.id;
-        if (myStudentId !== studentId) {
-          throw new ForbiddenException(
-            'Students can only access their own attendance history',
-          );
-        }
-      } else if (user.role === UserRole.PARENT) {
-        const parentId = user.parentProfileId || user.id;
-        const link = await this.prisma.parentStudentLink.findUnique({
-          where: {
-            parentId_studentId: {
-              parentId,
-              studentId,
-            },
-          },
-        });
-        if (!link) {
-          throw new ForbiddenException(
-            'Guardians can only view linked children attendance history',
-          );
-        }
-      }
-    }
-
-    const cacheKey = `attendance:student:${studentId}:${pagination.cursor || 'first'}:${pagination.limit || 20}:${status || 'all'}`;
-    if (this.redisCache) {
-      const cached = await this.redisCache.get<any>(cacheKey);
-      if (cached) return cached;
-    }
-
-    const result = await this.attendanceRepository.getStudentAttendanceHistory(
-      studentId,
-      {
-        cursor: pagination.cursor,
-        limit: pagination.limit,
-        direction: pagination.direction,
-      },
-      status,
-    );
-
-    if (this.redisCache) {
-      await this.redisCache.set(cacheKey, result, 300);
-    }
-
-    return result;
+    return this.queriesService.getStudentHistory(studentId, pagination, status, user);
   }
 
   /**
    * Removes an attendance record for a student in a lesson session (resets to unrecorded).
    */
   async removeAttendanceRecord(sessionId: string, studentId: string, user: AuthenticatedUser) {
-    const session = await this.prisma.lessonSession.findUnique({
-      where: { id: sessionId },
-      include: { group: true },
-    });
-
-    if (!session) {
-      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
-    }
-
-    if (user.role === UserRole.TEACHER) {
-      const teacherId = user.teacherProfileId || user.id;
-      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
-        throw new ForbiddenException('You do not own the academic group for this session');
-      }
-    }
-
-    const existingRecord = await this.prisma.attendanceRecord.findFirst({
-      where: {
-        sessionId,
-        studentId,
-      },
-      select: {
-        status: true,
-      },
-    });
-
-    await this.prisma.attendanceRecord.deleteMany({
-      where: {
-        sessionId,
-        studentId,
-      },
-    });
-
-    if (typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
-      await this.prisma.homeworkRecord.deleteMany({
-        where: {
-          sessionId,
-          studentId,
-        },
-      });
-    }
-
-    // If the removed record was marked ABSENT, emit absence correction alert
-    if (existingRecord?.status === AttendanceStatus.ABSENT) {
-      this.eventEmitter.emit('student.absence.corrected', {
-        studentId,
-        groupName: session.group?.name,
-        date: session.sessionDate,
-        sessionId,
-      });
-    }
-
-    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
-
-    return {
-      success: true,
-      sessionId,
-      studentId,
-      message: 'Attendance record removed successfully',
-    };
+    return this.batchService.removeAttendanceRecord(sessionId, studentId, user);
   }
 
   /**
    * Removes a homework record for a student in a lesson session (resets to unassessed).
    */
   async removeHomeworkRecord(sessionId: string, studentId: string, user: AuthenticatedUser) {
-    const session = await this.prisma.lessonSession.findUnique({
-      where: { id: sessionId },
-      include: { group: true },
-    });
-
-    if (!session) {
-      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
-    }
-
-    if (user.role === UserRole.TEACHER) {
-      const teacherId = user.teacherProfileId || user.id;
-      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
-        throw new ForbiddenException('You do not own the academic group for this session');
-      }
-    }
-
-    if (typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
-      await this.prisma.homeworkRecord.deleteMany({
-        where: {
-          sessionId,
-          studentId,
-        },
-      });
-    }
-
-    return {
-      success: true,
-      sessionId,
-      studentId,
-      message: 'Homework record removed successfully',
-    };
+    return this.batchService.removeHomeworkRecord(sessionId, studentId, user);
   }
 }

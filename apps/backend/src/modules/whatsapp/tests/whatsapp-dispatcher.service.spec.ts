@@ -95,7 +95,8 @@ describe('WhatsAppDispatcherService', () => {
     jest.spyOn(Math, 'random').mockReturnValue(0);
 
     const processing = service.processNextQueuedMessage();
-    await jest.advanceTimersByTimeAsync(4_000);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    jest.advanceTimersByTime(5_000);
     await processing;
 
     expect(prisma.whatsAppMessageLog.update).toHaveBeenCalledWith({
@@ -132,10 +133,12 @@ describe('WhatsAppDispatcherService', () => {
     jest.spyOn(Math, 'random').mockReturnValue(0);
 
     const first = service.processNextQueuedMessage();
-    await jest.advanceTimersByTimeAsync(4_000);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    jest.advanceTimersByTime(5_000);
     await first;
     const second = service.processNextQueuedMessage();
-    await jest.advanceTimersByTimeAsync(4_000);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    jest.advanceTimersByTime(5_000);
     await second;
 
     expect(whatsapp.sendTrackedProtectedMessage).toHaveBeenCalledTimes(2);

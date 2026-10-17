@@ -1,5 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { BunnyVideoService } from '../../../integrations/video/bunny-video.service';
@@ -7,110 +12,50 @@ import { PresignedUploadDto } from '../dto/presigned-upload.dto';
 import { CreateContentDto } from '../dto/create-content.dto';
 import { UpdateContentDto } from '../dto/update-content.dto';
 import { ContentType } from '@prisma/client';
+import { ContentStorageService } from './content-storage.service';
 
 @Injectable()
 export class ContentService {
   private readonly logger = new Logger(ContentService.name);
+  private readonly contentStorageService: ContentStorageService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly bunnyVideoService: BunnyVideoService,
-  ) {}
+    @Optional() contentStorageService?: ContentStorageService,
+  ) {
+    this.contentStorageService =
+      contentStorageService ??
+      new ContentStorageService(this.storageService, this.bunnyVideoService);
+  }
 
   /**
    * Generates a presigned Cloudflare R2 / S3 direct upload URL with secure isolated file keys.
    */
   async generatePresignedUpload(dto: PresignedUploadDto) {
-    const folder = dto.folder || 'courses';
-    const sanitizedFileName = dto.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
-
-    const rawContentType = dto.contentType || dto.fileType || 'application/octet-stream';
-    if (rawContentType.startsWith('video/') || /\.(mp4|webm|mov|mkv|avi)$/i.test(dto.fileName)) {
-      throw new BadRequestException('يجب رفع مقاطع الفيديو عبر Bunny Stream فقط');
-    }
-
-    const presigned = await this.storageService.generatePresignedUploadUrl(
-      fileKey,
-      rawContentType,
-      900, // 15 minutes
-    );
-
-    return {
-      uploadUrl: presigned.uploadUrl,
-      fileKey: presigned.fileKey,
-      publicUrl: presigned.publicUrl,
-      expiresInSeconds: 900,
-    };
+    return this.contentStorageService.generatePresignedUpload(dto);
   }
 
   /**
    * Generates direct client-to-Bunny Stream upload credentials for video recordings.
-   * All videos must reside on Bunny Stream exclusively.
    */
   async generatePresignedVideoUpload(title: string) {
-    return await this.bunnyVideoService.generateDirectUploadCredentials(title);
+    return this.contentStorageService.generatePresignedVideoUpload(title);
   }
 
   /**
-   * Uploads a raw binary file (image, cover, pdf, etc.) directly with automatic R2 storage / fallback.
+   * Uploads a raw binary file directly with automatic storage.
    */
   async uploadRawFile(file: Express.Multer.File, folder = 'courses') {
-    const sanitizedFileName = (file.originalname || 'file.bin').replace(/[^a-zA-Z0-9._-]/g, '_');
-    const uniqueKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
-    const mimeType = file.mimetype || 'application/octet-stream';
-
-    const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, mimeType);
-
-    return {
-      fileUrl: uploadRes.publicUrl,
-      fileKey: uploadRes.fileKey,
-      fileSize: file.size,
-      fileType: mimeType,
-      fileName: file.originalname,
-    };
+    return this.contentStorageService.uploadRawFile(file, folder);
   }
 
   /**
    * Deletes an unlinked asset directly from Cloudflare R2, Bunny Stream, or local storage.
    */
   async deleteFileFromStorage(params: { fileKey?: string; fileUrl?: string }) {
-    let key = params.fileKey;
-
-    if (!key && params.fileUrl) {
-      const url = params.fileUrl;
-      if (url.includes('/uploads/')) {
-        key = url.substring(url.indexOf('/uploads/') + 1);
-      } else if (url.includes('bunny:') || url.includes('b-cdn.net') || url.includes('mediadelivery.net')) {
-        const match = url.match(/([a-f0-9\-]{36})/i);
-        if (match) key = `bunny:${match[1]}`;
-      } else {
-        try {
-          const parsed = new URL(url);
-          key = parsed.pathname.replace(/^\/+/, '');
-        } catch {
-          key = url.replace(/^\/+/, '');
-        }
-      }
-    }
-
-    if (!key) {
-      return { success: false, message: 'No file key or URL provided' };
-    }
-
-    if (key.startsWith('bunny:')) {
-      const videoId = key.replace('bunny:', '');
-      await this.bunnyVideoService.deleteVideo(videoId).catch((err) => {
-        this.logger.warn(`Failed to delete Bunny video [${videoId}]`, err);
-      });
-    } else {
-      await this.storageService.deleteObject(key).catch((err) => {
-        this.logger.warn(`Failed to delete object [${key}] from storage`, err);
-      });
-    }
-
-    return { success: true, fileKey: key };
+    return this.contentStorageService.deleteFileFromStorage(params);
   }
 
   /**
@@ -231,40 +176,22 @@ export class ContentService {
       lessonId?: string;
     },
   ) {
-    const isVideo =
-      meta.contentType === ContentType.LECTURE_RECORDING ||
-      file.mimetype?.startsWith('video/') ||
-      /\.(mp4|webm|mov|mkv)$/i.test(file.originalname);
-
-    let fileKey: string;
-    let fileUrl: string;
-    let mimeType: string;
-
-    if (isVideo) {
-      this.logger.log(`🎥 Uploading lecture recording [${meta.title}] directly to Bunny Stream Video Cloud...`);
-      const bunnyRes = await this.bunnyVideoService.uploadVideo(meta.title, file.buffer);
-      fileKey = `bunny:${bunnyRes.videoId}`;
-      fileUrl = bunnyRes.embedUrl;
-      mimeType = file.mimetype || 'video/mp4';
-      this.logger.log(`✅ Bunny Stream video created successfully: [${bunnyRes.videoId}] -> ${fileUrl}`);
-    } else {
-      const fileExt = file.originalname.split('.').pop() || 'bin';
-      const uniqueKey = `courses/${teacherId}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-      mimeType = file.mimetype || 'application/octet-stream';
-
-      const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, mimeType);
-      fileKey = uploadRes.fileKey;
-      fileUrl = uploadRes.publicUrl;
-    }
+    const isVideoRequested = meta.contentType === ContentType.LECTURE_RECORDING;
+    const uploaded = await this.contentStorageService.uploadFileAsset(
+      teacherId,
+      meta.title,
+      file,
+      isVideoRequested,
+    );
 
     return this.createContent(teacherId, {
       title: meta.title,
       description: meta.description,
-      contentType: isVideo ? ContentType.LECTURE_RECORDING : meta.contentType,
-      fileKey,
-      fileUrl,
+      contentType: uploaded.isVideo ? ContentType.LECTURE_RECORDING : meta.contentType,
+      fileKey: uploaded.fileKey,
+      fileUrl: uploaded.fileUrl,
       fileSize: file.size,
-      mimeType,
+      mimeType: uploaded.mimeType,
       gradeLevel: meta.gradeLevel,
       academicYear: meta.academicYear,
       academicTerm: meta.academicTerm,
@@ -387,19 +314,10 @@ export class ContentService {
       throw new ForbiddenException('You do not own this content');
     }
 
-    // Delete from Bunny Stream or R2 storage
     if (content.fileKey) {
-      if (content.fileKey.startsWith('bunny:')) {
-        const videoId = content.fileKey.replace('bunny:', '');
-        await this.bunnyVideoService.deleteVideo(videoId);
-      } else {
-        await this.storageService.deleteObject(content.fileKey).catch((err) => {
-          this.logger.warn(`Failed to delete object [${content.fileKey}] from R2 during content deletion`, err);
-        });
-      }
+      await this.deleteFileFromStorage({ fileKey: content.fileKey });
     }
 
-    // Delete from DB
     await this.prisma.educationalContent.delete({
       where: { id },
     });
@@ -433,31 +351,18 @@ export class ContentService {
     let fileSize = existing.fileSize;
     let mimeType = existing.mimeType;
 
-    // If a replacement file was uploaded:
     if (file) {
-      const isVideo =
-        dto.contentType === ContentType.LECTURE_RECORDING ||
-        file.mimetype?.startsWith('video/') ||
-        /\.(mp4|webm|mov|mkv)$/i.test(file.originalname);
-
-      if (isVideo) {
-        this.logger.log(`🎥 Uploading replacement video [${dto.title || existing.title}] to Bunny Stream...`);
-        const bunnyRes = await this.bunnyVideoService.uploadVideo(dto.title || existing.title, file.buffer);
-        fileKey = `bunny:${bunnyRes.videoId}`;
-        fileUrl = bunnyRes.embedUrl;
-        fileSize = BigInt(file.size);
-        mimeType = file.mimetype || 'video/mp4';
-      } else {
-        const fileExt = file.originalname.split('.').pop() || 'bin';
-        const uniqueKey = `courses/${teacherId}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-        const uploadContentType = file.mimetype || 'application/octet-stream';
-
-        const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, uploadContentType);
-        fileKey = uploadRes.fileKey;
-        fileUrl = uploadRes.publicUrl;
-        fileSize = BigInt(file.size);
-        mimeType = uploadContentType;
-      }
+      const isVideoRequested = dto.contentType === ContentType.LECTURE_RECORDING;
+      const uploaded = await this.contentStorageService.uploadFileAsset(
+        teacherId,
+        dto.title || existing.title,
+        file,
+        isVideoRequested,
+      );
+      fileKey = uploaded.fileKey;
+      fileUrl = uploaded.fileUrl;
+      fileSize = uploaded.fileSize;
+      mimeType = uploaded.mimeType;
     } else if (dto.fileKey && dto.fileUrl) {
       fileKey = dto.fileKey;
       fileUrl = dto.fileUrl;
@@ -465,7 +370,6 @@ export class ContentService {
       if (dto.mimeType) mimeType = dto.mimeType;
     }
 
-    // Resolve group metadata if groupId changed
     let gradeLevel = dto.gradeLevel !== undefined ? dto.gradeLevel : existing.gradeLevel;
     let academicYear = dto.academicYear !== undefined ? dto.academicYear : existing.academicYear;
     let academicTerm = dto.academicTerm !== undefined ? dto.academicTerm : existing.academicTerm;
@@ -520,14 +424,12 @@ export class ContentService {
         },
       });
     } catch (error) {
-      // If database update failed, purge newly uploaded replacement file
       if (file && fileKey && fileKey !== existing.fileKey) {
         await this.deleteFileFromStorage({ fileKey }).catch(() => {});
       }
       throw error;
     }
 
-    // Only after database update succeeds, clean up previous storage file
     if (file && existing.fileKey && existing.fileKey !== fileKey) {
       await this.deleteFileFromStorage({ fileKey: existing.fileKey }).catch((err) => {
         this.logger.warn(`Failed to delete replaced object [${existing.fileKey}]`, err);

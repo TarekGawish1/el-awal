@@ -1,9 +1,9 @@
 import {
   Injectable,
   Logger,
-  NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -12,476 +12,169 @@ import {
   UserRole,
   WhatsAppStatus,
 } from '@prisma/client';
-import { randomUUID } from 'crypto';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
-import {
-  formatAbsenceMessage,
-  formatAbsenceCorrectionMessage,
-  formatAssistantCredentialsMessage,
-  formatExamFailedMessage,
-  formatGenericMessage,
-  formatGroupReservationPendingMessage,
-  formatPaymentMessage,
-  formatSessionReminderMessage,
-  formatStudentApprovalMessage,
-  formatStudentRegistrationMessage,
-  formatTeacherAgendaMessage,
-} from '../../../utils/spintax';
-
 import { NotificationSettingsService } from '../../notifications/services/notification-settings.service';
+import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
+import type {
+  QueueNotification,
+} from './whatsapp-formatter.util';
+import {
+  formatToWhatsAppInternational,
+  buildMessageBody,
+} from './whatsapp-formatter.util';
+import { WhatsAppQueueManagerService } from './whatsapp-queue-manager.service';
 
-const RETRY_DELAYS_MS = [30_000, 2 * 60_000, 5 * 60_000];
+export type { QueueNotification };
+
+export interface ActiveHoursConfig {
+  startHour: number;
+  endHour: number;
+  timezone: string;
+}
+
+const DEFAULT_ACTIVE_HOURS: ActiveHoursConfig = {
+  startHour: 9,
+  endHour: 22,
+  timezone: 'Africa/Cairo',
+};
+
+const ANTI_BAN_HOURLY_LIMIT = 25;
+const ANTI_BAN_DAILY_LIMIT = 150;
 const POST_SEND_COOLDOWN_MIN_MS = 4_000;
 const POST_SEND_COOLDOWN_MAX_MS = 7_000;
 
-interface QueueNotification {
-  type: string;
-  notificationType: NotificationType | null;
-  title: string;
-  message: string;
-  data: unknown;
-  scheduledFor: Date;
-  recipient: { fullName: string; role: UserRole };
-}
+const RETRY_DELAYS_MS = [
+  60_000,
+  5 * 60_000,
+  15 * 60_000,
+];
 
-/**
- * PostgreSQL-backed, single-consumer WhatsApp dispatcher.
- *
- * This is intentionally an in-process sequential loop: it claims one database
- * record, sends it through the protected Baileys flow, and waits 4–7 seconds
- * before considering another record. Do not introduce parallel consumers here.
- */
 @Injectable()
 export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsAppDispatcherService.name);
+
   private readonly hourlyLimit: number;
   private readonly dailyLimit: number;
+  private readonly activeHours: ActiveHoursConfig;
+
   private isRunning = false;
   private isProcessing = false;
-  private forceImmediateActive = false;
   private pollTimeout: ReturnType<typeof setTimeout> | null = null;
+  private forceImmediateActive = false;
 
-  /**
-   * Sanitizes sensitive credentials (passwords, PINs, auth query params) before
-   * persisting to database logs.
-   */
-  maskMessageCredentials(text: string): string {
-    if (!text) return text;
-    return text
-      // Redact Arabic password / PIN labels
-      .replace(/(كلمة المرور(?:\s*الجديدة)?:\s*\*?)([^\n\r*]+)(\*?)/gi, '$1[محمية]$3')
-      .replace(/(الرقم السري|رمز الدخول|رمز PIN|كود المرور|كود الدخول):\s*\*?([^\n\r*]+)\*?/gi, '$1: [محمي]')
-      // Redact English password / PIN labels
-      .replace(/(Password:\s*\*?)([^\n\r*]+)(\*?)/gi, '$1[PROTECTED]$3')
-      .replace(/(PIN:\s*\*?)([^\n\r*]+)(\*?)/gi, '$1[PROTECTED]$3')
-      // Strip credentials from URL query parameters (e.g. ?pass=... or &pass=...)
-      .replace(/([?&](?:pass|password|pin|pwd)=)([^&\s]+)/gi, '$1[REDACTED]');
-  }
+  private readonly queueManager: WhatsAppQueueManagerService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsAppService,
     private readonly settingsService: NotificationSettingsService,
-    config: ConfigService,
+    private readonly config: ConfigService,
+    @Optional() queueManager?: WhatsAppQueueManagerService,
   ) {
-    this.hourlyLimit = this.parsePositiveLimit(
-      config.get<string>('WHATSAPP_HOURLY_LIMIT', '25'),
-      25,
-    );
-    this.dailyLimit = this.parsePositiveLimit(
-      config.get<string>('WHATSAPP_DAILY_LIMIT', '80'),
-      80,
-    );
-  }
+    this.queueManager = queueManager ?? new WhatsAppQueueManagerService(prisma, settingsService);
 
-  async onModuleInit(): Promise<void> {
-    this.isRunning = true;
-    await this.recoverStaleSendingMessages();
-    this.pollTimeout = setTimeout(() => this.poll(), 10_000);
-    this.logger.log(
-      `WhatsApp dispatcher started (concurrency=1, hourly≤${this.hourlyLimit}, daily≤${this.dailyLimit})`,
-    );
-  }
+    this.hourlyLimit =
+      this.config.get<number>('WHATSAPP_ANTI_BAN_HOURLY_LIMIT') ??
+      ANTI_BAN_HOURLY_LIMIT;
+    this.dailyLimit =
+      this.config.get<number>('WHATSAPP_ANTI_BAN_DAILY_LIMIT') ??
+      ANTI_BAN_DAILY_LIMIT;
 
-  onModuleDestroy(): void {
-    this.isRunning = false;
-    if (this.pollTimeout) clearTimeout(this.pollTimeout);
-  }
-
-  /** Converts local Egyptian and E.164-like input to WhatsApp's digit-only international format. */
-  formatToWhatsAppInternational(phone: string): string {
-    let digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('00')) digits = digits.slice(2);
-    if (digits.startsWith('0') && digits.length === 11) digits = `2${digits}`;
-    else if (digits.startsWith('1') && digits.length === 10) digits = `20${digits}`;
-
-    if (!/^20(?:10|11|12|15)\d{8}$/.test(digits)) {
-      throw new Error('Invalid Egyptian international phone number');
-    }
-    return digits;
-  }
-
-  /** Persists a fully rendered, varied message before the dispatcher can send it. */
-  async enqueueNotification(notification: QueueNotification) {
-    // Disable WhatsApp messages if globally disabled or if type is disabled
-    const isAllowed = await this.settingsService.isChannelAllowed(
-      NotificationChannel.WHATSAPP,
-      notification.notificationType ?? notification.type,
-    );
-
-    if (!isAllowed) {
-      this.logger.debug(`Skipping WhatsApp enqueue for [${notification.type}]: suppressed by notification settings`);
-      return null;
-    }
-
-    // Disable WhatsApp messages for session time reminders
-    if (
-      notification.notificationType === NotificationType.SESSION_REMINDER_STUDENT ||
-      notification.notificationType === NotificationType.TEACHER_SESSION_REMINDER ||
-      notification.type === 'SESSION_REMINDER_STUDENT' ||
-      notification.type === 'TEACHER_SESSION_REMINDER'
-    ) {
-      this.logger.debug(`Skipping WhatsApp dispatch for session reminder [${notification.type}]`);
-      return null;
-    }
-
-    const data = notification.data as Record<string, unknown> | null;
-    const rawBody = this.buildMessageBody(notification);
-
-    const rawPhone = data?.phone;
-    if (typeof rawPhone !== 'string' || !rawPhone.trim()) {
-      this.logger.warn(`Recording permanent WhatsApp failure for ${notification.type}: recipient phone is missing`);
-      return this.prisma.whatsAppMessageLog.create({
-        data: {
-          recipientPhone: '',
-          recipientName: notification.recipient.fullName,
-          recipientRole: notification.recipient.role,
-          templateType: notification.notificationType ?? notification.type,
-          messageBody: rawBody,
-          status: WhatsAppStatus.PERMANENT_FAIL,
-          failureReason: 'Recipient phone is missing',
-          scheduledFor: notification.scheduledFor,
-        },
-      });
-    }
-
-    let recipientPhone: string;
-    try {
-      recipientPhone = this.formatToWhatsAppInternational(rawPhone);
-    } catch (error) {
-      return this.prisma.whatsAppMessageLog.create({
-        data: {
-          recipientPhone: rawPhone.replace(/\D/g, ''),
-          recipientName: notification.recipient.fullName,
-          recipientRole: notification.recipient.role,
-          templateType: notification.notificationType ?? notification.type,
-          messageBody: rawBody,
-          status: WhatsAppStatus.PERMANENT_FAIL,
-          failureReason: this.errorMessage(error),
-          scheduledFor: notification.scheduledFor,
-        },
-      });
-    }
-
-    const createdRecord = await this.prisma.whatsAppMessageLog.create({
-      data: {
-        recipientPhone,
-        recipientName: notification.recipient.fullName,
-        recipientRole: notification.recipient.role,
-        templateType: notification.notificationType ?? notification.type,
-        messageBody: rawBody,
-        status: WhatsAppStatus.QUEUED,
-        scheduledFor: notification.scheduledFor,
-      },
-    });
-
-    return createdRecord;
-  }
-
-  /**
-   * Batch enqueues multiple WhatsApp messages using a single createMany query.
-   * Preserves exact message ordering, spintax rendering, and validation.
-   */
-  async enqueueNotificationsBatch(notifications: QueueNotification[]): Promise<number> {
-    if (!notifications || notifications.length === 0) return 0;
-
-    // Check WhatsApp channel permission once
-    const firstType = notifications[0].notificationType ?? notifications[0].type;
-    const isAllowed = await this.settingsService.isChannelAllowed(
-      NotificationChannel.WHATSAPP,
-      firstType,
-    );
-
-    if (!isAllowed) {
-      this.logger.debug('Skipping batch WhatsApp enqueue: suppressed by notification settings');
-      return 0;
-    }
-
-    const logsData: Array<{
-      recipientPhone: string;
-      recipientName: string;
-      recipientRole: UserRole;
-      templateType: string;
-      messageBody: string;
-      status: WhatsAppStatus;
-      failureReason?: string | null;
-      scheduledFor: Date;
-    }> = [];
-
-    for (const notification of notifications) {
-      // Disable WhatsApp messages for session time reminders
-      if (
-        notification.notificationType === NotificationType.SESSION_REMINDER_STUDENT ||
-        notification.notificationType === NotificationType.TEACHER_SESSION_REMINDER ||
-        notification.type === 'SESSION_REMINDER_STUDENT' ||
-        notification.type === 'TEACHER_SESSION_REMINDER'
-      ) {
-        continue;
-      }
-
-      const data = notification.data as Record<string, unknown> | null;
-      const rawBody = this.buildMessageBody(notification);
-      const rawPhone = data?.phone;
-
-      if (typeof rawPhone !== 'string' || !rawPhone.trim()) {
-        logsData.push({
-          recipientPhone: '',
-          recipientName: notification.recipient.fullName,
-          recipientRole: notification.recipient.role,
-          templateType: notification.notificationType ?? notification.type,
-          messageBody: rawBody,
-          status: WhatsAppStatus.PERMANENT_FAIL,
-          failureReason: 'Recipient phone is missing',
-          scheduledFor: notification.scheduledFor,
-        });
-        continue;
-      }
-
-      let recipientPhone: string;
-      try {
-        recipientPhone = this.formatToWhatsAppInternational(rawPhone);
-        logsData.push({
-          recipientPhone,
-          recipientName: notification.recipient.fullName,
-          recipientRole: notification.recipient.role,
-          templateType: notification.notificationType ?? notification.type,
-          messageBody: rawBody,
-          status: WhatsAppStatus.QUEUED,
-          scheduledFor: notification.scheduledFor,
-        });
-      } catch (error) {
-        logsData.push({
-          recipientPhone: rawPhone.replace(/\D/g, ''),
-          recipientName: notification.recipient.fullName,
-          recipientRole: notification.recipient.role,
-          templateType: notification.notificationType ?? notification.type,
-          messageBody: rawBody,
-          status: WhatsAppStatus.PERMANENT_FAIL,
-          failureReason: this.errorMessage(error),
-          scheduledFor: notification.scheduledFor,
-        });
-      }
-    }
-
-    if (logsData.length === 0) return 0;
-
-    await this.prisma.whatsAppMessageLog.createMany({
-      data: logsData,
-    });
-
-    return logsData.length;
-  }
-
-  /** Receipts can call this method when a provider delivery acknowledgement arrives. */
-  async markDelivered(providerMessageId: string): Promise<void> {
-    await this.prisma.whatsAppMessageLog.updateMany({
-      where: { providerMessageId, status: WhatsAppStatus.SENT },
-      data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
-    });
-  }
-
-  /**
-   * Retrieves active queued and sending WhatsApp messages with pagination.
-   */
-  async getQueue(page = 1, limit = 20) {
-    const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.whatsAppMessageLog.findMany({
-        where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
-        orderBy: { scheduledFor: 'asc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.whatsAppMessageLog.count({
-        where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
-      }),
-    ]);
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
-  }
-
-  /**
-   * Retrieves failed WhatsApp messages (both transient FAILED and PERMANENT_FAIL) with pagination.
-   */
-  async getFailed(page = 1, limit = 20) {
-    const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.whatsAppMessageLog.findMany({
-        where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
-        orderBy: { updatedAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.whatsAppMessageLog.count({
-        where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
-      }),
-    ]);
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
-  }
-
-  /**
-   * Summary metrics for WhatsApp delivery observability.
-   */
-  async getStats() {
-    const cairoMidnight = this.getCairoMidnight();
-
-    const sentTodayPromise = this.prisma.whatsAppMessageLog.count({
-      where: {
-        status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] },
-        sentAt: { gte: cairoMidnight },
-      },
-    });
-
-    const statusCountsPromise = (async () => {
-      try {
-        if (typeof this.prisma.whatsAppMessageLog.groupBy === 'function') {
-          const grouped = await this.prisma.whatsAppMessageLog.groupBy({
-            by: ['status'],
-            _count: { _all: true },
-          });
-          const countMap = new Map<WhatsAppStatus, number>();
-          for (const item of grouped) {
-            countMap.set(item.status, item._count._all);
-          }
-          const getCount = (...statuses: WhatsAppStatus[]) =>
-            statuses.reduce((sum, s) => sum + (countMap.get(s) || 0), 0);
-
-          return {
-            queuedCount: getCount(WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING),
-            failedCount: getCount(WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL),
-            totalSent: getCount(WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED),
-            totalDelivered: getCount(WhatsAppStatus.DELIVERED),
-          };
-        }
-      } catch {
-        // Fallback for mocked test environments where groupBy is not defined or fails
-      }
-
-      const [queuedCount, failedCount, totalSent, totalDelivered] = await Promise.all([
-        this.prisma.whatsAppMessageLog.count({
-          where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
-        }),
-        this.prisma.whatsAppMessageLog.count({
-          where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
-        }),
-        this.prisma.whatsAppMessageLog.count({
-          where: { status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] } },
-        }),
-        this.prisma.whatsAppMessageLog.count({
-          where: { status: WhatsAppStatus.DELIVERED },
-        }),
-      ]);
-      return { queuedCount, failedCount, totalSent, totalDelivered };
-    })();
-
-    const [sentToday, statusCounts] = await Promise.all([sentTodayPromise, statusCountsPromise]);
-
-    return {
-      sentToday,
-      queuedCount: statusCounts.queuedCount,
-      failedCount: statusCounts.failedCount,
-      totalSent: statusCounts.totalSent,
-      totalDelivered: statusCounts.totalDelivered,
+    this.activeHours = {
+      startHour:
+        this.config.get<number>('WHATSAPP_ACTIVE_HOURS_START') ??
+        DEFAULT_ACTIVE_HOURS.startHour,
+      endHour:
+        this.config.get<number>('WHATSAPP_ACTIVE_HOURS_END') ??
+        DEFAULT_ACTIVE_HOURS.endHour,
+      timezone:
+        this.config.get<string>('WHATSAPP_ACTIVE_HOURS_TIMEZONE') ??
+        DEFAULT_ACTIVE_HOURS.timezone,
     };
   }
 
-  /**
-   * Retries an individual failed message by resetting status to QUEUED and scheduling immediately.
-   */
+  onModuleInit() {
+    const isWorkerDisabled =
+      this.config.get<string>('WHATSAPP_DISPATCHER_ENABLED') === 'false';
+    const isDev = this.config.get<string>('NODE_ENV') === 'development';
+    const enableLocal = this.config.get<string>('ENABLE_LOCAL_WHATSAPP') === 'true';
+
+    if (isWorkerDisabled || (isDev && !enableLocal)) {
+      this.logger.warn(
+        'WhatsApp dispatcher background polling loop disabled in local development. (Set ENABLE_LOCAL_WHATSAPP=true to enable locally)',
+      );
+      return;
+    }
+
+    this.isRunning = true;
+    this.logger.log(
+      `WhatsApp dispatcher active: ${this.hourlyLimit}/hr, ${this.dailyLimit}/day, hours ${this.activeHours.startHour}:00–${this.activeHours.endHour}:00 (${this.activeHours.timezone})`,
+    );
+
+    this.pollTimeout = setTimeout(() => this.poll(), 3_000);
+  }
+
+  onModuleDestroy() {
+    this.isRunning = false;
+    if (this.pollTimeout) {
+      clearTimeout(this.pollTimeout);
+      this.pollTimeout = null;
+    }
+  }
+
+  formatToWhatsAppInternational(phone: string): string {
+    return formatToWhatsAppInternational(phone);
+  }
+
+  buildMessageBody(notification: QueueNotification): string {
+    return buildMessageBody(notification);
+  }
+
+  async enqueueNotification(notification: QueueNotification): Promise<unknown> {
+    return this.queueManager.enqueueNotification(notification);
+  }
+
+  async enqueueNotificationsBatch(notifications: QueueNotification[]): Promise<number> {
+    return this.queueManager.enqueueNotificationsBatch(notifications);
+  }
+
+  // --- Queue Observability and Management Delegations ---
+  async markDelivered(providerMessageId: string): Promise<void> {
+    return this.queueManager.markDelivered(providerMessageId);
+  }
+
+  async getQueue(page = 1, limit = 20) {
+    return this.queueManager.getQueue(page, limit);
+  }
+
+  async getFailed(page = 1, limit = 20) {
+    return this.queueManager.getFailed(page, limit);
+  }
+
+  async getStats() {
+    return this.queueManager.getStats();
+  }
+
   async retryMessage(id: string) {
-    const record = await this.prisma.whatsAppMessageLog.findUnique({ where: { id } });
-    if (!record) {
-      throw new NotFoundException(`WhatsApp message log [${id}] not found`);
-    }
-
-    const updated = await this.prisma.whatsAppMessageLog.update({
-      where: { id },
-      data: {
-        status: WhatsAppStatus.QUEUED,
-        retryCount: 0,
-        failureReason: null,
-        scheduledFor: new Date(),
-      },
-    });
-
-    this.triggerDispatch();
-    return updated;
+    return this.queueManager.retryMessage(id, () => this.triggerDispatch());
   }
 
-  /**
-   * Resets all failed messages to QUEUED and triggers the dispatcher loop.
-   */
   async retryAllFailed() {
-    const result = await this.prisma.whatsAppMessageLog.updateMany({
-      where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
-      data: {
-        status: WhatsAppStatus.QUEUED,
-        retryCount: 0,
-        failureReason: null,
-        scheduledFor: new Date(),
-      },
-    });
-
-    this.triggerDispatch();
-    return { count: result.count };
+    return this.queueManager.retryAllFailed(() => this.triggerDispatch());
   }
 
-  /**
-   * Deletes an individual message log record.
-   */
   async deleteMessage(id: string) {
-    const record = await this.prisma.whatsAppMessageLog.findUnique({ where: { id } });
-    if (!record) {
-      throw new NotFoundException(`WhatsApp message [${id}] not found`);
-    }
-
-    await this.prisma.whatsAppMessageLog.delete({ where: { id } });
-    return { success: true, id };
+    return this.queueManager.deleteMessage(id);
   }
 
-  /**
-   * Clears all failed messages (both transient FAILED and PERMANENT_FAIL).
-   */
   async clearAllFailed() {
-    const result = await this.prisma.whatsAppMessageLog.deleteMany({
-      where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
-    });
-    return { count: result.count };
+    return this.queueManager.clearAllFailed();
   }
 
-  /**
-   * Clears all queued messages.
-   */
   async clearQueue() {
-    const result = await this.prisma.whatsAppMessageLog.deleteMany({
-      where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
-    });
-    return { count: result.count };
+    return this.queueManager.clearQueue();
   }
 
-  /**
-   * Manually activates immediate delivery of all queued messages regardless of quiet hours.
-   */
   async forceDispatchNow() {
     this.forceImmediateActive = true;
     await this.prisma.whatsAppMessageLog.updateMany({
@@ -499,7 +192,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     }
   }
 
-  /** Processes exactly one due record. Public for focused worker tests. */
+  // --- Dispatch Worker Loop ---
   async processNextQueuedMessage(): Promise<boolean> {
     if (this.isProcessing) return false;
     this.isProcessing = true;
@@ -515,8 +208,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
       });
       if (!candidate) return false;
 
-      // A conditional update is the database claim. It also prevents duplicate
-      // delivery if two application processes race while deploying.
       const claim = await this.prisma.whatsAppMessageLog.updateMany({
         where: {
           id: candidate.id,
@@ -529,7 +220,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
 
       try {
         const outboundBody = candidate.messageBody;
-
         const result = await this.whatsapp.sendTrackedProtectedMessage(
           candidate.recipientPhone,
           outboundBody,
@@ -553,7 +243,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
       } catch (error) {
         await this.markTransientFailure(candidate, this.errorMessage(error));
       } finally {
-        // This cooldown is mandatory after every attempted delivery, including failures.
         await this.sleep(this.randomBetween(POST_SEND_COOLDOWN_MIN_MS, POST_SEND_COOLDOWN_MAX_MS));
       }
 
@@ -577,7 +266,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
         if (await this.isDailyQuotaExhausted()) await this.deferQueuedMessagesToTomorrow();
         nextDelay = 3 * 60_000;
       } else if (await this.processNextQueuedMessage()) {
-        // processNextQueuedMessage already applied the 4–7 second cooldown.
         nextDelay = 0;
       } else {
         this.forceImmediateActive = false;
@@ -610,7 +298,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
         status: WhatsAppStatus.FAILED,
         failureReason: reason,
         retryCount: { increment: 1 },
-        // A final failed attempt remains FAILED for audit but is no longer eligible to send.
         scheduledFor: new Date(Date.now() + retryDelay),
       },
     });
@@ -640,7 +327,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     return this.prisma.whatsAppMessageLog.count({
       where: {
         status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] },
-        sentAt: { gte: this.getCairoMidnight() },
+        sentAt: { gte: this.queueManager.getCairoMidnight() },
       },
     });
   }
@@ -648,160 +335,22 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
   private async deferQueuedMessagesToTomorrow(): Promise<void> {
     await this.prisma.whatsAppMessageLog.updateMany({
       where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.FAILED] } },
-      data: { scheduledFor: this.getTomorrowActiveStart() },
+      data: { scheduledFor: new Date(Date.now() + 8 * 60 * 60 * 1000) },
     });
-  }
-
-  private async recoverStaleSendingMessages(): Promise<void> {
-    const staleBefore = new Date(Date.now() - 30 * 60_000);
-    await this.prisma.whatsAppMessageLog.updateMany({
-      where: {
-        status: WhatsAppStatus.SENDING,
-        updatedAt: { lte: staleBefore },
-        retryCount: { lt: 3 },
-      },
-      data: {
-        status: WhatsAppStatus.FAILED,
-        failureReason: 'Recovered after interrupted dispatcher attempt',
-        retryCount: { increment: 1 },
-        scheduledFor: new Date(Date.now() + RETRY_DELAYS_MS[0]),
-      },
-    });
-  }
-
-  private buildMessageBody(notification: QueueNotification): string {
-    const data = notification.data as Record<string, unknown> | null;
-    let message: string;
-
-    if (notification.type === 'STUDENT_REGISTRATION_CREDENTIALS') {
-      message = formatStudentRegistrationMessage({
-        parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
-        studentName: (data?.studentName as string) || 'الطالب',
-        studentPhoneOrCode: (data?.studentPhoneOrCode as string) || (data?.studentPhone as string) || (data?.studentCode as string) || '',
-        studentPassword: data?.studentPassword as string | undefined,
-        parentPhoneOrCode: (data?.parentPhoneOrCode as string) || (data?.parentPhone as string) || undefined,
-        parentPassword: data?.parentPassword as string | undefined,
-        platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
-        centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
-        groupName: data?.groupName as string | undefined,
-      });
-    } else if (notification.type === 'STUDENT_GROUP_LINK_ENROLLMENT') {
-      message = formatGroupReservationPendingMessage({
-        parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
-        studentName: (data?.studentName as string) || 'الطالب',
-        groupName: data?.groupName as string | undefined,
-        centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
-      });
-    } else if (notification.type === 'PARENT_PASSWORD_RESET_ALERT') {
-      message = notification.message || (notification as any).body || (data?.body as string) || '';
-    } else if (notification.type === 'ASSISTANT_CREDENTIALS') {
-      message = formatAssistantCredentialsMessage({
-        assistantName: (data?.assistantName as string) || notification.recipient?.fullName || '',
-        phone: (data?.phone as string) || '',
-        password: data?.password as string | undefined,
-        platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
-        isUpdate: Boolean(data?.isUpdate),
-      });
-    } else {
-      switch (notification.notificationType) {
-        case NotificationType.STUDENT_APPROVAL_CREDENTIALS:
-          message = formatStudentApprovalMessage({
-            parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
-            studentName: (data?.studentName as string) || 'الطالب',
-            studentPhoneOrCode: (data?.studentPhoneOrCode as string) || (data?.studentPhone as string) || (data?.studentCode as string) || '',
-            studentPassword: data?.studentPassword as string | undefined,
-            parentPhoneOrCode: (data?.parentPhoneOrCode as string) || (data?.parentPhone as string) || undefined,
-            parentPassword: data?.parentPassword as string | undefined,
-            platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
-            centerName: (data?.centerName as string) || 'منصة الأول للرياضيات - أستاذ أحمد غريب',
-            groupName: data?.groupName as string | undefined,
-          });
-          break;
-        case NotificationType.ABSENCE_ALERT_PARENT:
-          if (notification.type === 'ABSENCE_CORRECTION_PARENT') {
-            message = formatAbsenceCorrectionMessage(
-              (data?.studentName as string) || 'الطالب',
-              (data?.groupName as string) || 'الحصة',
-              data?.date as string | undefined,
-            );
-          } else {
-            message = formatAbsenceMessage(
-              (data?.studentName as string) || 'الطالب',
-              (data?.groupName as string) || 'الحصة',
-              data?.date as string | undefined,
-            );
-          }
-          break;
-        case NotificationType.SESSION_REMINDER_STUDENT:
-          message = formatSessionReminderMessage((data?.studentName as string) || 'الطالب', (data?.groupName as string) || 'الحصة', (data?.startTime as string) || '');
-          break;
-        case NotificationType.EXAM_FAILED_ALERT_PARENT:
-          message = formatExamFailedMessage((data?.studentName as string) || 'الطالب', (data?.examTitle as string) || 'الاختبار', Number(data?.score ?? 0), Number(data?.total ?? 100), Number(data?.passing ?? 50));
-          break;
-        case NotificationType.TEACHER_DAILY_SCHEDULE:
-          message = formatTeacherAgendaMessage(
-            (data?.teacherName as string) || notification.recipient?.fullName || 'الأستاذ',
-            (data?.date as string) || new Date().toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo' }),
-            (data?.sessions as string[]) || (notification.message ? [notification.message] : []),
-          );
-          break;
-        default:
-          message = notification.type === 'PAYMENT_RECEIVED' && data?.amount
-            ? formatPaymentMessage((data.studentName as string) || 'الطالب', Number(data.amount), Number(data.month ?? new Date().getMonth() + 1), Number(data.year ?? new Date().getFullYear()))
-            : formatGenericMessage(notification.title, notification.message);
-      }
-    }
-
-    // Ensure teacher name is always present in all outgoing messages
-    if (!message.includes('أحمد غريب')) {
-      message = `${message}\n\nمنصة الأول للرياضيات - أستاذ أحمد غريب 📐`;
-    }
-
-    const reference = randomUUID().slice(0, 8).toUpperCase();
-    const emoji = ['🌟', '📚', '✨'][Math.floor(Math.random() * 3)];
-    const timestamp = new Date().toLocaleTimeString('ar-EG', {
-      timeZone: 'Africa/Cairo',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return `${message}\n\n${emoji} مرجع الرسالة: ${reference} • ${timestamp}`;
   }
 
   private isWithinActiveHours(): boolean {
-    const hour = Number(new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Africa/Cairo', hour: '2-digit', hourCycle: 'h23',
-    }).format(new Date()));
-    return hour >= 7 && hour < 22;
-  }
-
-  private getCairoMidnight(): Date {
-    const { year, month, day } = this.getCairoDateParts();
-    return new Date(`${year}-${month}-${day}T00:00:00+02:00`);
-  }
-
-  private getTomorrowActiveStart(): Date {
-    const { year, month, day } = this.getCairoDateParts();
-    const tomorrow = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day) + 1));
-    const date = [
-      tomorrow.getUTCFullYear(),
-      String(tomorrow.getUTCMonth() + 1).padStart(2, '0'),
-      String(tomorrow.getUTCDate()).padStart(2, '0'),
-    ].join('-');
-    return new Date(`${date}T08:00:00+02:00`);
-  }
-
-  private getCairoDateParts(): { year: string; month: string; day: string } {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).formatToParts(new Date());
-    const value = (type: Intl.DateTimeFormatPartTypes) =>
-      parts.find((part) => part.type === type)?.value ?? '';
-    return { year: value('year'), month: value('month'), day: value('day') };
-  }
-
-  private parsePositiveLimit(value: string, fallback: number): number {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    const now = new Date();
+    const cairoHourStr = now.toLocaleTimeString('en-US', {
+      timeZone: this.activeHours.timezone,
+      hour12: false,
+      hour: 'numeric',
+    });
+    const cairoHour = parseInt(cairoHourStr, 10);
+    return (
+      cairoHour >= this.activeHours.startHour &&
+      cairoHour < this.activeHours.endHour
+    );
   }
 
   private randomBetween(min: number, max: number): number {
@@ -813,6 +362,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
   }
 
   private errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : 'Unknown WhatsApp gateway error';
+    return error instanceof Error ? error.message : String(error);
   }
 }

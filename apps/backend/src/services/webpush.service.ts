@@ -2,77 +2,19 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/database/prisma.service';
 import * as webpush from 'web-push';
-import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
-import { getMessaging, Messaging, MulticastMessage } from 'firebase-admin/messaging';
-import * as fs from 'fs';
-import * as path from 'path';
+import { App } from 'firebase-admin/app';
+import { Messaging, MulticastMessage } from 'firebase-admin/messaging';
+import {
+  PushSubscriptionDto,
+  PushPayload,
+  SubscriptionDeliveryOutcome,
+  WebPushBatchResult,
+  SendBatchOptions,
+} from './webpush-types';
+import { initFirebaseAdmin } from './firebase-admin.helper';
+import { dispatchLegacyWebPush } from './webpush-legacy.helper';
 
-import { IsString, IsNotEmpty, IsOptional, ValidateNested, IsObject } from 'class-validator';
-import { Type } from 'class-transformer';
-
-export class PushSubscriptionKeysDto {
-  @IsOptional()
-  @IsString()
-  p256dh?: string;
-
-  @IsOptional()
-  @IsString()
-  auth?: string;
-}
-
-export class PushSubscriptionDto {
-  @IsString()
-  @IsNotEmpty()
-  endpoint!: string;
-
-  @IsOptional()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => PushSubscriptionKeysDto)
-  keys?: PushSubscriptionKeysDto;
-
-  @IsOptional()
-  @IsString()
-  userAgent?: string;
-}
-
-export class PushUnsubscribeDto {
-  @IsString()
-  @IsNotEmpty()
-  endpoint!: string;
-}
-
-export interface PushPayload {
-  title: string;
-  body: string;
-  icon?: string;
-  badge?: string;
-  url?: string;
-  data?: Record<string, unknown>;
-}
-
-export interface SubscriptionDeliveryOutcome {
-  endpoint: string;
-  userId?: string;
-  status: 'SENT' | 'FAILED' | 'EXPIRED';
-  statusCode?: number;
-  error?: string;
-}
-
-export interface WebPushBatchResult {
-  totalSubscriptions: number;
-  successCount: number;
-  failureCount: number;
-  expiredCount: number;
-  successfulUserIds: string[];
-  failedUserIds: string[];
-  partialUserIds: string[];
-  deviceOutcomes: SubscriptionDeliveryOutcome[];
-}
-
-export interface SendBatchOptions {
-  concurrencyLimit?: number;
-}
+export * from './webpush-types';
 
 /**
  * WebPushService — High-performance unified Push Notification Dispatcher.
@@ -105,62 +47,9 @@ export class WebPushService implements OnModuleInit {
    * Initializes Firebase Admin SDK with Service Account credentials.
    */
   private initFirebase() {
-    try {
-      if (getApps().length > 0) {
-        this.firebaseApp = getApps()[0];
-        this.messaging = getMessaging(this.firebaseApp);
-        this.logger.log('🔥 Firebase Cloud Messaging connected (existing app)');
-        return;
-      }
-
-      let credentialObj: any = null;
-
-      // 1. From environment variable FIREBASE_SERVICE_ACCOUNT_KEY
-      const rawKey = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_KEY');
-      if (rawKey) {
-        try {
-          credentialObj = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
-        } catch {
-          this.logger.warn('Could not parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string');
-        }
-      }
-
-      // 2. From file system fallback (root workspace)
-      if (!credentialObj) {
-        const candidatePaths = [
-          path.resolve(process.cwd(), 'al-awal-78dae-firebase-adminsdk-fbsvc-cebe73f540.json'),
-          path.resolve(process.cwd(), '..', '..', 'al-awal-78dae-firebase-adminsdk-fbsvc-cebe73f540.json'),
-          path.resolve(__dirname, '..', '..', '..', 'al-awal-78dae-firebase-adminsdk-fbsvc-cebe73f540.json'),
-        ];
-        for (const p of candidatePaths) {
-          if (fs.existsSync(p)) {
-            try {
-              credentialObj = JSON.parse(fs.readFileSync(p, 'utf8'));
-              break;
-            } catch {
-              // ignore and try next
-            }
-          }
-        }
-      }
-
-      if (credentialObj) {
-        const projectId =
-          credentialObj.project_id ||
-          this.config.get<string>('FIREBASE_PROJECT_ID', 'al-awal-78dae');
-
-        this.firebaseApp = initializeApp({
-          credential: cert(credentialObj),
-          projectId,
-        });
-        this.messaging = getMessaging(this.firebaseApp);
-        this.logger.log(`🔥 Firebase Cloud Messaging (FCM) Admin SDK initialized for [${projectId}]`);
-      } else {
-        this.logger.warn('⚠️ No Firebase service account credentials found. FCM disabled.');
-      }
-    } catch (err: any) {
-      this.logger.warn(`Firebase Admin initialization note: ${err.message}`);
-    }
+    const { app, messaging } = initFirebaseAdmin(this.config, this.logger);
+    this.firebaseApp = app;
+    this.messaging = messaging;
   }
 
   /**
@@ -446,75 +335,20 @@ export class WebPushService implements OnModuleInit {
 
     // ── 2. Dispatch Legacy WebPush Endpoints (Fallback Bounded Concurrency) ───
     if (legacySubs.length > 0) {
-      const concurrencyLimit = Math.max(1, options?.concurrencyLimit ?? 15);
-      const pushPayload = JSON.stringify({
-        title: payload.title,
-        body: payload.body,
-        icon: payload.icon || '/icons/icon-192x192.png',
-        badge: payload.badge || '/icons/badge-72x72.png',
-        url: payload.url || this.appUrl,
-        data: payload.data || {},
-      });
+      const legacyResult = await dispatchLegacyWebPush(
+        legacySubs,
+        payload,
+        this.appUrl,
+        options,
+        this.logger,
+      );
 
-      let currentIndex = 0;
-      const workerCount = Math.min(concurrencyLimit, legacySubs.length);
-
-      const workers = Array.from({ length: workerCount }, async () => {
-        while (currentIndex < legacySubs.length) {
-          const index = currentIndex++;
-          const sub = legacySubs[index];
-
-          try {
-            await webpush.sendNotification(
-              {
-                endpoint: sub.endpoint,
-                keys: { p256dh: sub.p256dh, auth: sub.auth },
-              },
-              pushPayload,
-            );
-            successCount++;
-            if (sub.userId) {
-              successfulUserIdsSet.add(sub.userId);
-            }
-            deviceOutcomes.push({
-              endpoint: sub.endpoint,
-              userId: sub.userId,
-              status: 'SENT',
-              statusCode: 201,
-            });
-          } catch (error) {
-            failureCount++;
-            const err = error as { statusCode?: number; message?: string };
-            const statusCode = err.statusCode;
-            if (statusCode === 404 || statusCode === 410) {
-              expiredEndpoints.push(sub.endpoint);
-              deviceOutcomes.push({
-                endpoint: sub.endpoint,
-                userId: sub.userId,
-                status: 'EXPIRED',
-                statusCode,
-                error: 'Subscription expired or unregistered by browser gateway',
-              });
-            } else {
-              this.logger.warn(
-                `Push failed for legacy endpoint [${sub.endpoint.slice(0, 50)}...]: ${statusCode}`,
-              );
-              deviceOutcomes.push({
-                endpoint: sub.endpoint,
-                userId: sub.userId,
-                status: 'FAILED',
-                statusCode,
-                error: err.message,
-              });
-            }
-            if (sub.userId) {
-              failedUserIdsSet.add(sub.userId);
-            }
-          }
-        }
-      });
-
-      await Promise.all(workers);
+      successCount += legacyResult.successCount;
+      failureCount += legacyResult.failureCount;
+      expiredEndpoints.push(...legacyResult.expiredEndpoints);
+      deviceOutcomes.push(...legacyResult.deviceOutcomes);
+      legacyResult.successfulUserIds.forEach((uid) => successfulUserIdsSet.add(uid));
+      legacyResult.failedUserIds.forEach((uid) => failedUserIdsSet.add(uid));
     }
 
     // ── 3. Prune all expired endpoints in ONE single database query ───────────

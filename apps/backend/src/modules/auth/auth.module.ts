@@ -9,6 +9,7 @@ import { AuthCredentialsService } from './services/auth-credentials.service';
 import { AuthGroupRegistrationService } from './services/auth-group-registration.service';
 import { StudentRegistrationService } from './services/student-registration.service';
 import { AuthVerificationService } from './services/auth-verification.service';
+import { AuthPhoneResolverService } from './services/auth-phone-resolver.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -34,6 +35,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AuthService,
     StudentRegistrationService,
     AuthVerificationService,
+    AuthPhoneResolverService,
   ],
   exports: [
     AuthTokenService,
@@ -43,6 +45,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AuthService,
     JwtModule,
     AuthVerificationService,
+    AuthPhoneResolverService,
   ],
 })
 export class AuthModule {}
