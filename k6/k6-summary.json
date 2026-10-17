@@ -1,0 +1,770 @@
+{
+  "root_group": {
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": [],
+    "checks": [
+        {
+          "name": "public: /courses/catalog 200",
+          "path": "::public: /courses/catalog 200",
+          "id": "8cf9fc27ec0c7a0e69c51c0ab0228672",
+          "passes": 183,
+          "fails": 0
+        },
+        {
+          "path": "::public: /schedules/public/centers 200",
+          "id": "1bb680c091ac47c4aa3b8bae0bcf90cd",
+          "passes": 183,
+          "fails": 0,
+          "name": "public: /schedules/public/centers 200"
+        },
+        {
+          "name": "public: /certificates/public 200",
+          "path": "::public: /certificates/public 200",
+          "id": "e5ef3781a3023a5ea82236411cbee336",
+          "passes": 183,
+          "fails": 0
+        },
+        {
+          "name": "public: /testimonials/public 200",
+          "path": "::public: /testimonials/public 200",
+          "id": "bd61a3cde0ea3c06a2ed8a347d441ea0",
+          "passes": 183,
+          "fails": 0
+        },
+        {
+          "fails": 0,
+          "name": "public: /site-settings/public 200",
+          "path": "::public: /site-settings/public 200",
+          "id": "720ea17d107c92eee47635718e5b7ddc",
+          "passes": 183
+        },
+        {
+          "name": "student: /users/me 200",
+          "path": "::student: /users/me 200",
+          "id": "fd4cf64f8ebcf1106c6fe9bad42b4a3e",
+          "passes": 440,
+          "fails": 0
+        },
+        {
+          "id": "bc68a54804b19d91261d63ddd54de689",
+          "passes": 98,
+          "fails": 0,
+          "name": "public: /contact-messages 201",
+          "path": "::public: /contact-messages 201"
+        },
+        {
+          "path": "::public: /health 200",
+          "id": "34b4aac8337012b8d3d4b18fe3729852",
+          "passes": 31,
+          "fails": 146,
+          "name": "public: /health 200"
+        },
+        {
+          "fails": 26,
+          "name": "student: /students/dashboard/overview 200",
+          "path": "::student: /students/dashboard/overview 200",
+          "id": "47056b19aff27477b26bbdf58f132b49",
+          "passes": 386
+        },
+        {
+          "name": "parent: /parent-portal/dashboard 200",
+          "path": "::parent: /parent-portal/dashboard 200",
+          "id": "12bf5ecffa0cde474254f42984a2d8a8",
+          "passes": 85,
+          "fails": 22
+        },
+        {
+          "name": "student: /courses/my-courses 200",
+          "path": "::student: /courses/my-courses 200",
+          "id": "172df4c8ffc602fd124211474f6615e6",
+          "passes": 326,
+          "fails": 8
+        },
+        {
+          "id": "e06884d3edd6bdd3874d37ddd26f56c6",
+          "passes": 95,
+          "fails": 0,
+          "name": "parent: /parent-portal/students 200",
+          "path": "::parent: /parent-portal/students 200"
+        },
+        {
+          "name": "parent: /parent-portal/students/:id/overview 200",
+          "path": "::parent: /parent-portal/students/:id/overview 200",
+          "id": "ba7e0dbbf6d9f34bed79ddf3b0ff4d92",
+          "passes": 88,
+          "fails": 1
+        },
+        {
+          "passes": 276,
+          "fails": 7,
+          "name": "student: /courses/lessons/:id/viewer 200",
+          "path": "::student: /courses/lessons/:id/viewer 200",
+          "id": "4f87f36964beda9c553ffdfc48bc60fe"
+        },
+        {
+          "passes": 78,
+          "fails": 0,
+          "name": "parent: /parent-portal/students/:id/attendance 200",
+          "path": "::parent: /parent-portal/students/:id/attendance 200",
+          "id": "f3594e708b8a02042c160ad0c713ac6c"
+        },
+        {
+          "name": "student: /courses/lessons/:id/progress 200",
+          "path": "::student: /courses/lessons/:id/progress 200",
+          "id": "6cec52afeeb0028e8a2ea868f8ab89e7",
+          "passes": 257,
+          "fails": 0
+        },
+        {
+          "name": "parent: /parent-portal/students/:id/assessments 200",
+          "path": "::parent: /parent-portal/students/:id/assessments 200",
+          "id": "88597c900e5ff14092ea199b00ce76cf",
+          "passes": 67,
+          "fails": 0
+        },
+        {
+          "name": "student: /assessments/:id 200",
+          "path": "::student: /assessments/:id 200",
+          "id": "936a49d2ee84b6cffef9b5bb627b629e",
+          "passes": 247,
+          "fails": 2
+        },
+        {
+          "path": "::sync: /sync/bootstrap 200",
+          "id": "6e094daf0b2926b06d7fd6baf79d54d9",
+          "passes": 62,
+          "fails": 0,
+          "name": "sync: /sync/bootstrap 200"
+        },
+        {
+          "name": "student: /assessments/:id/my-status 200",
+          "path": "::student: /assessments/:id/my-status 200",
+          "id": "599980e59cfe2d0bb2486eadb3e1937a",
+          "passes": 241,
+          "fails": 0
+        },
+        {
+          "passes": 57,
+          "fails": 2,
+          "name": "sync: /sync/diff 200",
+          "path": "::sync: /sync/diff 200",
+          "id": "64942fbd0e41ae7ac003c94a5697edb3"
+        },
+        {
+          "name": "teacher: /teachers/dashboard/init 200",
+          "path": "::teacher: /teachers/dashboard/init 200",
+          "id": "efff23b322fc2745e8f5ef3266a879bb",
+          "passes": 132,
+          "fails": 48
+        },
+        {
+          "name": "student: /assessments/:id/submit 200",
+          "path": "::student: /assessments/:id/submit 200",
+          "id": "1120d438abeff71e45d2487688d66e2a",
+          "passes": 194,
+          "fails": 19
+        },
+        {
+          "passes": 190,
+          "fails": 0,
+          "name": "student: /students/my-group 200",
+          "path": "::student: /students/my-group 200",
+          "id": "573265e51215b49edcdc020ebca17b5f"
+        },
+        {
+          "name": "teacher: /attendance/sessions/:id/scan-qr 200",
+          "path": "::teacher: /attendance/sessions/:id/scan-qr 200",
+          "id": "8c5f7c4a7601ce416ac61100e6a739ab",
+          "passes": 67,
+          "fails": 80
+        },
+        {
+          "name": "student: /students/my-group/sessions 200",
+          "path": "::student: /students/my-group/sessions 200",
+          "id": "2cd99c5e1a9ef0a6fd86252ae4375c8d",
+          "passes": 178,
+          "fails": 7
+        },
+        {
+          "fails": 0,
+          "name": "student: /students/:id/qr-code 200",
+          "path": "::student: /students/:id/qr-code 200",
+          "id": "675c002a49474653a32cdad358e9d5a0",
+          "passes": 179
+        },
+        {
+          "id": "00fcdb5d62bf04e342ae068cab6c226c",
+          "passes": 132,
+          "fails": 0,
+          "name": "teacher: /attendance/sessions/:id/report 200",
+          "path": "::teacher: /attendance/sessions/:id/report 200"
+        },
+        {
+          "passes": 169,
+          "fails": 0,
+          "name": "student: /attendance/student/:id 200",
+          "path": "::student: /attendance/student/:id 200",
+          "id": "e46caf35bf730541f43155be88b862db"
+        },
+        {
+          "path": "::teacher: /subscriptions/scan-qr valid",
+          "id": "4f90659cf71f4972fdf09abf85e42005",
+          "passes": 58,
+          "fails": 74,
+          "name": "teacher: /subscriptions/scan-qr valid"
+        },
+        {
+          "passes": 127,
+          "fails": 1,
+          "name": "teacher: /payments/matrix-ledger 200",
+          "path": "::teacher: /payments/matrix-ledger 200",
+          "id": "a70d1e2cd661456ba5afa91ce7826d79"
+        },
+        {
+          "id": "35e4589151625449848215424f79feae",
+          "passes": 116,
+          "fails": 0,
+          "name": "teacher: /payments/dashboard-analytics 200",
+          "path": "::teacher: /payments/dashboard-analytics 200"
+        },
+        {
+          "passes": 69,
+          "fails": 31,
+          "name": "teacher: /analytics/overview 200",
+          "path": "::teacher: /analytics/overview 200",
+          "id": "54602041794083883447945d5e88c853"
+        },
+        {
+          "name": "teacher: /students 200",
+          "path": "::teacher: /students 200",
+          "id": "a215578118d6eac47ae482b068796993",
+          "passes": 93,
+          "fails": 0
+        },
+        {
+          "name": "teacher: /groups 200",
+          "path": "::teacher: /groups 200",
+          "id": "714382b3f0d8fab0b269013f357b18c7",
+          "passes": 90,
+          "fails": 0
+        },
+        {
+          "name": "teacher: /notifications 200",
+          "path": "::teacher: /notifications 200",
+          "id": "af6af3eebc03c7ac0dad63fcd025b552",
+          "passes": 87,
+          "fails": 0
+        }
+      ],
+    "name": ""
+  },
+  "options": {
+    "summaryTrendStats": [
+      "avg",
+      "min",
+      "med",
+      "max",
+      "p(90)",
+      "p(95)",
+      "p(99)"
+    ],
+    "summaryTimeUnit": "",
+    "noColor": false
+  },
+  "state": {
+    "isStdOutTTY": false,
+    "isStdErrTTY": false,
+    "testRunDurationMs": 405000.5674
+  },
+  "metrics": {
+    "rate_sync_success": {
+      "contains": "default",
+      "values": {
+        "rate": 0.9834710743801653,
+        "passes": 119,
+        "fails": 2
+      },
+      "type": "rate"
+    },
+    "reqs_student": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 3433,
+        "rate": 8.476531334360791
+      }
+    },
+    "http_req_sending": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.014517562254259505,
+        "min": 0,
+        "med": 0,
+        "max": 5.1042,
+        "p(90)": 0,
+        "p(95)": 0,
+        "p(99)": 0.5190220000000006
+      }
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 40608.64799500002,
+        "p(99)": 54211.768683,
+        "avg": 10550.36490637657,
+        "min": 60.7945,
+        "med": 5566.35735,
+        "max": 59944.7159,
+        "p(90)": 30074.48191
+      }
+    },
+    "reqs_parent": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 496,
+        "rate": 1.224689642249622
+      }
+    },
+    "latency_teacher": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 163,
+        "med": 9899,
+        "max": 60008,
+        "p(90)": 45799.200000000004,
+        "p(95)": 60000,
+        "p(99)": 60001,
+        "avg": 15759.275518672199
+      }
+    },
+    "vus": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 3,
+        "min": 1,
+        "max": 500
+      }
+    },
+    "latency_public": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 10505.89999999999,
+        "p(99)": 22413.849999999988,
+        "avg": 1327.1445378151261,
+        "min": 60,
+        "med": 91,
+        "max": 27521,
+        "p(90)": 1004
+      }
+    },
+    "latency_mod_sync_bootstrap": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 54039.56,
+        "avg": 13431.451612903225,
+        "min": 1096,
+        "med": 12356.5,
+        "max": 54408,
+        "p(90)": 26848.899999999994,
+        "p(95)": 36240.85
+      }
+    },
+    "iteration_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 226077.8650539999,
+        "avg": 62085.87934613824,
+        "min": 2141.4773,
+        "med": 35080.08185,
+        "max": 252740.7841,
+        "p(90)": 157811.64371000006,
+        "p(95)": 206289.23234
+      }
+    },
+    "rate_parent_success": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.9472477064220184,
+        "passes": 413,
+        "fails": 23
+      }
+    },
+    "latency_mod_auth": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 269,
+        "med": 6828.5,
+        "max": 34525,
+        "p(90)": 18539.1,
+        "p(95)": 29389.649999999976,
+        "p(99)": 33783.44,
+        "avg": 9157.729545454546
+      }
+    },
+    "http_req_connecting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 0,
+        "med": 0,
+        "max": 4.3308,
+        "p(90)": 0,
+        "p(95)": 0.546529999999999,
+        "p(99)": 1.0353440000000014,
+        "avg": 0.05531957732634333
+      }
+    },
+    "latency_mod_assessments": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 9462.660028449502,
+        "min": 131,
+        "med": 5247,
+        "max": 60001,
+        "p(90)": 21232.600000000006,
+        "p(95)": 33797.2,
+        "p(99)": 54688.000000000095
+      }
+    },
+    "http_req_receiving": {
+      "contains": "time",
+      "values": {
+        "med": 0,
+        "max": 16.1255,
+        "p(90)": 3.347029999999999,
+        "p(95)": 7.070359999999999,
+        "p(99)": 12.851174000000015,
+        "avg": 0.9254519331585844,
+        "min": 0
+      },
+      "type": "trend"
+    },
+    "rate_public_success": {
+      "values": {
+        "rate": 0.8773109243697479,
+        "passes": 1044,
+        "fails": 146
+      },
+      "type": "rate",
+      "contains": "default"
+    },
+    "latency_mod_parent_portal": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 16949.422018348625,
+        "min": 86,
+        "med": 9849.5,
+        "max": 60002,
+        "p(90)": 46821,
+        "p(95)": 60000,
+        "p(99)": 60001
+      }
+    },
+    "http_req_waiting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 47677.952685,
+        "p(99)": 60000.572201999996,
+        "avg": 11793.234548623846,
+        "min": 60.7945,
+        "med": 6040.02855,
+        "max": 60005.5677,
+        "p(90)": 33570.47569999999
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 4090369,
+        "rate": 10099.66239370755
+      }
+    },
+    "latency_mod_courses": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 16519.91958372753,
+        "min": 77,
+        "med": 12064,
+        "max": 60002,
+        "p(90)": 42671.6,
+        "p(95)": 50879.2,
+        "p(99)": 60000
+      }
+    },
+    "latency_student": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 34793.8,
+        "p(95)": 46932.34999999999,
+        "p(99)": 60000,
+        "avg": 13334.546954314721,
+        "min": 82,
+        "med": 8019,
+        "max": 60002
+      }
+    },
+    "latency_sync": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 59569.59999999999,
+        "avg": 16561.495867768594,
+        "min": 463,
+        "med": 12897,
+        "max": 60001,
+        "p(90)": 36279,
+        "p(95)": 48700
+      }
+    },
+    "latency_mod_attendance": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 82,
+        "med": 7059.5,
+        "max": 55923,
+        "p(90)": 23338.8,
+        "p(95)": 32305.44999999986,
+        "p(99)": 43234.18,
+        "avg": 10108.051339285714
+      }
+    },
+    "rate_teacher_success": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.8058091286307054,
+        "passes": 971,
+        "fails": 234
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 6104,
+        "rate": 15.071583823168737
+      }
+    },
+    "reqs_public": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 1196,
+        "rate": 2.953082282521266
+      }
+    },
+    "latency_parent": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 60002,
+        "p(90)": 46821,
+        "p(95)": 60000,
+        "p(99)": 60001,
+        "avg": 16949.422018348625,
+        "min": 86,
+        "med": 9849.5
+      }
+    },
+    "iterations": {
+      "contains": "default",
+      "values": {
+        "count": 492,
+        "rate": 1.2148131128766413
+      },
+      "type": "counter"
+    },
+    "http_req_tls_handshaking": {
+      "values": {
+        "max": 0,
+        "p(90)": 0,
+        "p(95)": 0,
+        "p(99)": 0,
+        "avg": 0,
+        "min": 0,
+        "med": 0
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "latency_mod_qr_payment": {
+      "values": {
+        "med": 8870.5,
+        "max": 29750,
+        "p(90)": 24371.600000000002,
+        "p(95)": 25488.85,
+        "p(99)": 27242.14,
+        "avg": 10539.34090909091,
+        "min": 905
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "latency_mod_qr_attendance": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 799,
+        "med": 13044,
+        "max": 55923,
+        "p(90)": 31036.40000000007,
+        "p(95)": 40952,
+        "p(99)": 43340.36,
+        "avg": 15160.027210884355
+      }
+    },
+    "rate_student_success": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.9781091370558376,
+        "passes": 3083,
+        "fails": 69
+      }
+    },
+    "reqs_sync": {
+      "values": {
+        "count": 128,
+        "rate": 0.31604893993538635
+      },
+      "type": "counter",
+      "contains": "default"
+    },
+    "http_req_blocked": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 0.5853399999999997,
+        "p(99)": 1.0820010000000009,
+        "avg": 0.06414126802096978,
+        "min": 0,
+        "med": 0,
+        "max": 10.3684,
+        "p(90)": 0
+      }
+    },
+    "reqs_teacher": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "rate": 3.2814768841728785,
+        "count": 1329
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.07765399737876802,
+        "passes": 474,
+        "fails": 5630
+      },
+      "thresholds": {
+        "rate<0.15": {
+          "ok": true
+        }
+      }
+    },
+    "data_received": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 34800765,
+        "rate": 85927.69443117575
+      }
+    },
+    "checks": {
+      "contains": "default",
+      "values": {
+        "rate": 0.922346002621232,
+        "passes": 5630,
+        "fails": 474
+      },
+      "type": "rate"
+    },
+    "latency_mod_analytics": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 33620,
+        "max": 60008,
+        "p(90)": 60001,
+        "p(95)": 60002,
+        "p(99)": 60002.06,
+        "avg": 35226.19,
+        "min": 3567
+      }
+    },
+    "latency_mod_payments": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 497,
+        "med": 11055,
+        "max": 60001,
+        "p(90)": 42484,
+        "p(95)": 48293,
+        "p(99)": 52659.75,
+        "avg": 15876.5
+      }
+    },
+    "vus_max": {
+      "contains": "default",
+      "values": {
+        "value": 500,
+        "min": 500,
+        "max": 500
+      },
+      "type": "gauge"
+    },
+    "latency_mod_exam_submit": {
+      "values": {
+        "min": 648,
+        "med": 5275,
+        "max": 60000,
+        "p(90)": 21302,
+        "p(95)": 30800.999999999996,
+        "p(99)": 47546.799999999996,
+        "avg": 9179.070422535211
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 11794.174518119245,
+        "min": 60.7945,
+        "med": 6040.02855,
+        "max": 60005.5677,
+        "p(90)": 33570.47569999999,
+        "p(95)": 47677.952685,
+        "p(99)": 60000.575998
+      },
+      "thresholds": {
+        "p(95)<10000": {
+          "ok": false
+        }
+      }
+    }
+  }
+}

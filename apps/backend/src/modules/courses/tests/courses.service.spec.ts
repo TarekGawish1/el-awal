@@ -96,6 +96,8 @@ describe('CoursesService', () => {
     },
     assessment: {
       findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({ id: 'ass-1' }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     assessmentSubmission: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -246,6 +248,87 @@ describe('CoursesService', () => {
       expect(result.id).toBe('lesson-1');
       expect(result.summary).toBe('### ملخص كان وأخواتها');
       expect(result.lessonQuizId).toBe('quiz-lesson-1');
+    });
+
+    it('should create a lesson with quizId, homeworkId, and policy fields, and link assessments in DB', async () => {
+      mockPrismaService.courseModule.findUnique.mockResolvedValue({
+        id: 'module-1',
+        courseId: 'course-1',
+        course: { id: 'course-1', teacherId: 'teacher-1' },
+      });
+      mockPrismaService.courseLesson.count.mockResolvedValue(2);
+      mockPrismaService.courseLesson.create.mockResolvedValue({
+        id: 'lesson-10',
+        moduleId: 'module-1',
+        title: 'الدرس الثاني',
+        bunnyVideoId: 'bunny-12345',
+        videoDurationSeconds: 1200,
+        lessonQuizId: 'quiz-uuid-1',
+        isPreview: false,
+      });
+
+      const result = await service.createLesson('module-1', 'teacher-1', false, {
+        title: 'الدرس الثاني',
+        bunnyVideoId: 'bunny-12345',
+        quizId: 'quiz-uuid-1',
+        homeworkId: 'hw-uuid-1',
+        allowMultipleAttempts: true,
+        isQuizPassRequired: true,
+        isHomeworkOptional: true,
+      });
+
+      expect(result.id).toBe('lesson-10');
+      // Ensure courseLesson.create receives lessonQuizId and NOT raw quizId or homeworkId
+      const createCall = mockPrismaService.courseLesson.create.mock.calls[mockPrismaService.courseLesson.create.mock.calls.length - 1][0];
+      expect(createCall.data.lessonQuizId).toBe('quiz-uuid-1');
+      expect(createCall.data.quizId).toBeUndefined();
+      expect(createCall.data.homeworkId).toBeUndefined();
+
+      // Ensure assessment table associations were updated
+      expect(mockPrismaService.assessment.update).toHaveBeenCalledWith({
+        where: { id: 'quiz-uuid-1' },
+        data: expect.objectContaining({
+          lessonId: 'lesson-10',
+          courseId: 'course-1',
+          allowMultipleAttempts: true,
+          requirePassingScore: true,
+        }),
+      });
+      expect(mockPrismaService.assessment.update).toHaveBeenCalledWith({
+        where: { id: 'hw-uuid-1' },
+        data: expect.objectContaining({
+          lessonId: 'lesson-10',
+          courseId: 'course-1',
+          isOptional: true,
+        }),
+      });
+    });
+
+    it('should cleanly create a lesson when quizId and homeworkId are null', async () => {
+      mockPrismaService.courseModule.findUnique.mockResolvedValue({
+        id: 'module-1',
+        courseId: 'course-1',
+        course: { id: 'course-1', teacherId: 'teacher-1' },
+      });
+      mockPrismaService.courseLesson.count.mockResolvedValue(0);
+      mockPrismaService.courseLesson.create.mockResolvedValue({
+        id: 'lesson-11',
+        moduleId: 'module-1',
+        title: 'درس بدون اختبار أو واجب',
+        bunnyVideoId: 'bunny-12345',
+        lessonQuizId: null,
+      });
+
+      const result = await service.createLesson('module-1', 'teacher-1', false, {
+        title: 'درس بدون اختبار أو واجب',
+        bunnyVideoId: 'bunny-12345',
+        quizId: null,
+        homeworkId: null,
+      });
+
+      expect(result.id).toBe('lesson-11');
+      const createCall = mockPrismaService.courseLesson.create.mock.calls[mockPrismaService.courseLesson.create.mock.calls.length - 1][0];
+      expect(createCall.data.lessonQuizId).toBeNull();
     });
   });
 
@@ -839,6 +922,89 @@ describe('CoursesService', () => {
 
       expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('failed-new-bunny-vid-99');
       expect(mockBunnyVideoService.deleteVideo).not.toHaveBeenCalledWith('old-bunny-vid-1');
+    });
+
+    it('should update a lesson with quizId, homeworkId, and link assessments in DB', async () => {
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue({
+        id: 'les-1',
+        bunnyVideoId: 'bunny-1',
+        lessonQuizId: 'old-quiz-1',
+        module: { courseId: 'course-1', course: { teacherId: 'teacher-1' } },
+      });
+      mockPrismaService.courseLesson.update.mockResolvedValue({
+        id: 'les-1',
+        lessonQuizId: 'new-quiz-2',
+      });
+
+      await service.updateLesson('les-1', 'teacher-1', false, {
+        quizId: 'new-quiz-2',
+        homeworkId: 'new-hw-2',
+        allowMultipleAttempts: true,
+        isHomeworkOptional: true,
+      });
+
+      expect(mockPrismaService.courseLesson.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'les-1' },
+          data: expect.objectContaining({
+            lessonQuizId: 'new-quiz-2',
+          }),
+        }),
+      );
+      // Ensure assessment table associations were updated
+      expect(mockPrismaService.assessment.update).toHaveBeenCalledWith({
+        where: { id: 'new-quiz-2' },
+        data: expect.objectContaining({
+          lessonId: 'les-1',
+          courseId: 'course-1',
+        }),
+      });
+      expect(mockPrismaService.assessment.update).toHaveBeenCalledWith({
+        where: { id: 'new-hw-2' },
+        data: expect.objectContaining({
+          lessonId: 'les-1',
+          courseId: 'course-1',
+          isOptional: true,
+        }),
+      });
+      // Ensure old quiz was unlinked
+      expect(mockPrismaService.assessment.updateMany).toHaveBeenCalledWith({
+        where: { id: 'old-quiz-1', lessonId: 'les-1' },
+        data: { lessonId: null },
+      });
+    });
+
+    it('should unlink quiz and homework when quizId and homeworkId are passed as null', async () => {
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue({
+        id: 'les-1',
+        bunnyVideoId: 'bunny-1',
+        lessonQuizId: 'old-quiz-1',
+        module: { courseId: 'course-1', course: { teacherId: 'teacher-1' } },
+      });
+      mockPrismaService.courseLesson.update.mockResolvedValue({
+        id: 'les-1',
+        lessonQuizId: null,
+      });
+
+      await service.updateLesson('les-1', 'teacher-1', false, {
+        quizId: null,
+        homeworkId: null,
+      });
+
+      expect(mockPrismaService.courseLesson.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'les-1' },
+          data: expect.objectContaining({
+            lessonQuizId: null,
+          }),
+        }),
+      );
+      expect(mockPrismaService.assessment.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'old-quiz-1', lessonId: 'les-1' },
+          data: { lessonId: null },
+        }),
+      );
     });
   });
 

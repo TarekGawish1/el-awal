@@ -226,6 +226,9 @@ export class AssessmentSubmissionService {
       }
 
       return submission;
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
     if (!hasPendingEssay) {

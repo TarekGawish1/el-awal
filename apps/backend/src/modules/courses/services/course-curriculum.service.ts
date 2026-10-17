@@ -152,6 +152,15 @@ export class CourseCurriculumService {
       } catch {}
     }
 
+    const effectiveQuizId =
+      dto.quizId !== undefined
+        ? (dto.quizId || null)
+        : (dto.lessonQuizId || null);
+    const effectiveHomeworkId =
+      dto.homeworkId !== undefined
+        ? (dto.homeworkId || null)
+        : (dto.lessonHomeworkId || null);
+
     try {
       const lesson = await this.prisma.courseLesson.create({
         data: {
@@ -165,7 +174,7 @@ export class CourseCurriculumService {
           contentUrl: normalizedContentUrl,
           videoDurationSeconds: effectiveDurationSeconds,
           isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
-          lessonQuizId: dto.lessonQuizId || null,
+          lessonQuizId: effectiveQuizId,
           attachments: dto.attachments?.length
             ? {
                 create: dto.attachments.map((att) => ({
@@ -181,8 +190,45 @@ export class CourseCurriculumService {
         include: {
           attachments: true,
           lessonQuiz: { select: { id: true, title: true, type: true } },
+          assessments: { select: { id: true, title: true, type: true, assessmentType: true } },
         },
       });
+
+      if (effectiveQuizId) {
+        try {
+          const quizData: any = { lessonId: lesson.id, courseId: module.courseId };
+          if (dto.allowMultipleAttempts !== undefined) quizData.allowMultipleAttempts = dto.allowMultipleAttempts;
+          if (dto.isQuizOptional !== undefined) quizData.isOptional = dto.isQuizOptional;
+          if (dto.isQuizPassRequired !== undefined) quizData.requirePassingScore = dto.isQuizPassRequired;
+          if (dto.requirePassingScore !== undefined && quizData.requirePassingScore === undefined) {
+            quizData.requirePassingScore = dto.requirePassingScore;
+          }
+          await this.prisma.assessment.update({
+            where: { id: effectiveQuizId },
+            data: quizData,
+          });
+        } catch (err) {
+          this.logger.warn(`Failed to link quiz [${effectiveQuizId}] to lesson [${lesson.id}]:`, err);
+        }
+      }
+
+      if (effectiveHomeworkId) {
+        try {
+          const hwData: any = { lessonId: lesson.id, courseId: module.courseId };
+          if (dto.isHomeworkOptional !== undefined) hwData.isOptional = dto.isHomeworkOptional;
+          if (dto.isHomeworkPassRequired !== undefined) hwData.requirePassingScore = dto.isHomeworkPassRequired;
+          if (dto.allowHomeworkMultipleAttempts !== undefined) {
+            hwData.allowHomeworkMultipleAttempts = dto.allowHomeworkMultipleAttempts;
+          }
+          await this.prisma.assessment.update({
+            where: { id: effectiveHomeworkId },
+            data: hwData,
+          });
+        } catch (err) {
+          this.logger.warn(`Failed to link homework [${effectiveHomeworkId}] to lesson [${lesson.id}]:`, err);
+        }
+      }
+
       await this.coreService.clearCatalogCache();
       return lesson;
     } catch (error) {
@@ -272,6 +318,15 @@ export class CourseCurriculumService {
       } catch {}
     }
 
+    const effectiveQuizId =
+      dto.quizId !== undefined
+        ? (dto.quizId || null)
+        : (dto.lessonQuizId !== undefined ? (dto.lessonQuizId || null) : undefined);
+    const effectiveHomeworkId =
+      dto.homeworkId !== undefined
+        ? (dto.homeworkId || null)
+        : (dto.lessonHomeworkId !== undefined ? (dto.lessonHomeworkId || null) : undefined);
+
     let updatedLesson;
     try {
       updatedLesson = await this.prisma.courseLesson.update({
@@ -286,13 +341,101 @@ export class CourseCurriculumService {
           ...(sanitizedContentUrl !== undefined ? { contentUrl: sanitizedContentUrl } : {}),
           ...(effectiveDurationSeconds !== undefined ? { videoDurationSeconds: effectiveDurationSeconds } : {}),
           ...(isPreviewVal !== undefined ? { isPreview: isPreviewVal } : {}),
-          ...(dto.lessonQuizId !== undefined ? { lessonQuizId: dto.lessonQuizId } : {}),
+          ...(effectiveQuizId !== undefined ? { lessonQuizId: effectiveQuizId } : {}),
+          ...(dto.attachments?.length
+            ? {
+                attachments: {
+                  create: dto.attachments.map((att) => ({
+                    title: att.title,
+                    fileUrl: att.fileUrl,
+                    fileKey: att.fileKey,
+                    fileSize: att.fileSize,
+                    fileType: att.fileType || 'application/pdf',
+                  })),
+                },
+              }
+            : {}),
         },
         include: {
           attachments: true,
           lessonQuiz: { select: { id: true, title: true, type: true } },
+          assessments: { select: { id: true, title: true, type: true, assessmentType: true } },
         },
       });
+
+      if (effectiveQuizId !== undefined) {
+        if (effectiveQuizId) {
+          try {
+            const quizData: any = { lessonId, courseId: lesson.module.courseId };
+            if (dto.allowMultipleAttempts !== undefined) quizData.allowMultipleAttempts = dto.allowMultipleAttempts;
+            if (dto.isQuizOptional !== undefined) quizData.isOptional = dto.isQuizOptional;
+            if (dto.isQuizPassRequired !== undefined) quizData.requirePassingScore = dto.isQuizPassRequired;
+            if (dto.requirePassingScore !== undefined && quizData.requirePassingScore === undefined) {
+              quizData.requirePassingScore = dto.requirePassingScore;
+            }
+            await this.prisma.assessment.update({
+              where: { id: effectiveQuizId },
+              data: quizData,
+            });
+            if (lesson.lessonQuizId && lesson.lessonQuizId !== effectiveQuizId) {
+              await this.prisma.assessment.updateMany({
+                where: { id: lesson.lessonQuizId, lessonId },
+                data: { lessonId: null },
+              });
+            }
+          } catch (err) {
+            this.logger.warn(`Failed to update quiz link [${effectiveQuizId}] for lesson [${lessonId}]:`, err);
+          }
+        } else {
+          if (lesson.lessonQuizId) {
+            await this.prisma.assessment.updateMany({
+              where: { id: lesson.lessonQuizId, lessonId },
+              data: { lessonId: null },
+            }).catch(() => {});
+          }
+        }
+      }
+
+      if (effectiveHomeworkId !== undefined) {
+        if (effectiveHomeworkId) {
+          try {
+            const hwData: any = { lessonId, courseId: lesson.module.courseId };
+            if (dto.isHomeworkOptional !== undefined) hwData.isOptional = dto.isHomeworkOptional;
+            if (dto.isHomeworkPassRequired !== undefined) hwData.requirePassingScore = dto.isHomeworkPassRequired;
+            if (dto.allowHomeworkMultipleAttempts !== undefined) {
+              hwData.allowHomeworkMultipleAttempts = dto.allowHomeworkMultipleAttempts;
+            }
+            await this.prisma.assessment.update({
+              where: { id: effectiveHomeworkId },
+              data: hwData,
+            });
+            await this.prisma.assessment.updateMany({
+              where: {
+                lessonId,
+                id: { not: effectiveHomeworkId },
+                OR: [
+                  { type: 'ASSIGNMENT' },
+                  { assessmentType: 'HOMEWORK' },
+                ],
+              },
+              data: { lessonId: null },
+            });
+          } catch (err) {
+            this.logger.warn(`Failed to update homework link [${effectiveHomeworkId}] for lesson [${lessonId}]:`, err);
+          }
+        } else {
+          await this.prisma.assessment.updateMany({
+            where: {
+              lessonId,
+              OR: [
+                { type: 'ASSIGNMENT' },
+                { assessmentType: 'HOMEWORK' },
+              ],
+            },
+            data: { lessonId: null },
+          }).catch(() => {});
+        }
+      }
     } catch (error) {
       const newIdsToClean = [newBunnyId, newContentBunnyId].filter(
         (id): id is string => Boolean(id && !oldBunnyIds.has(id)),

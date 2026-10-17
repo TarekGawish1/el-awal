@@ -150,8 +150,10 @@ export class AttendanceQrService {
 
       // Repeated lateness detection (3 consecutive times)
       if (session.startTime) {
+        const rawRecordedAt = result.record?.recordedAt || (result.record as any)?.recorded_at || new Date();
+        const recordedAtDate = rawRecordedAt instanceof Date ? rawRecordedAt : new Date(rawRecordedAt);
         const recordedAtInCairo = new Date(
-          result.record.recordedAt.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
+          recordedAtDate.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
         );
         const [startH, startM] = session.startTime.split(':').map(Number);
 
@@ -171,8 +173,10 @@ export class AttendanceQrService {
           let consecutiveLateCount = 0;
           for (const record of last3Records) {
             if (!record.session.startTime) break;
+            const rawRec = record.recordedAt || (record as any).recorded_at || new Date();
+            const recDate = rawRec instanceof Date ? rawRec : new Date(rawRec);
             const recTime = new Date(
-              record.recordedAt.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
+              recDate.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
             );
             const [sH, sM] = record.session.startTime.split(':').map(Number);
             if (recTime.getHours() > sH || (recTime.getHours() === sH && recTime.getMinutes() > sM + 10)) {

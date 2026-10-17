@@ -91,7 +91,12 @@ export const coursesCoreApi = {
     contentUrl?: string;
     videoDurationSeconds?: number;
     isFreePreview?: boolean;
-    lessonQuizId?: string;
+    isPreview?: boolean;
+    lessonQuizId?: string | null;
+    quizId?: string | null;
+    homeworkId?: string | null;
+    lessonHomeworkId?: string | null;
+    attachments?: any[];
   }): Promise<CourseLesson> => {
     return apiClient<CourseLesson>(`/courses/modules/${moduleId}/lessons`, {
       method: 'POST',
@@ -108,8 +113,13 @@ export const coursesCoreApi = {
     contentUrl?: string;
     videoDurationSeconds?: number;
     isFreePreview?: boolean;
+    isPreview?: boolean;
     lessonQuizId?: string | null;
+    quizId?: string | null;
+    homeworkId?: string | null;
+    lessonHomeworkId?: string | null;
     moduleId?: string;
+    attachments?: any[];
   }): Promise<CourseLesson> => {
     return apiClient<CourseLesson>(`/courses/lessons/${lessonId}`, {
       method: 'PATCH',

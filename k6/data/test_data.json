@@ -1,101 +1,1167 @@
 {
-  "baseUrl": "https://al-awal-cbe2188d9efa.herokuapp.com/api/v1",
+  "baseUrl": "http://localhost:4000/api/v1",
+  "bypassToken": "el-awal-load-test-2026",
   "teacher": {
     "id": "0c6fc7be-c582-4dc5-9eb5-f37cccd9631a",
+    "teacherProfileId": "0c6fc7be-c582-4dc5-9eb5-f37cccd9631a",
     "email": "teacher@elawal.com",
     "phone": "+201021902000",
     "name": "أ. أحمد غريب",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxOTQ4NDA4LCJleHAiOjE3OTE5NDkzMDh9.jLiBxmuekbcI0t4PL7nJynr0vMmjVbJQrwIWlrSFiow"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJyb2xlIjoiVEVBQ0hFUiIsInR5cCI6ImFjY2VzcyIsImVtYWlsIjoidGVhY2hlckBlbGF3YWwuY29tIiwicGhvbmUiOiIrMjAxMDIxOTAyMDAwIiwiaWF0IjoxNzkyMjUxMzEyLCJleHAiOjE3OTQ4NDMzMTJ9.hvjG6gg8AFr6H7drqJl8FAM_-jYjxIXD6qTKLSEWVIE"
+  },
+  "assistant": {
+    "id": "cbb8d848-9fb4-4819-815a-6d72eeee0969",
+    "staffTitle": "مدير العمليات وقيد الحضور",
+    "name": "أ. محمود المساعد",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjYmI4ZDg0OC05ZmI0LTQ4MTktODE1YS02ZDcyZWVlZTA5NjkiLCJyb2xlIjoiU0VDUkVUQVJJQVQiLCJ0eXAiOiJhY2Nlc3MiLCJwaG9uZSI6IisyMDEwOTk5OTkwMDEiLCJpYXQiOjE3OTIyNTEzMTIsImV4cCI6MTc5NDg0MzMxMn0.bZpAfjCRFl0G3nm_jdbx8brc2EOJULbzUucsC1BrezI"
   },
   "students": [
+    {
+      "id": "03ba651e-374a-417d-87d9-466858051f88",
+      "studentProfileId": "03ba651e-374a-417d-87d9-466858051f88",
+      "name": "ملك سامح صدقه",
+      "phone": "+201033806131",
+      "studentCode": "STU202600028",
+      "qrCodeToken": "qr_tok_1b9136bf230448fa9675d49856345142",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "3c91e150-feff-401a-949d-456ef109cb11",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwM2JhNjUxZS0zNzRhLTQxN2QtODdkOS00NjY4NTgwNTFmODgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAzMzgwNjEzMSIsImlhdCI6MTc5MjI1MTMxNCwiZXhwIjoxNzk0ODQzMzE0fQ.6OPARkj7YBiHIAiXYAb58jO5VTGabrxAY8arfo3S3iA"
+    },
+    {
+      "id": "05137b2c-e15e-472b-ba22-e360c0da913a",
+      "studentProfileId": "05137b2c-e15e-472b-ba22-e360c0da913a",
+      "name": "محمد وليد عبد الرحمن المسلمي",
+      "phone": "+201554143399",
+      "studentCode": "STU202600004",
+      "qrCodeToken": "qr_tok_cc72eb8708044efb8d686a8b34386d45",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "3ed1c4af-0d90-4f95-a435-dd095b225145",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTEzN2IyYy1lMTVlLTQ3MmItYmEyMi1lMzYwYzBkYTkxM2EiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1NDE0MzM5OSIsImlhdCI6MTc5MjI1MTMxNCwiZXhwIjoxNzk0ODQzMzE0fQ.d54cqopyf_aXXgz-6gmI_6dNuI93wYRvQZvEIJrMU0s"
+    },
+    {
+      "id": "0551a44c-d445-4bd2-b00f-1b90d3b84575",
+      "studentProfileId": "0551a44c-d445-4bd2-b00f-1b90d3b84575",
+      "name": "أنس أحمد أحمد الجزار",
+      "phone": "+201067987102",
+      "studentCode": "STU202600002",
+      "qrCodeToken": "qr_tok_72de6ed572f7424cad6e5623e8f597b2",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "45e483b8-590a-424b-a05e-74b920b4f8d0",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNTUxYTQ0Yy1kNDQ1LTRiZDItYjAwZi0xYjkwZDNiODQ1NzUiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA2Nzk4NzEwMiIsImlhdCI6MTc5MjI1MTMxNCwiZXhwIjoxNzk0ODQzMzE0fQ.CeTh2zEKDP8Me3u7ZTekJSnDHK9o_ZfGV1zvxKiGsa0"
+    },
+    {
+      "id": "0c2e0c62-7f2b-4651-8fd6-e8435ef7ac65",
+      "studentProfileId": "0c2e0c62-7f2b-4651-8fd6-e8435ef7ac65",
+      "name": "طه مسعد طه جعغر",
+      "phone": null,
+      "studentCode": "STU2026E9E408",
+      "qrCodeToken": "qr_tok_a68e03c28c5e4fc185555dbd167c4ee4",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "199e1ef5-07b2-4612-9f94-700a7ac64f50",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzJlMGM2Mi03ZjJiLTQ2NTEtOGZkNi1lODQzNWVmN2FjNjUiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MjI1MTMxNCwiZXhwIjoxNzk0ODQzMzE0fQ.6gnviVUXaTLKqxVyy5jpxPJ7AxMSs_coJp1yMIKtzpw"
+    },
+    {
+      "id": "11fda9a3-8959-4c23-8c6b-c4d0df2a5760",
+      "studentProfileId": "11fda9a3-8959-4c23-8c6b-c4d0df2a5760",
+      "name": "فهد ردمان غيلان",
+      "phone": "+201080778652",
+      "studentCode": "STU202600057",
+      "qrCodeToken": "qr_tok_42064a55529c4839ae88ed073efd57ae",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": null,
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMWZkYTlhMy04OTU5LTRjMjMtOGM2Yi1jNGQwZGYyYTU3NjAiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA4MDc3ODY1MiIsImlhdCI6MTc5MjI1MTMxNSwiZXhwIjoxNzk0ODQzMzE1fQ.p8ZnC2UCG5JciznwzFr6mpb3MIIiwEftqRHe05jWqlw"
+    },
+    {
+      "id": "1ba0300a-e062-4902-9e9a-8cdd614d8fa3",
+      "studentProfileId": "1ba0300a-e062-4902-9e9a-8cdd614d8fa3",
+      "name": "ملك كريم عبدالعزيز ابو زيد هلال",
+      "phone": "+201274091872",
+      "studentCode": "STU202600014",
+      "qrCodeToken": "qr_tok_40909ea865c04781849826f5057dc1f7",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "22b9fd32-932a-46cb-831c-8b66379f47bf",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYmEwMzAwYS1lMDYyLTQ5MDItOWU5YS04Y2RkNjE0ZDhmYTMiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTI3NDA5MTg3MiIsImlhdCI6MTc5MjI1MTMxNSwiZXhwIjoxNzk0ODQzMzE1fQ.PV7lmaKecnsU3ApHxvsaMXXT3wn66Ps9sDotK03vehk"
+    },
+    {
+      "id": "37ab5320-cb25-4246-abe3-41348afbc700",
+      "studentProfileId": "37ab5320-cb25-4246-abe3-41348afbc700",
+      "name": "ايمان اسامه امين اللضام",
+      "phone": "+201055138088",
+      "studentCode": "STU202600036",
+      "qrCodeToken": "qr_tok_94208bed413346169fb0397bea40f915",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "17294923-ce4e-4359-92aa-ce725d9ddce1",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzN2FiNTMyMC1jYjI1LTQyNDYtYWJlMy00MTM0OGFmYmM3MDAiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA1NTEzODA4OCIsImlhdCI6MTc5MjI1MTMxNSwiZXhwIjoxNzk0ODQzMzE1fQ.l9mFobxwS9nwMDbKjSNcN2cEIcckEojipU_HDDSA2qA"
+    },
+    {
+      "id": "3c7d8113-f287-4650-b595-a78cc7346455",
+      "studentProfileId": "3c7d8113-f287-4650-b595-a78cc7346455",
+      "name": "ميار أحمد السيد",
+      "phone": "+201091781892",
+      "studentCode": "STU202600050",
+      "qrCodeToken": "qr_tok_d32f844742654268bac207dfdd3941ca",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "ae0d162f-be7f-4177-b753-bbefd01e16bd",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzYzdkODExMy1mMjg3LTQ2NTAtYjU5NS1hNzhjYzczNDY0NTUiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA5MTc4MTg5MiIsImlhdCI6MTc5MjI1MTMxNSwiZXhwIjoxNzk0ODQzMzE1fQ.LSVm7ztFjV70ESVQXysflkPA38_B-CvITg1plWgidWQ"
+    },
+    {
+      "id": "3ec67ad8-fc62-42c0-a372-13b670f8186d",
+      "studentProfileId": "3ec67ad8-fc62-42c0-a372-13b670f8186d",
+      "name": "جني السيد العوف",
+      "phone": "+201559463404",
+      "studentCode": "STU202600034",
+      "qrCodeToken": "qr_tok_5d41fe0d644f42e29450d8d9a968a6b0",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "eb06ce35-95b7-4216-bf4a-725510291e44",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzZWM2N2FkOC1mYzYyLTQyYzAtYTM3Mi0xM2I2NzBmODE4NmQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1OTQ2MzQwNCIsImlhdCI6MTc5MjI1MTMxNSwiZXhwIjoxNzk0ODQzMzE1fQ.AAIO7fsdy9-27cgoAI2V3KsAESZVMmdhKGMnskAakkM"
+    },
+    {
+      "id": "3efa0072-d1b2-40f9-b258-956f057e6d4c",
+      "studentProfileId": "3efa0072-d1b2-40f9-b258-956f057e6d4c",
+      "name": "جنات محمود ابراهيم",
+      "phone": "+201550756967",
+      "studentCode": "STU202600017",
+      "qrCodeToken": "qr_tok_92617ec90d7e4b9a9d3bc827a2e430a7",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "ea1501c0-cf18-4259-8410-93638d27dcf5",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzZWZhMDA3Mi1kMWIyLTQwZjktYjI1OC05NTZmMDU3ZTZkNGMiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1MDc1Njk2NyIsImlhdCI6MTc5MjI1MTMxNSwiZXhwIjoxNzk0ODQzMzE1fQ.P5vDY-tw-AHXj1WJxcoUKrbmg15tu_TGOuNPLXGJAhA"
+    },
+    {
+      "id": "4c802e87-4fa4-475f-89ce-8f94d92d1db8",
+      "studentProfileId": "4c802e87-4fa4-475f-89ce-8f94d92d1db8",
+      "name": "ريتال اسلام هشام على",
+      "phone": "+201009834403",
+      "studentCode": "STU202600031",
+      "qrCodeToken": "qr_tok_b8bea202fbc04f8ab550d8fa938e464c",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "f8c6465d-f4aa-4b20-bf96-89ca95d0cf92",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0YzgwMmU4Ny00ZmE0LTQ3NWYtODljZS04Zjk0ZDkyZDFkYjgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAwOTgzNDQwMyIsImlhdCI6MTc5MjI1MTMxNiwiZXhwIjoxNzk0ODQzMzE2fQ.RjfKO88Nwk1G4hkNsIXXxgeq8vXJ3TGN_AgQbOEK5RU"
+    },
+    {
+      "id": "50a8fd64-5807-4a11-80e0-8464a8607f41",
+      "studentProfileId": "50a8fd64-5807-4a11-80e0-8464a8607f41",
+      "name": "ياسمينا احمد محمد رضا",
+      "phone": "+201107872203",
+      "studentCode": "STU202600009",
+      "qrCodeToken": "qr_tok_cec6036c9d2f4ce4b6d342f8c0dd9798",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "25981b71-6c68-4add-aeae-e0efbe877aa3",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MGE4ZmQ2NC01ODA3LTRhMTEtODBlMC04NDY0YTg2MDdmNDEiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTEwNzg3MjIwMyIsImlhdCI6MTc5MjI1MTMxNiwiZXhwIjoxNzk0ODQzMzE2fQ.t40Q_K8seIk8wi3DlSN7xBmFkX4PKl1lFebZpr1fmg0"
+    },
+    {
+      "id": "54038e28-1495-4b05-9b9e-202bf2a40e6f",
+      "studentProfileId": "54038e28-1495-4b05-9b9e-202bf2a40e6f",
+      "name": "سلمى احمد حمدي المليجي",
+      "phone": "+201026359316",
+      "studentCode": "STU202600038",
+      "qrCodeToken": "qr_tok_b1e8d2ea1b8a4fb8ba5afef9b8114e58",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "4bbc58cb-9729-455f-97d9-fe385121556c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NDAzOGUyOC0xNDk1LTRiMDUtOWI5ZS0yMDJiZjJhNDBlNmYiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAyNjM1OTMxNiIsImlhdCI6MTc5MjI1MTMxNiwiZXhwIjoxNzk0ODQzMzE2fQ.699OmlGG1rzII5y367ylMekuGs-bC1S4X6l6OOFRRR0"
+    },
+    {
+      "id": "61d7efcb-c676-405e-b804-fcab3dd3f894",
+      "studentProfileId": "61d7efcb-c676-405e-b804-fcab3dd3f894",
+      "name": "ريناد احمد السيد مراد",
+      "phone": "+201221184437",
+      "studentCode": "STU202600029",
+      "qrCodeToken": "qr_tok_3456174b2ef94281a4233e2cdf1efac4",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "5f2ea697-bc04-4567-98c3-f5361617e225",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MWQ3ZWZjYi1jNjc2LTQwNWUtYjgwNC1mY2FiM2RkM2Y4OTQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTIyMTE4NDQzNyIsImlhdCI6MTc5MjI1MTMxOSwiZXhwIjoxNzk0ODQzMzE5fQ.rQSnBee_suB51pc2pR0pGZkZ9dsa-JMouKuzr2LhHDo"
+    },
+    {
+      "id": "62d84a75-355c-423b-b5cc-3aad8d4564ab",
+      "studentProfileId": "62d84a75-355c-423b-b5cc-3aad8d4564ab",
+      "name": "آدم محمود عبد المطلب العوف",
+      "phone": "+201094437648",
+      "studentCode": "STU202600033",
+      "qrCodeToken": "qr_tok_f65e5cc6e1bf4d39af56c49c5455e28a",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "bbe0b636-076d-4755-a52f-43e277dde5c6",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MmQ4NGE3NS0zNTVjLTQyM2ItYjVjYy0zYWFkOGQ0NTY0YWIiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA5NDQzNzY0OCIsImlhdCI6MTc5MjI1MTMxOSwiZXhwIjoxNzk0ODQzMzE5fQ.NvsfdwLvwW0usfduUmW7J7CFoCfEVCsE-bgKu3d6Kkg"
+    },
+    {
+      "id": "64029f63-5067-46d3-b21e-8ab186f134a8",
+      "studentProfileId": "64029f63-5067-46d3-b21e-8ab186f134a8",
+      "name": "علي محمد عبده رزق",
+      "phone": "+201036182258",
+      "studentCode": "STU202600040",
+      "qrCodeToken": "qr_tok_d21c4f2509d84d1a9bf2ddb0d8abb2dc",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "34f301b0-831f-4b21-abdf-80f28339528c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NDAyOWY2My01MDY3LTQ2ZDMtYjIxZS04YWIxODZmMTM0YTgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAzNjE4MjI1OCIsImlhdCI6MTc5MjI1MTMyMCwiZXhwIjoxNzk0ODQzMzIwfQ.lq6vFl4jqaB4b1uQEtiQmsMiZ0HSLYqVSBVnbFvAx58"
+    },
+    {
+      "id": "69ad3552-2943-4fb5-8aac-717dd91af744",
+      "studentProfileId": "69ad3552-2943-4fb5-8aac-717dd91af744",
+      "name": "مالك أحمد بدر",
+      "phone": "+201150288775",
+      "studentCode": "STU202600058",
+      "qrCodeToken": "qr_tok_064a94448cab49a595fbe8aa0e4b46c2",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "50efe4f3-c1f6-4ad3-b0a5-e5cada61750c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OWFkMzU1Mi0yOTQzLTRmYjUtOGFhYy03MTdkZDkxYWY3NDQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTE1MDI4ODc3NSIsImlhdCI6MTc5MjI1MTMyMCwiZXhwIjoxNzk0ODQzMzIwfQ.oCNj-lFhxEz29KRI_TAkmZiUlYYKfWLLeszyYdlpgiQ"
+    },
+    {
+      "id": "69fb2987-bf6d-4029-afef-006b04d379c9",
+      "studentProfileId": "69fb2987-bf6d-4029-afef-006b04d379c9",
+      "name": "احمد طارق عمر جاويش",
+      "phone": "+201067789575",
+      "studentCode": "STU202600062",
+      "qrCodeToken": "qr_tok_fefc4f1419ee4b8fbde29491b1cb5773",
+      "groupId": "756c512d-7d95-4eaf-86eb-931953edec9b",
+      "parentUserId": null,
+      "parentProfileId": "788e2aa3-a0c1-4823-9ba0-c1bb4b2df6ab",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OWZiMjk4Ny1iZjZkLTQwMjktYWZlZi0wMDZiMDRkMzc5YzkiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA2Nzc4OTU3NSIsImlhdCI6MTc5MjI1MTMyMSwiZXhwIjoxNzk0ODQzMzIxfQ.pEvruyzQU832B4NvLBKQ3qmDX1xv5mnya1q5vHj3d1Q"
+    },
+    {
+      "id": "6af1618b-55a7-46cd-8200-a04842818863",
+      "studentProfileId": "6af1618b-55a7-46cd-8200-a04842818863",
+      "name": "كنزي",
+      "phone": "+201015232873",
+      "studentCode": "STU202600045",
+      "qrCodeToken": "qr_tok_59a312b0259c461a8c4c568d0979e860",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "ab4a4dbe-ca17-47ff-8d7d-d2280948a708",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWYxNjE4Yi01NWE3LTQ2Y2QtODIwMC1hMDQ4NDI4MTg4NjMiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAxNTIzMjg3MyIsImlhdCI6MTc5MjI1MTMyMSwiZXhwIjoxNzk0ODQzMzIxfQ.udOubX5Ipr7qbXYYni501zjaO7-k6-pt2-3r9JF_H34"
+    },
+    {
+      "id": "6e72f50e-a681-43f8-8e7e-c50ab84e9094",
+      "studentProfileId": "6e72f50e-a681-43f8-8e7e-c50ab84e9094",
+      "name": "ريم رمزي عبد الحميد",
+      "phone": "+201029303889",
+      "studentCode": "STU202600013",
+      "qrCodeToken": "qr_tok_03d027fa5f744203996cf50aaec2836d",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "526a8b93-349d-4a8f-9147-f894a072471f",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTcyZjUwZS1hNjgxLTQzZjgtOGU3ZS1jNTBhYjg0ZTkwOTQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAyOTMwMzg4OSIsImlhdCI6MTc5MjI1MTMyMSwiZXhwIjoxNzk0ODQzMzIxfQ.s-ovv0_sHYxYNVvRKSDSrgTHSFudyjZFXVCt__ViOOE"
+    },
+    {
+      "id": "77c041c1-c615-435d-bce4-56db37911c25",
+      "studentProfileId": "77c041c1-c615-435d-bce4-56db37911c25",
+      "name": "سما مصطفي الاوسية",
+      "phone": "+201507739607",
+      "studentCode": "STU202600035",
+      "qrCodeToken": "qr_tok_ab6041f332f145e8ba6ea4ea9efe336a",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "7a387d46-fd43-4692-8c5a-b2e1e5fa634c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3N2MwNDFjMS1jNjE1LTQzNWQtYmNlNC01NmRiMzc5MTFjMjUiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTUwNzczOTYwNyIsImlhdCI6MTc5MjI1MTMyMSwiZXhwIjoxNzk0ODQzMzIxfQ.TS4L104KUGzVjm7lcYC4ujsUfjAirt05ChEg9rXDcO4"
+    },
+    {
+      "id": "8031b9f3-23f6-4cd9-a0eb-9ffe6dda6ab7",
+      "studentProfileId": "8031b9f3-23f6-4cd9-a0eb-9ffe6dda6ab7",
+      "name": "حبيبه رضا عادل عبدالله",
+      "phone": "+201556847477",
+      "studentCode": "STU202600020",
+      "qrCodeToken": "qr_tok_c159a514b3df46a69a81c363e025665e",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "39096037-5d7e-48ca-8f04-5ae4015f4006",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MDMxYjlmMy0yM2Y2LTRjZDktYTBlYi05ZmZlNmRkYTZhYjciLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1Njg0NzQ3NyIsImlhdCI6MTc5MjI1MTMyMiwiZXhwIjoxNzk0ODQzMzIyfQ.ltxgvIiU_OPSMN5mV6KTGWCGLXhKrf3mXl5qVRIhVi0"
+    },
+    {
+      "id": "804861dc-4019-4ed7-bf72-6868bfa4bd8b",
+      "studentProfileId": "804861dc-4019-4ed7-bf72-6868bfa4bd8b",
+      "name": "محمد مجدي الحسيني",
+      "phone": "+201028498429",
+      "studentCode": "STU202600016",
+      "qrCodeToken": "qr_tok_b82993329a36415d8fb0db52b840481c",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "ba85d00f-5ec6-4eee-8243-de0af96c3a49",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MDQ4NjFkYy00MDE5LTRlZDctYmY3Mi02ODY4YmZhNGJkOGIiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAyODQ5ODQyOSIsImlhdCI6MTc5MjI1MTMyMiwiZXhwIjoxNzk0ODQzMzIyfQ.4cl9fsYrDRqyjfIhMXC9HlXQGtFL-Y6e4ri8QYDTQ5g"
+    },
+    {
+      "id": "80a78094-8014-4688-b90c-7dadc565f597",
+      "studentProfileId": "80a78094-8014-4688-b90c-7dadc565f597",
+      "name": "ابتسام محمد حمدي المليجي",
+      "phone": "+201017235856",
+      "studentCode": "STU202600008",
+      "qrCodeToken": "qr_tok_8dbe11a6fd8644a98961b3d2f8531ac6",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "14e1d333-7c40-4606-9832-fc1b665350d1",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MGE3ODA5NC04MDE0LTQ2ODgtYjkwYy03ZGFkYzU2NWY1OTciLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAxNzIzNTg1NiIsImlhdCI6MTc5MjI1MTMyMiwiZXhwIjoxNzk0ODQzMzIyfQ.GRhmdgOkwGjnV3j_MrNX_0bShqnM0etnAekAoeIrIGA"
+    },
+    {
+      "id": "832e9e0b-2cf7-4a53-976a-07fd7519b88b",
+      "studentProfileId": "832e9e0b-2cf7-4a53-976a-07fd7519b88b",
+      "name": "عمر محمد جمعه",
+      "phone": "+201130951471",
+      "studentCode": "STU202600023",
+      "qrCodeToken": "qr_tok_bf5b906875b24b7c834d0cceec4508fd",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "fa0389e0-7e24-4742-ba85-b422d53653b6",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MzJlOWUwYi0yY2Y3LTRhNTMtOTc2YS0wN2ZkNzUxOWI4OGIiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTEzMDk1MTQ3MSIsImlhdCI6MTc5MjI1MTMyMywiZXhwIjoxNzk0ODQzMzIzfQ.Zag_HLcFJiV-IN1qF4hahzxAhvinzcbw8My6HgM4UNs"
+    },
+    {
+      "id": "86feeddd-5342-46b6-8df8-994b3c6b8c13",
+      "studentProfileId": "86feeddd-5342-46b6-8df8-994b3c6b8c13",
+      "name": "حبيبة محمد مناع حسان",
+      "phone": "+201067517104",
+      "studentCode": "STU202600026",
+      "qrCodeToken": "qr_tok_e03ae0c2257e4077905a34e7e1bce026",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "4348fb75-31e6-429c-b563-cd5b28955c55",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4NmZlZWRkZC01MzQyLTQ2YjYtOGRmOC05OTRiM2M2YjhjMTMiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA2NzUxNzEwNCIsImlhdCI6MTc5MjI1MTMyMywiZXhwIjoxNzk0ODQzMzIzfQ.hn3DZV-LLW6K_ubLwudTCJNFSHhDwT-7gN0kZ3qSDeo"
+    },
+    {
+      "id": "8704da22-1793-4591-a026-2b9e58a16b14",
+      "studentProfileId": "8704da22-1793-4591-a026-2b9e58a16b14",
+      "name": "محمد مجاهد مجاهد الدمياطي",
+      "phone": "+201065100484",
+      "studentCode": "STU202600006",
+      "qrCodeToken": "qr_tok_7716906563014f978f9c334483bb4eea",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "587d2ce4-3902-4c34-9fe7-3e43ec222bb9",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4NzA0ZGEyMi0xNzkzLTQ1OTEtYTAyNi0yYjllNThhMTZiMTQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA2NTEwMDQ4NCIsImlhdCI6MTc5MjI1MTMyMywiZXhwIjoxNzk0ODQzMzIzfQ.xC8X32zUISlfzPiu_z3j71qekTnW2AhI9Cs-1ypG6_4"
+    },
+    {
+      "id": "8cca40b9-67f2-414a-8343-b621a83790bf",
+      "studentProfileId": "8cca40b9-67f2-414a-8343-b621a83790bf",
+      "name": "ميار الحسني محمد جابر",
+      "phone": "+201272300010",
+      "studentCode": "STU202600037",
+      "qrCodeToken": "qr_tok_27c441b2360144ce8baec2d1dbc87d31",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "8325be35-ab2d-4a81-8e88-4d70f33a6567",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4Y2NhNDBiOS02N2YyLTQxNGEtODM0My1iNjIxYTgzNzkwYmYiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTI3MjMwMDAxMCIsImlhdCI6MTc5MjI1MTMyNCwiZXhwIjoxNzk0ODQzMzI0fQ.JmEh9fo1P7piMLn-Oy-wh_meQ6x8urLcANq2Ev6F6fo"
+    },
+    {
+      "id": "9c0900d7-49b7-4328-8bbe-82a3d3843fe9",
+      "studentProfileId": "9c0900d7-49b7-4328-8bbe-82a3d3843fe9",
+      "name": "ياسين هيثم  احمد العدوي",
+      "phone": "+201008784994",
+      "studentCode": "STU202600046",
+      "qrCodeToken": "qr_tok_c6acd9388bb745788d1ca987078e4cc2",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "4100f533-8591-42b0-83c7-89e30eb8030b",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YzA5MDBkNy00OWI3LTQzMjgtOGJiZS04MmEzZDM4NDNmZTkiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAwODc4NDk5NCIsImlhdCI6MTc5MjI1MTMyNCwiZXhwIjoxNzk0ODQzMzI0fQ.xSDdhP25eqfaPEg5Nf63ZUP8bYo9yQbQQ4bmnq5r6VA"
+    },
+    {
+      "id": "9d48565a-be4b-425f-8789-3e6512a39c18",
+      "studentProfileId": "9d48565a-be4b-425f-8789-3e6512a39c18",
+      "name": "رقيه محمود محمد العباسي",
+      "phone": "+201553832133",
+      "studentCode": "STU202600021",
+      "qrCodeToken": "qr_tok_34b4a73ebd3f4112b6874089e21c37a7",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "77cc139a-706c-4b27-b0be-66050c89ef55",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZDQ4NTY1YS1iZTRiLTQyNWYtODc4OS0zZTY1MTJhMzljMTgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1MzgzMjEzMyIsImlhdCI6MTc5MjI1MTMyNCwiZXhwIjoxNzk0ODQzMzI0fQ.Uu3CSg6ThAgBJ2TFPftva1qs6YudKED4yhB-QwmP-Ws"
+    },
+    {
+      "id": "9e2750f8-74dc-47d4-9314-dac58881e9b7",
+      "studentProfileId": "9e2750f8-74dc-47d4-9314-dac58881e9b7",
+      "name": "اروى محمد خليفه",
+      "phone": "+201145965814",
+      "studentCode": "STU202600007",
+      "qrCodeToken": "qr_tok_6748374afa6f4af5bd57a9e2075cfb2e",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "9856c5e3-7773-4c5f-a1ab-c3a6d3d16d90",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZTI3NTBmOC03NGRjLTQ3ZDQtOTMxNC1kYWM1ODg4MWU5YjciLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTE0NTk2NTgxNCIsImlhdCI6MTc5MjI1MTMyNCwiZXhwIjoxNzk0ODQzMzI0fQ.gtIE8Atf3SYbY00mN6__oJhJkUgzcp6B9_6Ck-0WhdQ"
+    },
+    {
+      "id": "a6d7c645-f474-40c3-9e72-d4339cfb1889",
+      "studentProfileId": "a6d7c645-f474-40c3-9e72-d4339cfb1889",
+      "name": "إلين احمد محمد شعيب",
+      "phone": "+201225373494",
+      "studentCode": "STU202600044",
+      "qrCodeToken": "qr_tok_76e256bd612e446d8634d6e8673a273d",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "db62c99c-7fe8-43b9-80e5-1fc6fc9fdcd6",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhNmQ3YzY0NS1mNDc0LTQwYzMtOWU3Mi1kNDMzOWNmYjE4ODkiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTIyNTM3MzQ5NCIsImlhdCI6MTc5MjI1MTMyNiwiZXhwIjoxNzk0ODQzMzI2fQ.pPy1Ia-w0ZaRpQCfy19V2dEN1BpnyHwMe2bsRdTe5Tk"
+    },
+    {
+      "id": "a7017107-72c3-4adc-8838-0243d0315496",
+      "studentProfileId": "a7017107-72c3-4adc-8838-0243d0315496",
+      "name": "احمد احمد مصطفي الغراز",
+      "phone": "+201070156551",
+      "studentCode": "STU202600051",
+      "qrCodeToken": "qr_tok_88cf68cd57444c45bf1b562b2f6173fe",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "0e57ebc1-9dce-4c0d-a226-f8efbb0c573c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhNzAxNzEwNy03MmMzLTRhZGMtODgzOC0wMjQzZDAzMTU0OTYiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA3MDE1NjU1MSIsImlhdCI6MTc5MjI1MTMyNywiZXhwIjoxNzk0ODQzMzI3fQ.UPtXAbohFjcev0-eu8cEN6vxcFQ6LolEz_8C5eNbMSw"
+    },
+    {
+      "id": "a8311f8c-6bb7-4af2-abf1-7b4863cc722d",
+      "studentProfileId": "a8311f8c-6bb7-4af2-abf1-7b4863cc722d",
+      "name": "مجدي جمال سعود الأوسية",
+      "phone": "+201092836695",
+      "studentCode": "STU202600003",
+      "qrCodeToken": "qr_tok_c150dc0948f44842bd0b7b29280bb43f",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "387ccb2c-6976-486c-ad06-605ed4324cb9",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhODMxMWY4Yy02YmI3LTRhZjItYWJmMS03YjQ4NjNjYzcyMmQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA5MjgzNjY5NSIsImlhdCI6MTc5MjI1MTMyOCwiZXhwIjoxNzk0ODQzMzI4fQ.voC13Ky0MZSwStFPidya4WbX436SYcTWQIh3MmZAV3o"
+    },
+    {
+      "id": "b3771456-466e-4a55-a420-091cf955e902",
+      "studentProfileId": "b3771456-466e-4a55-a420-091cf955e902",
+      "name": "ادهم مراد",
+      "phone": "+201287127689",
+      "studentCode": "STU202600019",
+      "qrCodeToken": "qr_tok_d35ea099774143df87dd1a986313c95d",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "f8a505d0-24c2-4392-a3ec-dcff2888df35",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiMzc3MTQ1Ni00NjZlLTRhNTUtYTQyMC0wOTFjZjk1NWU5MDIiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTI4NzEyNzY4OSIsImlhdCI6MTc5MjI1MTMyOSwiZXhwIjoxNzk0ODQzMzI5fQ.ogtXX3xSaUY93pSLePqUpjaVRL-GPfPOCUKkFkc37Kc"
+    },
+    {
+      "id": "b7785598-0f62-4c73-95d8-535bb761a6ad",
+      "studentProfileId": "b7785598-0f62-4c73-95d8-535bb761a6ad",
+      "name": "هاجر محمد نور الدين",
+      "phone": "+201554543431",
+      "studentCode": "STU202600043",
+      "qrCodeToken": "qr_tok_15592cc75faf42b3a45b19a0d7441fd4",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "1c02356e-1ea8-4cb6-81bc-6596b31724c8",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNzc4NTU5OC0wZjYyLTRjNzMtOTVkOC01MzViYjc2MWE2YWQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1NDU0MzQzMSIsImlhdCI6MTc5MjI1MTMyOSwiZXhwIjoxNzk0ODQzMzI5fQ.wGxeVbdWBvNZHcfnvqO173ZrtQgzleXngt9C8C8yI1Y"
+    },
+    {
+      "id": "b80f5f9e-feab-45c5-919c-4d0de6b2b907",
+      "studentProfileId": "b80f5f9e-feab-45c5-919c-4d0de6b2b907",
+      "name": "بسمله عبد الرازق",
+      "phone": "+201036706075",
+      "studentCode": "STU202600027",
+      "qrCodeToken": "qr_tok_99324d9d8321416f86b09cbd44b6379f",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "9dfdd24f-8ab8-491b-910a-e7778ce74efd",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiODBmNWY5ZS1mZWFiLTQ1YzUtOTE5Yy00ZDBkZTZiMmI5MDciLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAzNjcwNjA3NSIsImlhdCI6MTc5MjI1MTMyOSwiZXhwIjoxNzk0ODQzMzI5fQ.8BeKgm1OOOlyPHVIhOadjLC3S7rOATHCo7IHaKniNl4"
+    },
+    {
+      "id": "bb84ddad-adba-46cf-8986-7b8ed0779496",
+      "studentProfileId": "bb84ddad-adba-46cf-8986-7b8ed0779496",
+      "name": "نرمين أحمد السيد العربي",
+      "phone": "+201030271022",
+      "studentCode": "STU202600022",
+      "qrCodeToken": "qr_tok_17bc146223514e5e912226fbf2020d47",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "183c5e1c-c492-4409-a061-bcc30ea3d338",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYjg0ZGRhZC1hZGJhLTQ2Y2YtODk4Ni03YjhlZDA3Nzk0OTYiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAzMDI3MTAyMiIsImlhdCI6MTc5MjI1MTMyOSwiZXhwIjoxNzk0ODQzMzI5fQ.1EplvoaqF6xq1Gij3wafTQuL5OFpNApVFH-LporLCOw"
+    },
+    {
+      "id": "be3e8fb9-cc3a-4f2b-8b7a-eb447e897808",
+      "studentProfileId": "be3e8fb9-cc3a-4f2b-8b7a-eb447e897808",
+      "name": "ياسين عادل  احمد عامر",
+      "phone": "+201018702532",
+      "studentCode": "STU202600001",
+      "qrCodeToken": "qr_tok_987fed2999cd4974a441e7689eee12c9",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "d98f951a-3619-491c-94c2-1694285ab5dc",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZTNlOGZiOS1jYzNhLTRmMmItOGI3YS1lYjQ0N2U4OTc4MDgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAxODcwMjUzMiIsImlhdCI6MTc5MjI1MTMyOSwiZXhwIjoxNzk0ODQzMzI5fQ.bjxLDgWzH_tY6WbXbI1FEKwM_CeLK7I4omlT8CdJhIc"
+    },
+    {
+      "id": "bede592e-cac4-4e06-bd42-2758009e62fc",
+      "studentProfileId": "bede592e-cac4-4e06-bd42-2758009e62fc",
+      "name": "رودي محمد محمد قنديل",
+      "phone": "+201033981571",
+      "studentCode": "STU202600024",
+      "qrCodeToken": "qr_tok_2e1485ccc3134a00a94df833962f6c4c",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "a16a9913-ece8-4493-a6e1-5661b1ac4976",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZWRlNTkyZS1jYWM0LTRlMDYtYmQ0Mi0yNzU4MDA5ZTYyZmMiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAzMzk4MTU3MSIsImlhdCI6MTc5MjI1MTMzMCwiZXhwIjoxNzk0ODQzMzMwfQ.b1XoVDY63dLguewFD27iBlv6iW3BiAkIPRjwb9qt2bM"
+    },
+    {
+      "id": "c16fb302-e27c-4c62-a700-ca544fa63b08",
+      "studentProfileId": "c16fb302-e27c-4c62-a700-ca544fa63b08",
+      "name": "Ahmed Elaraby",
+      "phone": "+201016033891",
+      "studentCode": "STU202600005",
+      "qrCodeToken": "qr_tok_3e1e8f16fb354b368f733db18e64c760",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "183c5e1c-c492-4409-a061-bcc30ea3d338",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjMTZmYjMwMi1lMjdjLTRjNjItYTcwMC1jYTU0NGZhNjNiMDgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAxNjAzMzg5MSIsImlhdCI6MTc5MjI1MTMzMCwiZXhwIjoxNzk0ODQzMzMwfQ.k103Ql8U0Xt9x9MYecQgWNnNphfOwaooPZLnw8vtnDo"
+    },
+    {
+      "id": "c3125585-853d-4193-8354-5aac20b6a27c",
+      "studentProfileId": "c3125585-853d-4193-8354-5aac20b6a27c",
+      "name": "حنين ضياء محمد ابو السعود",
+      "phone": "+201556686933",
+      "studentCode": "STU202600056",
+      "qrCodeToken": "qr_tok_7cd9047c620c4e28ad33ba01cfd3911a",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "b6860f4f-da48-4ebc-b4ba-d04739060eea",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjMzEyNTU4NS04NTNkLTQxOTMtODM1NC01YWFjMjBiNmEyN2MiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1NjY4NjkzMyIsImlhdCI6MTc5MjI1MTMzMCwiZXhwIjoxNzk0ODQzMzMwfQ.SO5mmqj9dFbLiy5pPPUlqXpWXFqlQIqWl-YC04mBynk"
+    },
+    {
+      "id": "c34c80bf-1b42-4518-8487-bdb6fcc01f71",
+      "studentProfileId": "c34c80bf-1b42-4518-8487-bdb6fcc01f71",
+      "name": "احمد محمد احمد العدوي",
+      "phone": "+201558687772",
+      "studentCode": "STU202600059",
+      "qrCodeToken": "qr_tok_2164d31358764f00b43f5cb23a7c2027",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "d3fe70cc-cb85-4b2d-b326-6fd922f48663",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjMzRjODBiZi0xYjQyLTQ1MTgtODQ4Ny1iZGI2ZmNjMDFmNzEiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1ODY4Nzc3MiIsImlhdCI6MTc5MjI1MTMzMCwiZXhwIjoxNzk0ODQzMzMwfQ.uxgEaOZp-TbMXz29c7_kY48mv4AQP0DPVHHAEZQnCbg"
+    },
+    {
+      "id": "c3545d85-191f-46fe-bcc2-2991b4b36ade",
+      "studentProfileId": "c3545d85-191f-46fe-bcc2-2991b4b36ade",
+      "name": "رودينا عبده بدر",
+      "phone": "+201033760662",
+      "studentCode": "STU202600060",
+      "qrCodeToken": "qr_tok_3b650506cb5844119bdc4fd4c0d9c4bb",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "32314213-6ea3-4b8a-9864-1ad76dfa1802",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjMzU0NWQ4NS0xOTFmLTQ2ZmUtYmNjMi0yOTkxYjRiMzZhZGUiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAzMzc2MDY2MiIsImlhdCI6MTc5MjI1MTMzMCwiZXhwIjoxNzk0ODQzMzMwfQ.cxT_U1DeoP3F9zvGoOVB9VysSaBlRFJ9zr5L1ASbTdI"
+    },
+    {
+      "id": "ca7d4dff-dfce-4379-988e-18e5aa2046e8",
+      "studentProfileId": "ca7d4dff-dfce-4379-988e-18e5aa2046e8",
+      "name": "انس محمد حامد العباسى",
+      "phone": "+201091860472",
+      "studentCode": "STU202600053",
+      "qrCodeToken": "qr_tok_556ccc0e57524487933a15c2cd5cd2e0",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "570bb23e-807b-404d-bab7-c5173a972c6a",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjYTdkNGRmZi1kZmNlLTQzNzktOTg4ZS0xOGU1YWEyMDQ2ZTgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA5MTg2MDQ3MiIsImlhdCI6MTc5MjI1MTMzMSwiZXhwIjoxNzk0ODQzMzMxfQ.qdHueffZmhqttGo-skBG3qEQZneuswx7wYgbAwqxiP8"
+    },
+    {
+      "id": "d4e9d3ec-0978-486a-8fce-8dfb8593f4ff",
+      "studentProfileId": "d4e9d3ec-0978-486a-8fce-8dfb8593f4ff",
+      "name": "زينه خالد عباس ابو العينين",
+      "phone": "+201006313282",
+      "studentCode": "STU202600054",
+      "qrCodeToken": "qr_tok_b02b2b89223948c88d76ea7803fcb255",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "45f58154-f783-4f7f-b410-f62f5c4bc647",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNGU5ZDNlYy0wOTc4LTQ4NmEtOGZjZS04ZGZiODU5M2Y0ZmYiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTAwNjMxMzI4MiIsImlhdCI6MTc5MjI1MTMzNCwiZXhwIjoxNzk0ODQzMzM0fQ.FrrScW46eIo6euD0ObOuBVfp7Ax-nDSbZeDtIKANVF4"
+    },
+    {
+      "id": "d5672720-eaca-40c7-ac38-7bf8e404d408",
+      "studentProfileId": "d5672720-eaca-40c7-ac38-7bf8e404d408",
+      "name": "آية أشرف محمد عيد",
+      "phone": "+201080332158",
+      "studentCode": "STU202600048",
+      "qrCodeToken": "qr_tok_33bd68e206e040098eaede40bff6396f",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "d9ae0bd0-1f83-4670-9610-cc3b5e5d7e72",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNTY3MjcyMC1lYWNhLTQwYzctYWMzOC03YmY4ZTQwNGQ0MDgiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA4MDMzMjE1OCIsImlhdCI6MTc5MjI1MTMzOCwiZXhwIjoxNzk0ODQzMzM4fQ.2JHmcGYZ54_gvnsEDQgCxWLpu5qqzsfF7JWnh6w4z8g"
+    },
+    {
+      "id": "d59a97db-c0e3-4343-a961-60ef2e1550ad",
+      "studentProfileId": "d59a97db-c0e3-4343-a961-60ef2e1550ad",
+      "name": "ملك محمد السعيد امين",
+      "phone": "+201113612798",
+      "studentCode": "STU2026F2E4B3",
+      "qrCodeToken": "qr_tok_ce3cd70153144fc5b78e4f846e5de093",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "aef819cd-fb98-48f2-a7a8-1e381b090ec8",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNTlhOTdkYi1jMGUzLTQzNDMtYTk2MS02MGVmMmUxNTUwYWQiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTExMzYxMjc5OCIsImlhdCI6MTc5MjI1MTMzOCwiZXhwIjoxNzk0ODQzMzM4fQ.IteNNEsE71W4O4stgopuLaEGQ6-VKtk0wMW3evEKzWg"
+    },
+    {
+      "id": "d7712d77-bf64-437a-b3fd-5e4a9203cb17",
+      "studentProfileId": "d7712d77-bf64-437a-b3fd-5e4a9203cb17",
+      "name": "محمد محمد التابعي الاوسيه",
+      "phone": "+201152269943",
+      "studentCode": "STU202600015",
+      "qrCodeToken": "qr_tok_1b32f1ecad964ed69e51de6199add229",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "2ef8e89d-e772-4fe2-8c9c-ebcc1a86358b",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNzcxMmQ3Ny1iZjY0LTQzN2EtYjNmZC01ZTRhOTIwM2NiMTciLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTE1MjI2OTk0MyIsImlhdCI6MTc5MjI1MTMzOCwiZXhwIjoxNzk0ODQzMzM4fQ.0gPboKqQPWPzOQV-olX9v0THGyxWe2IdvNcuwj7yaLA"
+    },
+    {
+      "id": "dc9b2509-85bb-4abd-9150-7f6da949e37e",
+      "studentProfileId": "dc9b2509-85bb-4abd-9150-7f6da949e37e",
+      "name": "ماسا اشرف ابراهيم خليفه",
+      "phone": "+201055956015",
+      "studentCode": "STU202600052",
+      "qrCodeToken": "qr_tok_b55f00e1c1d94e9f863edc712a4a437f",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "2ae647d5-ac2a-4274-968a-2c29096a1a7c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkYzliMjUwOS04NWJiLTRhYmQtOTE1MC03ZjZkYTk0OWUzN2UiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA1NTk1NjAxNSIsImlhdCI6MTc5MjI1MTMzOCwiZXhwIjoxNzk0ODQzMzM4fQ.C-wRroMu3SlPKYxSY-mVJ7amZMa2peDOPO1AZJbFbNo"
+    },
     {
       "id": "dcc233e2-8cdc-417d-bbac-534905630a29",
       "studentProfileId": "dcc233e2-8cdc-417d-bbac-534905630a29",
       "name": "احمد طارق عمر جاويش",
+      "phone": "01067789574",
       "studentCode": "STU202600061",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkY2MyMzNlMi04Y2RjLTQxN2QtYmJhYy01MzQ5MDU2MzBhMjkiLCJwaG9uZSI6IjAxMDY3Nzg5NTc0Iiwicm9sZSI6IlNUVURFTlQiLCJ0eXAiOiJhY2Nlc3MiLCJpYXQiOjE3OTE5NDg0MTAsImV4cCI6MTc5MTk0OTMxMH0.uUe3FGfL6fI2L4XpErJGheXK4pSm06xfwxL4yncpqwA"
+      "qrCodeToken": "qr_tok_bc75e73b160f4f909152de44b54de737",
+      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f",
+      "parentUserId": null,
+      "parentProfileId": "62417ec0-c39c-45c3-bc6d-0ca27769b1e4",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkY2MyMzNlMi04Y2RjLTQxN2QtYmJhYy01MzQ5MDU2MzBhMjkiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiMDEwNjc3ODk1NzQiLCJpYXQiOjE3OTIyNTEzMzgsImV4cCI6MTc5NDg0MzMzOH0.wDLDya9KjVa3cNgMq4Av8QKuVdPa8mYTsDEBwiU07zI"
+    },
+    {
+      "id": "dec6ed06-5b87-41e9-91c3-f00cd15f4d71",
+      "studentProfileId": "dec6ed06-5b87-41e9-91c3-f00cd15f4d71",
+      "name": "محمود مجدي الناغي",
+      "phone": "+201094146518",
+      "studentCode": "STU202600042",
+      "qrCodeToken": "qr_tok_73c915ec7cec49adaa759d5e08de79d9",
+      "groupId": "4d233706-2667-4b25-a206-4e00be2fa5b4",
+      "parentUserId": null,
+      "parentProfileId": "28787d2e-6531-4391-8181-3a1dc5c837e9",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZWM2ZWQwNi01Yjg3LTQxZTktOTFjMy1mMDBjZDE1ZjRkNzEiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA5NDE0NjUxOCIsImlhdCI6MTc5MjI1MTMzOSwiZXhwIjoxNzk0ODQzMzM5fQ.2IlWiL82sQ2Ej0TLN74MreXy6GVZ8SuogmGa_8ZDAME"
+    },
+    {
+      "id": "e0207908-5d0d-4283-8ac9-fb5ac2432bf7",
+      "studentProfileId": "e0207908-5d0d-4283-8ac9-fb5ac2432bf7",
+      "name": "سلمي السيد راشد",
+      "phone": "+201553302369",
+      "studentCode": "STU202600055",
+      "qrCodeToken": "qr_tok_4ed1874f6c714939bdd2f613fa398d32",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "df75fb8e-1a0b-49dd-9685-b6c99dfd0091",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMDIwNzkwOC01ZDBkLTQyODMtOGFjOS1mYjVhYzI0MzJiZjciLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTU1MzMwMjM2OSIsImlhdCI6MTc5MjI1MTMzOSwiZXhwIjoxNzk0ODQzMzM5fQ.zuinE_fd2zONIU8kHtUd7cuZZ44lc5Y4JBEGAPenNvo"
+    },
+    {
+      "id": "ea6a1328-a333-4762-83a9-ab84a400eb96",
+      "studentProfileId": "ea6a1328-a333-4762-83a9-ab84a400eb96",
+      "name": "شمس محمد عبد الرازق عيطه",
+      "phone": "+201096344147",
+      "studentCode": "STU202600030",
+      "qrCodeToken": "qr_tok_9cb9b47125934a18a29558c753cb811b",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "1b6ea769-92e0-4810-ad7e-668cd76688e1",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlYTZhMTMyOC1hMzMzLTQ3NjItODNhOS1hYjg0YTQwMGViOTYiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA5NjM0NDE0NyIsImlhdCI6MTc5MjI1MTMzOSwiZXhwIjoxNzk0ODQzMzM5fQ.foJa-ZwCi4x4P_sffRO27P73_sN8rlrjlwU_FuuG1gU"
+    },
+    {
+      "id": "eb059b53-7c24-4b9e-b359-17aa1b8b379a",
+      "studentProfileId": "eb059b53-7c24-4b9e-b359-17aa1b8b379a",
+      "name": "وسام عماد فريد حبيشي",
+      "phone": "+201065362275",
+      "studentCode": "STU202600049",
+      "qrCodeToken": "qr_tok_61d0f4d839e545d5a9fd2dd6008c90cd",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "76012bb6-6017-4467-8626-dc6d525f2bf5",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlYjA1OWI1My03YzI0LTRiOWUtYjM1OS0xN2FhMWI4YjM3OWEiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA2NTM2MjI3NSIsImlhdCI6MTc5MjI1MTMzOSwiZXhwIjoxNzk0ODQzMzM5fQ.1GAy36SyvDMtFVjy8EXZljW4vgm-IGn9trzWSQ_DJxU"
+    },
+    {
+      "id": "ec003b08-1969-4ccd-af47-0f0a9f01917e",
+      "studentProfileId": "ec003b08-1969-4ccd-af47-0f0a9f01917e",
+      "name": "منه احمد شوقي بدر",
+      "phone": "+201060150011",
+      "studentCode": "STU202600010",
+      "qrCodeToken": "qr_tok_f91a38330c4b448cacc6d2ca11c136ab",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "bf477535-d8cc-424f-ae0e-6ea1c72edd6c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlYzAwM2IwOC0xOTY5LTRjY2QtYWY0Ny0wZjBhOWYwMTkxN2UiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTA2MDE1MDAxMSIsImlhdCI6MTc5MjI1MTM0MCwiZXhwIjoxNzk0ODQzMzQwfQ.DYBuHjSxtT9d2yPOSjYszxZkSiBzgQlp_W3oBQgvGvw"
+    },
+    {
+      "id": "eca34548-c7ec-4649-bdba-564a89905c47",
+      "studentProfileId": "eca34548-c7ec-4649-bdba-564a89905c47",
+      "name": "روڤان صابر محمد جبر",
+      "phone": "+201285300221",
+      "studentCode": "STU202600032",
+      "qrCodeToken": "qr_tok_702f9ff39de34ec5abb30b10d116c902",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "dece1046-9708-4b01-bb7a-70105b2e80dd",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlY2EzNDU0OC1jN2VjLTQ2NDktYmRiYS01NjRhODk5MDVjNDciLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsInBob25lIjoiKzIwMTI4NTMwMDIyMSIsImlhdCI6MTc5MjI1MTM0MCwiZXhwIjoxNzk0ODQzMzQwfQ.3OBKktQcZehtFflOy2cRQ11wm_FonNKU6My0PoG3L3s"
+    },
+    {
+      "id": "ee06cefc-d69e-42a1-99ac-87793b5e0e7f",
+      "studentProfileId": "ee06cefc-d69e-42a1-99ac-87793b5e0e7f",
+      "name": "نسمه احمد سليمان الاوسيه",
+      "phone": null,
+      "studentCode": "STU202600041",
+      "qrCodeToken": "qr_tok_962dcf11f1974532b9a66560cb51c47e",
+      "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+      "parentUserId": null,
+      "parentProfileId": "6e7b78e5-31df-4c45-b5f9-032cd68f2f88",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZTA2Y2VmYy1kNjllLTQyYTEtOTlhYy04Nzc5M2I1ZTBlN2YiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MjI1MTM0MCwiZXhwIjoxNzk0ODQzMzQwfQ.zXktiWnAI9OUNwH4uTV7LDqrjGpDT_AVNshuR-keDho"
     }
   ],
   "parents": [
     {
+      "id": "0e57ebc1-9dce-4c0d-a226-f8efbb0c573c",
+      "parentProfileId": "0e57ebc1-9dce-4c0d-a226-f8efbb0c573c",
+      "name": "احمد مصطفي الغراز",
+      "phone": "+201097325662",
+      "linkedStudentId": "a7017107-72c3-4adc-8838-0243d0315496",
+      "linkedStudentName": "احمد احمد مصطفي الغراز",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwZTU3ZWJjMS05ZGNlLTRjMGQtYTIyNi1mOGVmYmIwYzU3M2MiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDk3MzI1NjYyIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.DNyjRGLK9ddagoZuuQ95ZPb0DCHO7NIhiAbH4rMHxQ4"
+    },
+    {
+      "id": "14e1d333-7c40-4606-9832-fc1b665350d1",
+      "parentProfileId": "14e1d333-7c40-4606-9832-fc1b665350d1",
+      "name": "محمد حمدي المليجي",
+      "phone": "+201002440657",
+      "linkedStudentId": "80a78094-8014-4688-b90c-7dadc565f597",
+      "linkedStudentName": "ابتسام محمد حمدي المليجي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNGUxZDMzMy03YzQwLTQ2MDYtOTgzMi1mYzFiNjY1MzUwZDEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDAyNDQwNjU3IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.Y9l1yubYSmxPEz3F8huIXM6qUsHgJBYBDJAe3Q0FGtg"
+    },
+    {
+      "id": "17294923-ce4e-4359-92aa-ce725d9ddce1",
+      "parentProfileId": "17294923-ce4e-4359-92aa-ce725d9ddce1",
+      "name": "اسامه امين اللضام",
+      "phone": "+201055125711",
+      "linkedStudentId": "37ab5320-cb25-4246-abe3-41348afbc700",
+      "linkedStudentName": "ايمان اسامه امين اللضام",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNzI5NDkyMy1jZTRlLTQzNTktOTJhYS1jZTcyNWQ5ZGRjZTEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDU1MTI1NzExIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.fc_wuHQpEm1o61G1l1EypJwik9HSXv6TiHbdtJ5ZRac"
+    },
+    {
+      "id": "183c5e1c-c492-4409-a061-bcc30ea3d338",
+      "parentProfileId": "183c5e1c-c492-4409-a061-bcc30ea3d338",
+      "name": "احمد احمد العربي",
+      "phone": "+201040971159",
+      "linkedStudentId": "c16fb302-e27c-4c62-a700-ca544fa63b08",
+      "linkedStudentName": "Ahmed Elaraby",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxODNjNWUxYy1jNDkyLTQ0MDktYTA2MS1iY2MzMGVhM2QzMzgiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDQwOTcxMTU5IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.TYzf_6heWHDpSHxPplKqtZEyM-_XLZrcVfuGgeXjt4Y"
+    },
+    {
+      "id": "199e1ef5-07b2-4612-9f94-700a7ac64f50",
+      "parentProfileId": "199e1ef5-07b2-4612-9f94-700a7ac64f50",
+      "name": "ولي أمر طه مسعد طه جعغر",
+      "phone": "+201558352726",
+      "linkedStudentId": "0c2e0c62-7f2b-4651-8fd6-e8435ef7ac65",
+      "linkedStudentName": "طه مسعد طه جعغر",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxOTllMWVmNS0wN2IyLTQ2MTItOWY5NC03MDBhN2FjNjRmNTAiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxNTU4MzUyNzI2IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.k4RdKcBvOXMHNK2ZLU3PyJAHu4ZwqrIAD2h3yf8u3as"
+    },
+    {
+      "id": "1b6ea769-92e0-4810-ad7e-668cd76688e1",
+      "parentProfileId": "1b6ea769-92e0-4810-ad7e-668cd76688e1",
+      "name": "محمد عبد الرازق عيطه",
+      "phone": "+201011189090",
+      "linkedStudentId": "ea6a1328-a333-4762-83a9-ab84a400eb96",
+      "linkedStudentName": "شمس محمد عبد الرازق عيطه",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYjZlYTc2OS05MmUwLTQ4MTAtYWQ3ZS02NjhjZDc2Njg4ZTEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDExMTg5MDkwIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.zW8hx8oxN8AztUHt8kyyjMAS0svQNBv2KHarJMU1bTA"
+    },
+    {
+      "id": "1c02356e-1ea8-4cb6-81bc-6596b31724c8",
+      "parentProfileId": "1c02356e-1ea8-4cb6-81bc-6596b31724c8",
+      "name": "محمد حمدي نور الدين",
+      "phone": "+201060830811",
+      "linkedStudentId": "b7785598-0f62-4c73-95d8-535bb761a6ad",
+      "linkedStudentName": "هاجر محمد نور الدين",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzAyMzU2ZS0xZWE4LTRjYjYtODFiYy02NTk2YjMxNzI0YzgiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDYwODMwODExIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.Sn0htkl9GK75KejAR0U0_kgFx89Ij5XoYzSPiRCjzRA"
+    },
+    {
+      "id": "22b9fd32-932a-46cb-831c-8b66379f47bf",
+      "parentProfileId": "22b9fd32-932a-46cb-831c-8b66379f47bf",
+      "name": "كريم عبد العزيز ابو زيد هلال",
+      "phone": "+201099972201",
+      "linkedStudentId": "1ba0300a-e062-4902-9e9a-8cdd614d8fa3",
+      "linkedStudentName": "ملك كريم عبدالعزيز ابو زيد هلال",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMmI5ZmQzMi05MzJhLTQ2Y2ItODMxYy04YjY2Mzc5ZjQ3YmYiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDk5OTcyMjAxIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.viF2AUtSvTOX_uxKfQC6wXj2yMUSAkqW8DHjg7yrI5Q"
+    },
+    {
+      "id": "25981b71-6c68-4add-aeae-e0efbe877aa3",
+      "parentProfileId": "25981b71-6c68-4add-aeae-e0efbe877aa3",
+      "name": "احمد محمد رضا",
+      "phone": "+201107872206",
+      "linkedStudentId": "50a8fd64-5807-4a11-80e0-8464a8607f41",
+      "linkedStudentName": "ياسمينا احمد محمد رضا",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyNTk4MWI3MS02YzY4LTRhZGQtYWVhZS1lMGVmYmU4NzdhYTMiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMTA3ODcyMjA2IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9._GzUCxwllHpEtnHenv6XYCEVLuP6NlNYCTTUOo2GgFg"
+    },
+    {
+      "id": "28787d2e-6531-4391-8181-3a1dc5c837e9",
+      "parentProfileId": "28787d2e-6531-4391-8181-3a1dc5c837e9",
+      "name": "مجدي محمود الناغي",
+      "phone": "+201007196057",
+      "linkedStudentId": "dec6ed06-5b87-41e9-91c3-f00cd15f4d71",
+      "linkedStudentName": "محمود مجدي الناغي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyODc4N2QyZS02NTMxLTQzOTEtODE4MS0zYTFkYzVjODM3ZTkiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDA3MTk2MDU3IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.l2i_V2rrMU8P0lbmexW0bFFsJnHwmLk2wxBkBlN-4JA"
+    },
+    {
+      "id": "2ae647d5-ac2a-4274-968a-2c29096a1a7c",
+      "parentProfileId": "2ae647d5-ac2a-4274-968a-2c29096a1a7c",
+      "name": "اشرف خليفه",
+      "phone": "+201019447007",
+      "linkedStudentId": "dc9b2509-85bb-4abd-9150-7f6da949e37e",
+      "linkedStudentName": "ماسا اشرف ابراهيم خليفه",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyYWU2NDdkNS1hYzJhLTQyNzQtOTY4YS0yYzI5MDk2YTFhN2MiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDE5NDQ3MDA3IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.bFJ_HtVTDSoUZBOviVPVzxsL_uaGEBH-PuQ4Zfmw4mQ"
+    },
+    {
+      "id": "2ef8e89d-e772-4fe2-8c9c-ebcc1a86358b",
+      "parentProfileId": "2ef8e89d-e772-4fe2-8c9c-ebcc1a86358b",
+      "name": "محمد التابعي الاوسيه",
+      "phone": "+201069435002",
+      "linkedStudentId": "d7712d77-bf64-437a-b3fd-5e4a9203cb17",
+      "linkedStudentName": "محمد محمد التابعي الاوسيه",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZWY4ZTg5ZC1lNzcyLTRmZTItOGM5Yy1lYmNjMWE4NjM1OGIiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDY5NDM1MDAyIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.zJRMstQFSkCYNgo8XZTYmUz83xEn5sf14jALupxFf_k"
+    },
+    {
+      "id": "32314213-6ea3-4b8a-9864-1ad76dfa1802",
+      "parentProfileId": "32314213-6ea3-4b8a-9864-1ad76dfa1802",
+      "name": "عبده مصطفى بدر",
+      "phone": "+201021664000",
+      "linkedStudentId": "c3545d85-191f-46fe-bcc2-2991b4b36ade",
+      "linkedStudentName": "رودينا عبده بدر",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMjMxNDIxMy02ZWEzLTRiOGEtOTg2NC0xYWQ3NmRmYTE4MDIiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDIxNjY0MDAwIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.KU70G8NUCNc5wrxElqfHB9O80ym2TShNM3UGqihqbqo"
+    },
+    {
+      "id": "34f301b0-831f-4b21-abdf-80f28339528c",
+      "parentProfileId": "34f301b0-831f-4b21-abdf-80f28339528c",
+      "name": "محمد عبده رزق",
+      "phone": "+201069337708",
+      "linkedStudentId": "64029f63-5067-46d3-b21e-8ab186f134a8",
+      "linkedStudentName": "علي محمد عبده رزق",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzNGYzMDFiMC04MzFmLTRiMjEtYWJkZi04MGYyODMzOTUyOGMiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDY5MzM3NzA4IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.rUdH13PiIW_QlND-JGcDMyv2VX7umRGbz10HuGGtty4"
+    },
+    {
+      "id": "387ccb2c-6976-486c-ad06-605ed4324cb9",
+      "parentProfileId": "387ccb2c-6976-486c-ad06-605ed4324cb9",
+      "name": "جمال سعود الأوسية",
+      "phone": "+201225037563",
+      "linkedStudentId": "a8311f8c-6bb7-4af2-abf1-7b4863cc722d",
+      "linkedStudentName": "مجدي جمال سعود الأوسية",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzODdjY2IyYy02OTc2LTQ4NmMtYWQwNi02MDVlZDQzMjRjYjkiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMjI1MDM3NTYzIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.iBl6Z0NP-q2NKPXP9zPV-yDHgRYYFy6xoUeN68F6eJw"
+    },
+    {
+      "id": "39096037-5d7e-48ca-8f04-5ae4015f4006",
+      "parentProfileId": "39096037-5d7e-48ca-8f04-5ae4015f4006",
+      "name": "رضا عبدالله",
+      "phone": "+201066495922",
+      "linkedStudentId": "8031b9f3-23f6-4cd9-a0eb-9ffe6dda6ab7",
+      "linkedStudentName": "حبيبه رضا عادل عبدالله",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzOTA5NjAzNy01ZDdlLTQ4Y2EtOGYwNC01YWU0MDE1ZjQwMDYiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDY2NDk1OTIyIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.CXraRrIE5giH6Cp_6m0-xW_FmofJtC8SEfPUvCMj2mY"
+    },
+    {
+      "id": "3c91e150-feff-401a-949d-456ef109cb11",
+      "parentProfileId": "3c91e150-feff-401a-949d-456ef109cb11",
+      "name": "سامح صدقه",
+      "phone": "+201003328256",
+      "linkedStudentId": "03ba651e-374a-417d-87d9-466858051f88",
+      "linkedStudentName": "ملك سامح صدقه",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzYzkxZTE1MC1mZWZmLTQwMWEtOTQ5ZC00NTZlZjEwOWNiMTEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDAzMzI4MjU2IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.nmaYB_w0seXXCfGphshlLrPsDckPeXk0OFeeIMFEUmM"
+    },
+    {
+      "id": "3ed1c4af-0d90-4f95-a435-dd095b225145",
+      "parentProfileId": "3ed1c4af-0d90-4f95-a435-dd095b225145",
+      "name": "وليد عبدالرحمن على المسلمى",
+      "phone": "+201001934431",
+      "linkedStudentId": "05137b2c-e15e-472b-ba22-e360c0da913a",
+      "linkedStudentName": "محمد وليد عبد الرحمن المسلمي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzZWQxYzRhZi0wZDkwLTRmOTUtYTQzNS1kZDA5NWIyMjUxNDUiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDAxOTM0NDMxIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.wEdmyqJl89_WgQsnH7vw28ebdxTRShNjfOTHffNeHys"
+    },
+    {
+      "id": "4100f533-8591-42b0-83c7-89e30eb8030b",
+      "parentProfileId": "4100f533-8591-42b0-83c7-89e30eb8030b",
+      "name": "هيثم  احمد العدوي",
+      "phone": "+201013090099",
+      "linkedStudentId": "9c0900d7-49b7-4328-8bbe-82a3d3843fe9",
+      "linkedStudentName": "ياسين هيثم  احمد العدوي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MTAwZjUzMy04NTkxLTQyYjAtODNjNy04OWUzMGViODAzMGIiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDEzMDkwMDk5IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.ucsz7Iwp5Gqe5dlODZWIgzbyMNQuEUcoDrdRLoSdXQw"
+    },
+    {
+      "id": "4348fb75-31e6-429c-b563-cd5b28955c55",
+      "parentProfileId": "4348fb75-31e6-429c-b563-cd5b28955c55",
+      "name": "محمد مناع حسان",
+      "phone": "+201028342853",
+      "linkedStudentId": "86feeddd-5342-46b6-8df8-994b3c6b8c13",
+      "linkedStudentName": "حبيبة محمد مناع حسان",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MzQ4ZmI3NS0zMWU2LTQyOWMtYjU2My1jZDViMjg5NTVjNTUiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDI4MzQyODUzIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.5EcYwhFt5hk3CZZUkT7X3ujnuEJoOixiDouabY7Ojl0"
+    },
+    {
+      "id": "45e483b8-590a-424b-a05e-74b920b4f8d0",
+      "parentProfileId": "45e483b8-590a-424b-a05e-74b920b4f8d0",
+      "name": "أحمد أحمد الجزار",
+      "phone": "+201000282842",
+      "linkedStudentId": "0551a44c-d445-4bd2-b00f-1b90d3b84575",
+      "linkedStudentName": "أنس أحمد أحمد الجزار",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NWU0ODNiOC01OTBhLTQyNGItYTA1ZS03NGI5MjBiNGY4ZDAiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDAwMjgyODQyIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.ED9yZq3PW-iIjb-Fkg_l7662rF23f1yC18JUfKD8Kgg"
+    },
+    {
+      "id": "45f58154-f783-4f7f-b410-f62f5c4bc647",
+      "parentProfileId": "45f58154-f783-4f7f-b410-f62f5c4bc647",
+      "name": "مياده الغيطاني",
+      "phone": "+201095106866",
+      "linkedStudentId": "d4e9d3ec-0978-486a-8fce-8dfb8593f4ff",
+      "linkedStudentName": "زينه خالد عباس ابو العينين",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NWY1ODE1NC1mNzgzLTRmN2YtYjQxMC1mNjJmNWM0YmM2NDciLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDk1MTA2ODY2IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.DaE5fais4m3qNkVDGNikgboDFKjjiBWpO9NBXDDWbdo"
+    },
+    {
+      "id": "4bbc58cb-9729-455f-97d9-fe385121556c",
+      "parentProfileId": "4bbc58cb-9729-455f-97d9-fe385121556c",
+      "name": "احمد المليجى",
+      "phone": "+201099694496",
+      "linkedStudentId": "54038e28-1495-4b05-9b9e-202bf2a40e6f",
+      "linkedStudentName": "سلمى احمد حمدي المليجي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0YmJjNThjYi05NzI5LTQ1NWYtOTdkOS1mZTM4NTEyMTU1NmMiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDk5Njk0NDk2IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.0kJkzRWueUbz8xZGWBRoyAOydRDXRMvYyiIN3AtS0W4"
+    },
+    {
+      "id": "50efe4f3-c1f6-4ad3-b0a5-e5cada61750c",
+      "parentProfileId": "50efe4f3-c1f6-4ad3-b0a5-e5cada61750c",
+      "name": "احمد بدر",
+      "phone": "+201000612852",
+      "linkedStudentId": "69ad3552-2943-4fb5-8aac-717dd91af744",
+      "linkedStudentName": "مالك أحمد بدر",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MGVmZTRmMy1jMWY2LTRhZDMtYjBhNS1lNWNhZGE2MTc1MGMiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDAwNjEyODUyIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.wTYQqfaQGwMrJSZQRADzLaYcrPKRs4Xlnev6u8zv4m0"
+    },
+    {
+      "id": "526a8b93-349d-4a8f-9147-f894a072471f",
+      "parentProfileId": "526a8b93-349d-4a8f-9147-f894a072471f",
+      "name": "صباح علي علي السيد",
+      "phone": "+201009057959",
+      "linkedStudentId": "6e72f50e-a681-43f8-8e7e-c50ab84e9094",
+      "linkedStudentName": "ريم رمزي عبد الحميد",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MjZhOGI5My0zNDlkLTRhOGYtOTE0Ny1mODk0YTA3MjQ3MWYiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDA5MDU3OTU5IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.C1DMIc97QJok2LuN9FcL1zGBZ0iurwz3rL54z7kmdyE"
+    },
+    {
+      "id": "570bb23e-807b-404d-bab7-c5173a972c6a",
+      "parentProfileId": "570bb23e-807b-404d-bab7-c5173a972c6a",
+      "name": "محمد حامد العباسى",
+      "phone": "+201011631742",
+      "linkedStudentId": "ca7d4dff-dfce-4379-988e-18e5aa2046e8",
+      "linkedStudentName": "انس محمد حامد العباسى",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NzBiYjIzZS04MDdiLTQwNGQtYmFiNy1jNTE3M2E5NzJjNmEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDExNjMxNzQyIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.1WwqgsXhpqZSiKHyccJYbksq6c21ZMI-SkW1hHBFBuM"
+    },
+    {
+      "id": "587d2ce4-3902-4c34-9fe7-3e43ec222bb9",
+      "parentProfileId": "587d2ce4-3902-4c34-9fe7-3e43ec222bb9",
+      "name": "مجاهد مجاهد الدمياطي",
+      "phone": "+201009210386",
+      "linkedStudentId": "8704da22-1793-4591-a026-2b9e58a16b14",
+      "linkedStudentName": "محمد مجاهد مجاهد الدمياطي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ODdkMmNlNC0zOTAyLTRjMzQtOWZlNy0zZTQzZWMyMjJiYjkiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDA5MjEwMzg2IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.3IzyVOlcUwt2zCkP87o_pZ8fO7se_q0eJAb2nCbw3rs"
+    },
+    {
+      "id": "5f2ea697-bc04-4567-98c3-f5361617e225",
+      "parentProfileId": "5f2ea697-bc04-4567-98c3-f5361617e225",
+      "name": "احمد السيد مراد",
+      "phone": "+201004072749",
+      "linkedStudentId": "61d7efcb-c676-405e-b804-fcab3dd3f894",
+      "linkedStudentName": "ريناد احمد السيد مراد",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ZjJlYTY5Ny1iYzA0LTQ1NjctOThjMy1mNTM2MTYxN2UyMjUiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDA0MDcyNzQ5IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.6c-hwyi79iKjenfOso-klDMc5Zhh4qCcghwKMbJcrCQ"
+    },
+    {
       "id": "62417ec0-c39c-45c3-bc6d-0ca27769b1e4",
       "parentProfileId": "62417ec0-c39c-45c3-bc6d-0ca27769b1e4",
       "name": "طارق عمر جاويش",
-      "phone": "+201016138448",
+      "phone": "01016138448",
       "linkedStudentId": "dcc233e2-8cdc-417d-bbac-534905630a29",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjQxN2VjMC1jMzljLTQ1YzMtYmM2ZC0wY2EyNzc2OWIxZTQiLCJwaG9uZSI6IjAxMDE2MTM4NDQ4Iiwicm9sZSI6IlBBUkVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTk0ODQxMSwiZXhwIjoxNzkxOTQ5MzExfQ.QY85vFOIE7BGNUhURVtUd48Rgc7nKtOp_y2-CnAL6zI"
+      "linkedStudentName": "احمد طارق عمر جاويش",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MjQxN2VjMC1jMzljLTQ1YzMtYmM2ZC0wY2EyNzc2OWIxZTQiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIwMTAxNjEzODQ0OCIsImlhdCI6MTc5MjI1MTM0MCwiZXhwIjoxNzk0ODQzMzQwfQ.Go0IhkFd5LmKrhJLuS7K6yQ3im9PvsoTL0qksFGNhEw"
+    },
+    {
+      "id": "6e7b78e5-31df-4c45-b5f9-032cd68f2f88",
+      "parentProfileId": "6e7b78e5-31df-4c45-b5f9-032cd68f2f88",
+      "name": "احمد سليمان الاوسيه",
+      "phone": "+201099774765",
+      "linkedStudentId": "ee06cefc-d69e-42a1-99ac-87793b5e0e7f",
+      "linkedStudentName": "نسمه احمد سليمان الاوسيه",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTdiNzhlNS0zMWRmLTRjNDUtYjVmOS0wMzJjZDY4ZjJmODgiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDk5Nzc0NzY1IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.nrElCTqF3IGK1lE64yHeZhyzFnN11NPGqhoMXbOmMi0"
+    },
+    {
+      "id": "76012bb6-6017-4467-8626-dc6d525f2bf5",
+      "parentProfileId": "76012bb6-6017-4467-8626-dc6d525f2bf5",
+      "name": "رشا طه محمد",
+      "phone": "+201094359131",
+      "linkedStudentId": "eb059b53-7c24-4b9e-b359-17aa1b8b379a",
+      "linkedStudentName": "وسام عماد فريد حبيشي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3NjAxMmJiNi02MDE3LTQ0NjctODYyNi1kYzZkNTI1ZjJiZjUiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDk0MzU5MTMxIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.qrsKxlPh1LEBkza8jFtW3-49U-OfgIn3paYROEgNvsU"
+    },
+    {
+      "id": "77cc139a-706c-4b27-b0be-66050c89ef55",
+      "parentProfileId": "77cc139a-706c-4b27-b0be-66050c89ef55",
+      "name": "محمود العباسي",
+      "phone": "+201009519993",
+      "linkedStudentId": "9d48565a-be4b-425f-8789-3e6512a39c18",
+      "linkedStudentName": "رقيه محمود محمد العباسي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3N2NjMTM5YS03MDZjLTRiMjctYjBiZS02NjA1MGM4OWVmNTUiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDA5NTE5OTkzIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.68tcDQhE6jofZTqK5sXkuuqkE_GM2pI3TrM0m7al3qw"
+    },
+    {
+      "id": "788e2aa3-a0c1-4823-9ba0-c1bb4b2df6ab",
+      "parentProfileId": "788e2aa3-a0c1-4823-9ba0-c1bb4b2df6ab",
+      "name": "عاصم",
+      "phone": "+201034067840",
+      "linkedStudentId": "69fb2987-bf6d-4029-afef-006b04d379c9",
+      "linkedStudentName": "احمد طارق عمر جاويش",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3ODhlMmFhMy1hMGMxLTQ4MjMtOWJhMC1jMWJiNGIyZGY2YWIiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDM0MDY3ODQwIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.qD2bncX-mzaEq1746leQP5279BBX4IrxZqHGce-WYio"
+    },
+    {
+      "id": "7a387d46-fd43-4692-8c5a-b2e1e5fa634c",
+      "parentProfileId": "7a387d46-fd43-4692-8c5a-b2e1e5fa634c",
+      "name": "مصطفي التابعي الاوسية",
+      "phone": "+201000206471",
+      "linkedStudentId": "77c041c1-c615-435d-bce4-56db37911c25",
+      "linkedStudentName": "سما مصطفي الاوسية",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3YTM4N2Q0Ni1mZDQzLTQ2OTItOGM1YS1iMmUxZTVmYTYzNGMiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDAwMjA2NDcxIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.As9yhQswoCYExeFod5POnbSr2hn0Zp98gKA6csi14aA"
+    },
+    {
+      "id": "8325be35-ab2d-4a81-8e88-4d70f33a6567",
+      "parentProfileId": "8325be35-ab2d-4a81-8e88-4d70f33a6567",
+      "name": "الحسني محمد جابر",
+      "phone": "+201289877799",
+      "linkedStudentId": "8cca40b9-67f2-414a-8343-b621a83790bf",
+      "linkedStudentName": "ميار الحسني محمد جابر",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MzI1YmUzNS1hYjJkLTRhODEtOGU4OC00ZDcwZjMzYTY1NjciLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMjg5ODc3Nzk5IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.CCPFwv3rdZYP1zgGaOkSJYio-NIRElsxPSI4ESrxmaw"
+    },
+    {
+      "id": "9856c5e3-7773-4c5f-a1ab-c3a6d3d16d90",
+      "parentProfileId": "9856c5e3-7773-4c5f-a1ab-c3a6d3d16d90",
+      "name": "محمد على خليفه",
+      "phone": "+201009060770",
+      "linkedStudentId": "9e2750f8-74dc-47d4-9314-dac58881e9b7",
+      "linkedStudentName": "اروى محمد خليفه",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ODU2YzVlMy03NzczLTRjNWYtYTFhYi1jM2E2ZDNkMTZkOTAiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDA5MDYwNzcwIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.xmEB8VElr7dr_iL8ZahogTe97-7-Vqaw6R-zdoyDzwg"
+    },
+    {
+      "id": "9dfdd24f-8ab8-491b-910a-e7778ce74efd",
+      "parentProfileId": "9dfdd24f-8ab8-491b-910a-e7778ce74efd",
+      "name": "عبد الرازق",
+      "phone": "+201020651066",
+      "linkedStudentId": "b80f5f9e-feab-45c5-919c-4d0de6b2b907",
+      "linkedStudentName": "بسمله عبد الرازق",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZGZkZDI0Zi04YWI4LTQ5MWItOTEwYS1lNzc3OGNlNzRlZmQiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDIwNjUxMDY2IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.-ZnB91TtNetXnTKvLktnpW1knEZrNbtZq-X4kzj4Q_0"
+    },
+    {
+      "id": "a16a9913-ece8-4493-a6e1-5661b1ac4976",
+      "parentProfileId": "a16a9913-ece8-4493-a6e1-5661b1ac4976",
+      "name": "امنيه امين سلطان",
+      "phone": "+201033981572",
+      "linkedStudentId": "bede592e-cac4-4e06-bd42-2758009e62fc",
+      "linkedStudentName": "رودي محمد محمد قنديل",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMTZhOTkxMy1lY2U4LTQ0OTMtYTZlMS01NjYxYjFhYzQ5NzYiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDMzOTgxNTcyIiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.Q6Sf38N7iNhZkXtaawUirCji8QlzW06QqYKbXOM98C4"
+    },
+    {
+      "id": "ab4a4dbe-ca17-47ff-8d7d-d2280948a708",
+      "parentProfileId": "ab4a4dbe-ca17-47ff-8d7d-d2280948a708",
+      "name": "عادل",
+      "phone": "+201091008185",
+      "linkedStudentId": "6af1618b-55a7-46cd-8200-a04842818863",
+      "linkedStudentName": "كنزي",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhYjRhNGRiZS1jYTE3LTQ3ZmYtOGQ3ZC1kMjI4MDk0OGE3MDgiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxMDkxMDA4MTg1IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.qsxatzrHZy9h5BrFf71ZktxSKIfyTBOCeesPVb111iw"
+    },
+    {
+      "id": "ae0d162f-be7f-4177-b753-bbefd01e16bd",
+      "parentProfileId": "ae0d162f-be7f-4177-b753-bbefd01e16bd",
+      "name": "ولي أمر ميار أحمد السيد",
+      "phone": "+201554131019",
+      "linkedStudentId": "3c7d8113-f287-4650-b595-a78cc7346455",
+      "linkedStudentName": "ميار أحمد السيد",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZTBkMTYyZi1iZTdmLTQxNzctYjc1My1iYmVmZDAxZTE2YmQiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwicGhvbmUiOiIrMjAxNTU0MTMxMDE5IiwiaWF0IjoxNzkyMjUxMzQwLCJleHAiOjE3OTQ4NDMzNDB9.VnIoeRO16fGUSV_aoLx0QZSoPtTgmtvRfUliL2I4Glw"
     }
   ],
   "groups": [
     {
-      "id": "e30928ad-b759-4b3a-b5cc-d9722ac1775f",
-      "name": "مجموعة السبت و الثلاثاء (الساعة 4:00 م) - الصف الثاني الإعدادي",
-      "gradeLevel": "الصف الثاني الإعدادي"
-    },
-    {
       "id": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
       "name": "مجموعة الثلاثاء و السبت (الساعة 3:00 م) - الصف الأول الإعدادي - سنتر العدلية",
-      "gradeLevel": "الصف الأول الإعدادي"
+      "gradeLevel": "الصف الأول الإعدادي",
+      "monthlyFee": "120"
     },
     {
       "id": "4d233706-2667-4b25-a206-4e00be2fa5b4",
       "name": "مجموعة الأحد و الخميس (الساعة 3:00 م) - الصف الأول الإعدادي - سنتر العدلية",
-      "gradeLevel": "الصف الأول الإعدادي"
+      "gradeLevel": "الصف الأول الإعدادي",
+      "monthlyFee": "120"
     },
     {
       "id": "756c512d-7d95-4eaf-86eb-931953edec9b",
       "name": "مجموعة الإثنين و الخميس (الساعة 2:30 م) - الصف الثالث الإعدادي",
-      "gradeLevel": "الصف الثالث الإعدادي"
+      "gradeLevel": "الصف الثالث الإعدادي",
+      "monthlyFee": "120"
+    },
+    {
+      "id": "e30928ad-b759-4b3a-b5cc-d9722ac1775f",
+      "name": "مجموعة السبت و الثلاثاء (الساعة 4:00 م) - الصف الثاني الإعدادي",
+      "gradeLevel": "الصف الثاني الإعدادي",
+      "monthlyFee": "120"
     }
   ],
-  "sessions": [
-    {
-      "id": "b889e4d5-881b-4f09-a7cd-fa734db14672",
-      "topic": "حصة - 2026-10-03",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "10a7a43a-c30b-4587-86d9-0829ea817950",
-      "topic": "حصة - 2026-10-06",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "aa574609-0215-4243-ab1f-90f87ff3dc11",
-      "topic": "حصة - 2026-10-10",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "bccf4529-49cd-4d05-94c4-d348434d03e6",
-      "topic": "حصة - 2026-10-13",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "944a89e6-b4a0-41c4-8121-ad1c03f13e06",
-      "topic": "حصة - 2026-10-17",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "fe1d9062-884f-489d-8fba-7a1805a989f2",
-      "topic": "حصة - 2026-10-20",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "401c3e97-5cfa-46bd-9a75-cebba9ab3da3",
-      "topic": "حصة - 2026-10-24",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "f0eb1af1-ad9e-4c5f-800d-614a033b5897",
-      "topic": "حصة - 2026-10-27",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    },
-    {
-      "id": "a6edbcda-4431-4974-9b72-d69351c3558b",
-      "topic": "حصة - 2026-10-31",
-      "groupId": "e30928ad-b759-4b3a-b5cc-d9722ac1775f"
-    }
-  ],
-  "courses": [],
-  "assessments": [],
-  "updatedAt": "2026-10-14T03:26:55.599Z"
+  "activeSession": {
+    "id": "8ed84776-70f9-47bd-8e37-680d64cf9cc0",
+    "groupId": "00bd9914-c7bd-48a3-ab7a-0cd698820d6c",
+    "topic": "حصة - 2027-01-30"
+  },
+  "course": {
+    "id": "0024f285-6f5f-448b-9d16-77bedaead26b",
+    "title": "test",
+    "modulesCount": 1,
+    "primaryLessonId": "b4d171b9-a5e0-4736-81b0-f614ecaa4e16"
+  },
+  "assessment": {
+    "id": "8238fc55-01cc-4e3e-9cc5-f450d3372e79",
+    "title": "اختبار النحو والبلاغة التفاعلي - قياس القدرات",
+    "totalScore": 100,
+    "questions": [
+      {
+        "id": "7abb7d69-508c-484b-b31e-f06038830e8d",
+        "questionNumber": 1,
+        "correctAnswer": "مبتدأ مؤخر مرفوع",
+        "options": [
+          "مبتدأ مؤخر مرفوع",
+          "فاعل مرفوع",
+          "مفعول به منصوب",
+          "مضاف إليه مجرور"
+        ]
+      },
+      {
+        "id": "29cc4a33-26cf-4dfb-8c13-2f5e454963dd",
+        "questionNumber": 2,
+        "correctAnswer": "مساجد",
+        "options": [
+          "مساجد",
+          "عمر",
+          "فاطمة",
+          "إبراهيم"
+        ]
+      },
+      {
+        "id": "48d92745-34dd-49dd-bd11-6c203e8d3202",
+        "questionNumber": 3,
+        "correctAnswer": "واجب",
+        "options": [
+          "واجب",
+          "جائز",
+          "ممتنع",
+          "مكروه"
+        ]
+      },
+      {
+        "id": "fd51bad4-8db8-417f-94cd-ff8d1b2e91d0",
+        "questionNumber": 4,
+        "correctAnswer": "شبيه بالمضاف",
+        "options": [
+          "شبيه بالمضاف",
+          "مضاف",
+          "نكرة غير مقصودة",
+          "نكرة مقصودة"
+        ]
+      }
+    ]
+  },
+  "seededAt": "2026-10-17T15:35:40.767Z"
 }

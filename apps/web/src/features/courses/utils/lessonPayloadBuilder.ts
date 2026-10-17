@@ -56,6 +56,15 @@ export function buildLessonPayload({
 
   const effectiveContentUrl = effectiveVideoId ? undefined : rawContentCandidate;
 
+  const cleanQuizId =
+    typeof lessonQuizId === 'string' && lessonQuizId.trim()
+      ? lessonQuizId.trim()
+      : null;
+  const cleanHomeworkId =
+    typeof lessonHomeworkId === 'string' && lessonHomeworkId.trim()
+      ? lessonHomeworkId.trim()
+      : null;
+
   const payload: any = {
     title: title.trim(),
     description: description.trim() || undefined,
@@ -65,8 +74,8 @@ export function buildLessonPayload({
     contentUrl: effectiveContentUrl,
     videoDurationSeconds: Number(videoDurationSeconds) || 1800,
     isPreview: isFreePreview,
-    ...(lessonQuizId ? { quizId: lessonQuizId } : { quizId: null }),
-    ...(lessonHomeworkId ? { homeworkId: lessonHomeworkId } : { homeworkId: null }),
+    quizId: cleanQuizId,
+    homeworkId: cleanHomeworkId,
     ...(stagedAttachments.length > 0 && !isEditingEffective
       ? { attachments: stagedAttachments }
       : {}),

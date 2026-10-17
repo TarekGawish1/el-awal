@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { validateEnv } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { SecurityModule } from './security/security.module';
+import { CustomThrottlerGuard } from './security/guards/custom-throttler.guard';
 import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
 import { RolesGuard } from './security/guards/roles.guard';
 import { PermissionsGuard } from './security/guards/permissions.guard';
@@ -39,7 +40,7 @@ import { RedisCacheService } from './cache/redis-cache.service';
     // Rate Limiting Guard
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: CustomThrottlerGuard,
     },
 
     // Global Exception Filters

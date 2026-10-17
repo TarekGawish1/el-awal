@@ -7,8 +7,13 @@ import {
   IsBoolean,
   IsIn,
   IsUUID,
+  ValidateIf,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { CreateAttachmentDto } from './lesson-attachment.dto';
 
 export class UpdateLessonDto {
   @ApiPropertyOptional({
@@ -108,8 +113,106 @@ export class UpdateLessonDto {
   @ApiPropertyOptional({
     description: 'Linked lesson interactive quiz / checkpoint assessment ID',
     example: 'd933cc98-532e-4940-a1b6-ba121ff5a697',
+    nullable: true,
   })
   @IsOptional()
+  @ValidateIf((_, val) => val !== null && val !== undefined && val !== '')
   @IsString()
   lessonQuizId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Alias for lessonQuizId sent by lesson editor (quizId)',
+    example: 'd933cc98-532e-4940-a1b6-ba121ff5a697',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, val) => val !== null && val !== undefined && val !== '')
+  @IsString()
+  quizId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Linked lesson homework / assignment assessment ID (homeworkId)',
+    example: 'e822bb87-421d-4830-90a5-ab010ee4a586',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, val) => val !== null && val !== undefined && val !== '')
+  @IsString()
+  homeworkId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Alias for homeworkId (lessonHomeworkId)',
+    example: 'e822bb87-421d-4830-90a5-ab010ee4a586',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, val) => val !== null && val !== undefined && val !== '')
+  @IsString()
+  lessonHomeworkId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Whether students can retake the quiz multiple times',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowMultipleAttempts?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether students can retake the homework multiple times',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowHomeworkMultipleAttempts?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether passing score is required to unlock subsequent content',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  requirePassingScore?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether the quiz is optional',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isQuizOptional?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether passing score is required for the quiz',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isQuizPassRequired?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether the homework is optional',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isHomeworkOptional?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether passing score is required for the homework',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isHomeworkPassRequired?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Attachments to add to the lesson',
+    type: () => [CreateAttachmentDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateAttachmentDto)
+  attachments?: CreateAttachmentDto[];
 }
