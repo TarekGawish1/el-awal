@@ -7,20 +7,8 @@ import {
   Bell,
   X,
   CheckCheck,
-  AlertTriangle,
-  BookOpen,
-  Calendar,
-  CreditCard,
-  ClipboardList,
-  MessageSquare,
-  Bell as BellIcon,
-  BellOff,
   Loader2,
   Sliders,
-  ChevronDown,
-  ChevronUp,
-  Maximize2,
-  Send,
 } from 'lucide-react';
 import {
   useNotifications,
@@ -29,376 +17,10 @@ import {
   useMarkAllRead,
   type Notification,
 } from '@/hooks/useNotifications';
-import { useWebPush } from '@/hooks/useWebPush';
 import { useAuth } from '@/features/auth';
-import { apiClient } from '@/lib/api/client';
-import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import toast from 'react-hot-toast';
 import { NotificationDetailModal } from './NotificationDetailModal';
-
-// ─── Type Icons Map ───────────────────────────────────────────────────────────
-
-const typeConfig: Record<
-  string,
-  { icon: React.ReactNode; color: string; bg: string }
-> = {
-  ABSENCE_ALERT_PARENT: {
-    icon: <AlertTriangle size={16} />,
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
-  },
-  EXAM_FAILED_ALERT_PARENT: {
-    icon: <AlertTriangle size={16} />,
-    color: 'text-red-600',
-    bg: 'bg-red-50',
-  },
-  ASSESSMENT_GRADED: {
-    icon: <ClipboardList size={16} />,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
-  },
-  SESSION_REMINDER_STUDENT: {
-    icon: <Calendar size={16} />,
-    color: 'text-indigo-600',
-    bg: 'bg-indigo-50',
-  },
-  TEACHER_SESSION_REMINDER: {
-    icon: <Calendar size={16} />,
-    color: 'text-indigo-600',
-    bg: 'bg-indigo-50',
-  },
-  TEACHER_DAILY_SCHEDULE: {
-    icon: <BookOpen size={16} />,
-    color: 'text-green-600',
-    bg: 'bg-green-50',
-  },
-  ONLINE_EXAM_REMINDER: {
-    icon: <ClipboardList size={16} />,
-    color: 'text-purple-600',
-    bg: 'bg-purple-50',
-  },
-  NEW_HOMEWORK_ASSIGNED: {
-    icon: <ClipboardList size={16} />,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
-  },
-  HOMEWORK_DEADLINE_REMINDER: {
-    icon: <AlertTriangle size={16} />,
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
-  },
-  NEW_EXAM_PUBLISHED: {
-    icon: <ClipboardList size={16} />,
-    color: 'text-purple-600',
-    bg: 'bg-purple-50',
-  },
-  EXAM_DEADLINE_REMINDER: {
-    icon: <AlertTriangle size={16} />,
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
-  },
-  PAYMENT_RECEIVED: {
-    icon: <CreditCard size={16} />,
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50',
-  },
-  TEACHER_JOIN_REQUEST: {
-    icon: <ClipboardList size={16} />,
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
-  },
-  GENERAL_ANNOUNCEMENT: {
-    icon: <BellIcon size={16} />,
-    color: 'text-slate-600',
-    bg: 'bg-slate-100',
-  },
-  STUDENT_ABSENCE: {
-    icon: <AlertTriangle size={16} />,
-    color: 'text-amber-600',
-    bg: 'bg-amber-50',
-  },
-  default: {
-    icon: <MessageSquare size={16} />,
-    color: 'text-slate-600',
-    bg: 'bg-slate-50',
-  },
-};
-
-function getTypeConfig(type: string) {
-  return typeConfig[type] || typeConfig.default;
-}
-
-// ─── Relative Time Formatter (Arabic) ────────────────────────────────────────
-
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-
-  const rtf = new Intl.RelativeTimeFormat('ar-EG', { numeric: 'auto' });
-
-  if (diffSecs < 60) return rtf.format(-diffSecs, 'second');
-  if (diffSecs < 3600) return rtf.format(-Math.floor(diffSecs / 60), 'minute');
-  if (diffSecs < 86400) return rtf.format(-Math.floor(diffSecs / 3600), 'hour');
-  if (diffSecs < 2592000) return rtf.format(-Math.floor(diffSecs / 86400), 'day');
-  return rtf.format(-Math.floor(diffSecs / 2592000), 'month');
-}
-
-// ─── Notification Item ────────────────────────────────────────────────────────
-
-function NotificationItem({
-  notification,
-  onClick,
-  onOpenDetails,
-}: {
-  notification: Notification;
-  onClick: () => void;
-  onOpenDetails: () => void;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const config = getTypeConfig(notification.notificationType || notification.type);
-  const isLongMessage = (notification.message?.length ?? 0) > 80 || notification.message?.includes('\n');
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, x: 16 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -16 }}
-      className={`
-        relative flex items-start gap-3 p-3.5 sm:p-4 cursor-pointer rounded-2xl transition-all duration-200
-        ${notification.isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/60 hover:bg-blue-50/90'}
-        border border-transparent hover:border-slate-100 shadow-sm
-      `}
-      onClick={onClick}
-    >
-      {/* Unread dot */}
-      {!notification.isRead && (
-        <span className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white" />
-      )}
-
-      {/* Type Icon */}
-      <div
-        className={`
-          flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-xs
-          ${config.bg} ${config.color}
-        `}
-      >
-        {config.icon}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <p
-          className={`text-sm font-semibold leading-snug mb-1 ${
-            notification.isRead ? 'text-slate-700' : 'text-slate-900'
-          }`}
-        >
-          {notification.title}
-        </p>
-
-        {/* Message preview or expanded text */}
-        <div className="text-xs text-slate-500 leading-relaxed">
-          {isExpanded ? (
-            <p className="whitespace-pre-line text-slate-700 break-words mt-1 select-text">
-              {notification.message}
-            </p>
-          ) : (
-            <p className="line-clamp-2">
-              {notification.message}
-            </p>
-          )}
-        </div>
-
-        {/* Card footer controls */}
-        <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-100/60 text-[11px]">
-          <span className="text-slate-400">
-            {formatRelativeTime(notification.createdAt)}
-          </span>
-
-          <div className="flex items-center gap-1.5">
-            {isLongMessage && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsExpanded((prev) => !prev);
-                }}
-                className="
-                  inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg
-                  text-blue-600 hover:text-blue-800 hover:bg-blue-50/80
-                  font-medium transition-colors
-                "
-              >
-                <span>{isExpanded ? 'عرض أقل' : 'عرض المزيد'}</span>
-                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenDetails();
-              }}
-              className="
-                inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
-                text-slate-500 hover:text-slate-800 hover:bg-slate-100
-                font-medium transition-colors
-              "
-              title="عرض التفاصيل في نافذة كاملة"
-            >
-              <span>التفاصيل</span>
-              <Maximize2 size={11} />
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// ─── Push Permission Toggle ───────────────────────────────────────────────────
-
-function PushToggle() {
-  const { isSupported, isSubscribed, isLoading, permission, isBrave, subscribe, unsubscribe } =
-    useWebPush();
-  const [isToggling, setIsToggling] = useState(false);
-  const [isSendingTest, setIsSendingTest] = useState(false);
-
-  if (!isSupported) return null;
-
-  const isBusy = isLoading || isToggling;
-
-  const handleToggle = async (e?: React.MouseEvent | React.KeyboardEvent) => {
-    e?.preventDefault();
-    e?.stopPropagation();
-    if (permission === 'denied') {
-      toast.error('تم حظر الإشعارات من إعدادات المتصفح. يرجى تفعيلها من إعدادات المتصفح.');
-      return;
-    }
-    if (isBusy) return;
-
-    setIsToggling(true);
-    try {
-      if (isSubscribed) {
-        await unsubscribe();
-      } else {
-        await subscribe();
-      }
-    } finally {
-      setIsToggling(false);
-    }
-  };
-
-  const handleSendTestPush = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsSendingTest(true);
-    try {
-      const res = await apiClient<{ success: boolean; message: string; deliveredCount?: number }>(
-        API_ENDPOINTS.NOTIFICATIONS.PUSH_TEST,
-        { method: 'POST' }
-      );
-      if (res?.success) {
-        toast.success(res.message || 'تم إرسال إشعار تجريبي بنجاح!');
-      } else {
-        toast.error(res?.message || 'تعذر إرسال الإشعار التجريبي');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'حدث خطأ أثناء إرسال الإشعار التجريبي');
-    } finally {
-      setIsSendingTest(false);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <div
-        onClick={handleToggle}
-        role="switch"
-        aria-checked={isSubscribed}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleToggle(e);
-          }
-        }}
-        className={`
-          flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl transition-all duration-150 select-none
-          ${isBusy || permission === 'denied' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:bg-slate-100/80 active:scale-[0.99]'}
-        `}
-      >
-        <div className="flex-1">
-          <p className="text-xs font-medium text-slate-700">الإشعارات الفورية</p>
-          <div className="text-[11px] mt-0.5">
-            {permission === 'denied' ? (
-              <span className="text-rose-500 font-medium">محظورة في إعدادات المتصفح</span>
-            ) : isSubscribed ? (
-              <span className="text-emerald-600 font-semibold inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-                شغالة ونشطة على هذا الجهاز
-              </span>
-            ) : isBusy ? (
-              <span className="text-blue-500 font-medium">جارٍ تحديث حالة الإشعارات...</span>
-            ) : (
-              <span className="text-slate-400">اضغط لتفعيل الإشعارات</span>
-            )}
-          </div>
-          {isBrave && !isSubscribed && permission === 'granted' && (
-            <p className="text-[10px] text-amber-700 bg-amber-50/80 rounded px-1.5 py-0.5 mt-1.5 leading-normal font-medium border border-amber-200/60">
-              تنبيه Brave: فعّل &quot;Use Google services for push messaging&quot; من إعدادات الخصوصية بالمتصفح.
-            </p>
-          )}
-        </div>
-        <div
-          className={`
-            relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 pointer-events-none shrink-0
-            ${isSubscribed ? 'bg-blue-500' : 'bg-slate-300'}
-          `}
-          id="push-toggle"
-          aria-label="تفعيل إشعارات المتصفح"
-        >
-          {isBusy ? (
-            <Loader2 size={12} className="text-white animate-spin mx-auto" />
-          ) : (
-            <span
-              className={`
-                inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200
-                ${isSubscribed ? 'translate-x-[18px]' : 'translate-x-[3px]'}
-              `}
-            />
-          )}
-        </div>
-      </div>
-
-      {isSubscribed && (
-        <button
-          type="button"
-          disabled={isSendingTest}
-          onClick={handleSendTestPush}
-          className="w-full text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all active:scale-[0.99] border border-primary-100 disabled:opacity-50 cursor-pointer"
-        >
-          {isSendingTest ? (
-            <>
-              <Loader2 size={12} className="animate-spin text-primary-600" />
-              <span>جارٍ إرسال الإشعار لجهازك...</span>
-            </>
-          ) : (
-            <>
-              <Send size={12} className="text-primary-600" />
-              <span>إرسال إشعار تجريبي للتأكد من وصوله 🔔</span>
-            </>
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
+import { NotificationItem } from './NotificationItem';
+import { PushToggle } from './PushToggle';
 
 function EmptyState() {
   return (
@@ -413,8 +35,6 @@ function EmptyState() {
     </div>
   );
 }
-
-// ─── Main NotificationCenter Component ───────────────────────────────────────
 
 export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCount?: number } = {}) {
   const [isOpen, setIsOpen] = useState(false);
@@ -510,7 +130,7 @@ export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCou
           relative flex items-center justify-center w-10 h-10 rounded-full
           text-slate-600 hover:text-slate-900
           hover:bg-slate-100 transition-all duration-200
-          focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1
+          focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 cursor-pointer
         "
       >
         <Bell size={20} />
@@ -589,7 +209,7 @@ export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCou
                         setIsOpen(false);
                         router.push('/teacher/notifications');
                       }}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                       title="مركز التحكم في الإشعارات والقواطع"
                       aria-label="مركز التحكم في الإشعارات"
                     >
@@ -600,7 +220,7 @@ export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCou
                     <button
                       onClick={handleMarkAllRead}
                       disabled={markAllRead.isPending}
-                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 cursor-pointer"
                       title="تحديد الكل كمقروء"
                     >
                       <CheckCheck size={13} />
@@ -609,7 +229,7 @@ export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCou
                   )}
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                     aria-label="إغلاق"
                   >
                     <X size={15} />
@@ -686,3 +306,5 @@ export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCou
     </div>
   );
 }
+
+export default NotificationCenter;

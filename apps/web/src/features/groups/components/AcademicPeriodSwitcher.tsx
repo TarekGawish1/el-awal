@@ -4,30 +4,23 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Calendar,
-  BookOpen,
   ChevronDown,
-  Check,
-  Plus,
   X,
   Sparkles,
-  AlertTriangle,
   Lock,
-  ArrowLeftRight,
-  ShieldCheck,
   WifiOff,
 } from 'lucide-react';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { useAuth } from '@/features/auth';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { ApiError } from '@/lib/api/errors';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { AcademicPeriodSelectStep } from './academic-period/AcademicPeriodSelectStep';
+import { AcademicPeriodPasswordStep } from './academic-period/AcademicPeriodPasswordStep';
 import toast from 'react-hot-toast';
 
 const STORAGE_KEY = 'el_awal_saved_academic_years';
 const DEFAULT_YEARS = ['2026-2027', '2027-2028', '2025-2026', '2028-2029', '2024-2025'];
 
-// Shown when a user attempts to change the period without an active connection.
 const OFFLINE_LOCK_MESSAGE =
   '🔒 تغيير العام أو الفصل الدراسي يتطلب اتصالاً نشطاً بالإنترنت لتحديث بيانات الخادم بالكامل.';
 
@@ -38,14 +31,12 @@ export function AcademicPeriodSwitcher() {
   const [newYearInput, setNewYearInput] = useState('');
   const [addYearError, setAddYearError] = useState('');
 
-  // Two-step flow: pick the period, then re-verify the account password.
   const [step, setStep] = useState<'select' | 'password'>('select');
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
   const { user } = useAuth();
   const isOnline = useOnlineStatus();
-  // Only TEACHER and SECRETARIAT (assistant with permission) can change the academic year & semester
   const canChangePeriod = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
 
   const {
@@ -55,16 +46,13 @@ export function AcademicPeriodSwitcher() {
     isSwitching,
   } = useStoredAcademicPeriod();
 
-  // Staged / Pending selections before confirming
   const [pendingYear, setPendingYear] = useState<string>(activeYear);
   const [pendingTerm, setPendingTerm] = useState<string>(activeTerm);
 
-  // Only mount the portal on the client (avoids SSR document access)
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Reset staged state each time the modal opens or the active period changes
   useEffect(() => {
     if (isOpen) {
       setPendingYear(activeYear);
@@ -76,7 +64,6 @@ export function AcademicPeriodSwitcher() {
     }
   }, [isOpen, activeYear, activeTerm]);
 
-  // Close on Escape while the modal is open
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -86,7 +73,6 @@ export function AcademicPeriodSwitcher() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen]);
 
-  // Load custom saved years
   const [customYears, setCustomYears] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -97,7 +83,6 @@ export function AcademicPeriodSwitcher() {
     }
   });
 
-  // Extract all distinct years
   const allYears = useMemo(() => {
     const yearsSet = new Set<string>();
     DEFAULT_YEARS.forEach((y) => yearsSet.add(y));
@@ -106,11 +91,9 @@ export function AcademicPeriodSwitcher() {
     return Array.from(yearsSet).sort().reverse();
   }, [customYears, activeYear]);
 
-  // Controls are inert when the user can't edit, we're offline, or a switch is in flight
   const controlsDisabled = !canChangePeriod || !isOnline || isSwitching;
 
   const handleTriggerClick = () => {
-    // Online-only: block opening entirely while offline and explain why.
     if (!isOnline) {
       toast.error(OFFLINE_LOCK_MESSAGE);
       return;
@@ -169,7 +152,6 @@ export function AcademicPeriodSwitcher() {
     setIsAddingYear(false);
   };
 
-  // Step 1 → 2: validate intent, then advance to the password challenge.
   const handleRequestConfirm = () => {
     if (!canChangePeriod) {
       toast.error('ليس لديك صلاحية لتعديل العام والفصل الدراسي.');
@@ -185,7 +167,6 @@ export function AcademicPeriodSwitcher() {
     setStep('password');
   };
 
-  // Step 2: verify password server-side, then apply + re-hydrate.
   const handleConfirmSwitch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isOnline) {
@@ -313,7 +294,7 @@ export function AcademicPeriodSwitcher() {
                 </button>
               </div>
 
-              {/* Offline notice (if connection drops while the modal is open) */}
+              {/* Offline notice */}
               {!isOnline && (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-2.5 text-slate-700 mb-3.5 text-xs">
                   <WifiOff className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
@@ -322,311 +303,49 @@ export function AcademicPeriodSwitcher() {
               )}
 
               {step === 'select' ? (
-                <>
-                  {/* Prominent Warning Banner for Authorized Users */}
-                  {canChangePeriod ? (
-                    <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-2.5 text-amber-900 mb-3.5 shadow-2xs">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div className="text-xs leading-snug">
-                        <span className="font-black text-amber-950 block mb-0.5">
-                          تنبيه هام لكامل المنصة:
-                        </span>
-                        <span className="text-[11px] text-amber-800 font-medium">
-                          تغيير العام أو الفصل الدراسي سيؤثر على كامل النظام وجميع المعلمين والطلاب في تصفية المجموعات، الحصص المجدولة، الواجبات، والتقارير المالية.
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-2.5 text-slate-600 mb-3.5 text-xs">
-                      <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span>تعديل العام الدراسي متاح فقط للمعلم والمساعد (السكرتارية) المصرح له.</span>
-                    </div>
-                  )}
-
-                  {/* Academic Year Selection */}
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <span className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-primary-600" />
-                        العام الدراسي
-                      </span>
-                      {canChangePeriod && !isAddingYear && (
-                        <button
-                          type="button"
-                          disabled={controlsDisabled}
-                          onClick={() => setIsAddingYear(true)}
-                          className="text-[11px] text-primary-600 hover:text-primary-800 font-semibold inline-flex items-center gap-1 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-                        >
-                          <Plus className="w-3 h-3" />
-                          إضافة عام جديد
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Inline Add New Year Input */}
-                    {canChangePeriod && isAddingYear && (
-                      <form
-                        onSubmit={handleAddNewYear}
-                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 mb-2"
-                      >
-                        <div className="flex gap-2">
-                          <Input
-                            type="text"
-                            placeholder="مثال: 2027-2028"
-                            value={newYearInput}
-                            onChange={(e) => {
-                              setNewYearInput(e.target.value);
-                              if (addYearError) setAddYearError('');
-                            }}
-                            autoFocus
-                            className="h-8 text-xs bg-white rounded-lg"
-                          />
-                          <Button type="submit" size="sm" className="h-8 text-xs px-3 rounded-lg" disabled={controlsDisabled}>
-                            حفظ
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs px-2 text-slate-400 rounded-lg"
-                            onClick={() => setIsAddingYear(false)}
-                          >
-                            إلغاء
-                          </Button>
-                        </div>
-                        {addYearError && <p className="text-[10px] text-red-500">{addYearError}</p>}
-                      </form>
-                    )}
-
-                    {/* Year Chips Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {allYears.map((yr) => {
-                        const isSelected = (canChangePeriod ? pendingYear : activeYear) === yr;
-                        return (
-                          <button
-                            key={yr}
-                            type="button"
-                            disabled={controlsDisabled}
-                            onClick={() => handleSelectYear(yr)}
-                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
-                              controlsDisabled
-                                ? isSelected
-                                  ? 'bg-slate-200 text-slate-800 border-slate-300 cursor-default'
-                                  : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60 cursor-not-allowed'
-                                : isSelected
-                                ? 'bg-primary-600 text-white border-primary-600 shadow-sm cursor-pointer'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 cursor-pointer'
-                            }`}
-                          >
-                            <span>{yr}</span>
-                            {isSelected && (
-                              <Check className={`w-3.5 h-3.5 ${controlsDisabled ? 'text-slate-700' : 'text-white'}`} />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Academic Semester Selection */}
-                  <div className="space-y-2 mb-4">
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <BookOpen className="w-3.5 h-3.5 text-primary-600" />
-                      الفصل الدراسي (الترم)
-                    </span>
-
-                    <div className="flex flex-row gap-2 w-full">
-                      <button
-                        type="button"
-                        disabled={controlsDisabled}
-                        onClick={() => handleSelectTerm('FIRST_TERM')}
-                        className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl text-xs font-bold transition-all border ${
-                          controlsDisabled
-                            ? (canChangePeriod ? pendingTerm : activeTerm) === 'FIRST_TERM'
-                              ? 'bg-slate-200 text-slate-800 border-slate-300 cursor-default'
-                              : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60 cursor-not-allowed'
-                            : pendingTerm === 'FIRST_TERM'
-                            ? 'bg-primary-600 text-white border-primary-600 shadow-sm cursor-pointer'
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 cursor-pointer'
-                        }`}
-                      >
-                        <span>الفصل الأول</span>
-                        <span
-                          className={`text-[10px] font-medium mt-0.5 ${
-                            (canChangePeriod ? pendingTerm === 'FIRST_TERM' : activeTerm === 'FIRST_TERM')
-                              ? 'text-primary-100'
-                              : 'text-slate-500'
-                          }`}
-                        >
-                          ترم أول
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={controlsDisabled}
-                        onClick={() => handleSelectTerm('SECOND_TERM')}
-                        className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl text-xs font-bold transition-all border ${
-                          controlsDisabled
-                            ? (canChangePeriod ? pendingTerm : activeTerm) === 'SECOND_TERM'
-                              ? 'bg-slate-200 text-slate-800 border-slate-300 cursor-default'
-                              : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60 cursor-not-allowed'
-                            : pendingTerm === 'SECOND_TERM'
-                            ? 'bg-primary-600 text-white border-primary-600 shadow-sm cursor-pointer'
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 cursor-pointer'
-                        }`}
-                      >
-                        <span>الفصل الثاني</span>
-                        <span
-                          className={`text-[10px] font-medium mt-0.5 ${
-                            (canChangePeriod ? pendingTerm === 'SECOND_TERM' : activeTerm === 'SECOND_TERM')
-                              ? 'text-primary-100'
-                              : 'text-slate-500'
-                          }`}
-                        >
-                          ترم ثانٍ
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Pending Changes Confirmation Preview */}
-                  {canChangePeriod && hasChanges && (
-                    <div className="p-3 bg-amber-100/70 border border-amber-300/80 rounded-2xl mb-3 flex items-center justify-between text-xs text-amber-950 font-bold animate-in fade-in duration-150">
-                      <div className="flex items-center gap-2">
-                        <ArrowLeftRight className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                        <span>
-                          تغيير إلى: <span className="underline">{pendingYear}</span> ({pendingTermLabel})
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md font-extrabold">
-                        في انتظار التأكيد
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Footer Actions */}
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
-                    {canChangePeriod && hasChanges ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPendingYear(activeYear);
-                            setPendingTerm(activeTerm);
-                          }}
-                          className="text-xs text-slate-500 hover:text-slate-800 font-bold hover:underline cursor-pointer"
-                        >
-                          إلغاء التحديد
-                        </button>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs px-3 rounded-xl cursor-pointer"
-                            onClick={() => setIsOpen(false)}
-                          >
-                            تراجع
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="h-8 text-xs px-4 rounded-xl font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                            disabled={controlsDisabled}
-                            onClick={handleRequestConfirm}
-                          >
-                            تأكيد التغيير
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                          <Check className="w-3 h-3" />
-                          مُفعل على كامل النظام
-                        </span>
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs px-4 rounded-lg cursor-pointer"
-                          onClick={() => setIsOpen(false)}
-                        >
-                          إغلاق
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </>
+                <AcademicPeriodSelectStep
+                  canChangePeriod={canChangePeriod}
+                  controlsDisabled={controlsDisabled}
+                  activeYear={activeYear}
+                  activeTerm={activeTerm}
+                  pendingYear={pendingYear}
+                  pendingTerm={pendingTerm}
+                  pendingTermLabel={pendingTermLabel}
+                  allYears={allYears}
+                  isAddingYear={isAddingYear}
+                  setIsAddingYear={setIsAddingYear}
+                  newYearInput={newYearInput}
+                  setNewYearInput={setNewYearInput}
+                  addYearError={addYearError}
+                  setAddYearError={setAddYearError}
+                  hasChanges={hasChanges}
+                  onSelectYear={handleSelectYear}
+                  onSelectTerm={handleSelectTerm}
+                  onAddNewYear={handleAddNewYear}
+                  onRequestConfirm={handleRequestConfirm}
+                  onResetPending={() => {
+                    setPendingYear(activeYear);
+                    setPendingTerm(activeTerm);
+                  }}
+                  onClose={() => setIsOpen(false)}
+                />
               ) : (
-                /* Step 2: Password Challenge */
-                <form onSubmit={handleConfirmSwitch} className="space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h5 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 leading-tight">
-                        🔐 تأكيد تغيير الفصل الدراسي
-                      </h5>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                        لتغيير العام أو الفصل الدراسي النشط، يرجى إدخال كلمة مرور الحساب للتأكيد.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Selected period recap */}
-                  <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-center gap-2 text-xs text-amber-950 font-bold">
-                    <ArrowLeftRight className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                    <span>
-                      التغيير إلى: <span className="underline">{pendingYear}</span> ({pendingTermLabel})
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Input
-                      type="password"
-                      placeholder="كلمة المرور الخاصة بك"
-                      value={password}
-                      autoFocus
-                      autoComplete="current-password"
-                      disabled={isSwitching}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        if (passwordError) setPasswordError('');
-                      }}
-                      className="h-10 text-sm bg-white rounded-xl"
-                    />
-                    {passwordError && (
-                      <p className="text-[11px] text-red-600 font-semibold flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                        {passwordError}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="pt-1 flex items-center justify-end gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-9 text-xs px-4 rounded-xl cursor-pointer"
-                      disabled={isSwitching}
-                      onClick={() => {
-                        setStep('select');
-                        setPassword('');
-                        setPasswordError('');
-                      }}
-                    >
-                      إلغاء
-                    </Button>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="h-9 text-xs px-5 rounded-xl font-bold cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                      disabled={isSwitching || !isOnline}
-                    >
-                      {isSwitching ? 'جاري التفعيل...' : 'تأكيد وتفعيل'}
-                    </Button>
-                  </div>
-                </form>
+                <AcademicPeriodPasswordStep
+                  pendingYear={pendingYear}
+                  pendingTermLabel={pendingTermLabel}
+                  password={password}
+                  setPassword={setPassword}
+                  passwordError={passwordError}
+                  setPasswordError={setPasswordError}
+                  isSwitching={isSwitching}
+                  isOnline={isOnline}
+                  onCancel={() => {
+                    setStep('select');
+                    setPassword('');
+                    setPasswordError('');
+                  }}
+                  onSubmit={handleConfirmSwitch}
+                />
               )}
             </div>
           </div>,

@@ -1,10 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { useStudent, useUpdateStudentStatus, useDeleteStudent } from '../hooks/use-students';
-import { useStudentAttendanceHistory } from '@/features/attendance/hooks/use-attendance';
-import { useStudentPaymentHistory } from '@/features/finance/hooks/useFinance';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -13,19 +10,18 @@ import { StudentPasswordModal } from './StudentPasswordModal';
 import { StudentEditForm } from './StudentEditForm';
 import { 
   X, Phone, User, Users, AlertCircle, ExternalLink, Trash2, 
-  UserX, UserMinus, CheckCircle, KeyRound, Check, ClipboardList, Edit2, 
-  ChevronDown, ChevronUp, Wallet, Receipt
+  UserX, CheckCircle, KeyRound, Edit2, ChevronDown, ChevronUp
 } from 'lucide-react';
-import { formatWhatsAppNumber, formatNumber } from '@/lib/utils/formatters';
+import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { CreatorBadge } from '@/components/ui/CreatorBadge';
-import { useRemoveStudent } from '@/features/groups/hooks/useGroups';
-import toast from 'react-hot-toast';
-
-const ARABIC_MONTHS = [
-  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
-];
+import { useStudentDetailsModal } from '../hooks/useStudentDetailsModal';
+import { StudentAttendanceHistorySection } from './student-details/StudentAttendanceHistorySection';
+import { StudentPaymentHistorySection } from './student-details/StudentPaymentHistorySection';
+import { StudentGroupsSection } from './student-details/StudentGroupsSection';
+import { StudentStatusSection } from './student-details/StudentStatusSection';
+import { StudentGuardianSection } from './student-details/StudentGuardianSection';
+import { StudentDangerZone } from './student-details/StudentDangerZone';
 
 interface StudentDetailsModalProps {
   studentId: string | null;
@@ -34,80 +30,39 @@ interface StudentDetailsModalProps {
 }
 
 export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetailsModalProps) {
-  const { data: student, isLoading: isStudentLoading, isError } = useStudent(studentId || '');
-  const { data: attendanceHistory, isLoading: isAttendanceLoading } = useStudentAttendanceHistory(studentId || '', 10);
-  const { data: paymentHistory, isLoading: isPaymentLoading } = useStudentPaymentHistory(studentId || '');
-  const updateStatusMutation = useUpdateStudentStatus();
-  const deleteStudentMutation = useDeleteStudent();
-  
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [passwordModalTab, setPasswordModalTab] = useState<'student' | 'parent'>('student');
-  const [isEditing, setIsEditing] = useState(false);
-  const [isQrExpanded, setIsQrExpanded] = useState(false);
-  const [groupToRemove, setGroupToRemove] = useState<{ id: string; name: string } | null>(null);
-  const removeStudentMutation = useRemoveStudent();
+  const {
+    student,
+    isLoading,
+    isError,
+    studentName,
+    studentPhone,
+    enrollments,
+    parents,
+    parentPhone,
+    payments,
+    totalPaid,
+    totalDue,
+    attendanceHistory,
+    isConfirmingDelete,
+    setIsConfirmingDelete,
+    isPasswordModalOpen,
+    setIsPasswordModalOpen,
+    passwordModalTab,
+    setPasswordModalTab,
+    isEditing,
+    setIsEditing,
+    isQrExpanded,
+    setIsQrExpanded,
+    groupToRemove,
+    setGroupToRemove,
+    updateStatusMutation,
+    deleteStudentMutation,
+    removeStudentMutation,
+    handleConfirmRemoveGroup,
+    handleDeleteStudent,
+  } = useStudentDetailsModal({ studentId, onClose });
 
   if (!isOpen || !studentId) return null;
-
-  const isLoading = isStudentLoading || isAttendanceLoading || isPaymentLoading;
-  const studentName = student?.user?.fullName || 'طالب';
-  const studentPhone = student?.user?.phone || student?.emergencyPhone || '';
-  const enrollments = student?.groupEnrollments || [];
-  const parents = student?.parentLinks || [];
-  const parentPhone = parents?.[0]?.parent?.user?.phone || student?.emergencyPhone || '';
-
-  const payments = paymentHistory || [];
-  const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amountPaid) || 0), 0);
-  const totalDue = payments.reduce((sum: number, p: any) => sum + Math.max(0, (Number(p.amountExpected) || 0) - (Number(p.amountPaid) || 0)), 0);
-
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PAID':
-        return <Badge variant="success" className="text-[10px] py-0 px-2 h-5">مدفوع</Badge>;
-      case 'PENDING':
-        return <Badge variant="warning" className="text-[10px] py-0 px-2 h-5">قيد الانتظار</Badge>;
-      case 'OVERDUE':
-        return <Badge variant="error" className="text-[10px] py-0 px-2 h-5">متأخر</Badge>;
-      case 'EXEMPT':
-        return <Badge variant="default" className="text-[10px] py-0 px-2 h-5">معفى</Badge>;
-      case 'REFUNDED':
-        return <Badge variant="outline" className="text-[10px] py-0 px-2 h-5">مسترجع</Badge>;
-      default:
-        return <Badge variant="outline" className="text-[10px] py-0 px-2 h-5">{status}</Badge>;
-    }
-  };
-
-  const getEnrollmentStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return <Badge variant="success" className="text-[10px] py-0 px-2 h-5">نشط</Badge>;
-      case 'PENDING':
-        return <Badge variant="warning" className="text-[10px] py-0 px-2 h-5">حجز معلّق</Badge>;
-      case 'TRANSFERRED':
-        return <Badge variant="outline" className="text-[10px] py-0 px-2 h-5">منقول</Badge>;
-      case 'DROPPED':
-        return <Badge variant="error" className="text-[10px] py-0 px-2 h-5">منسحب</Badge>;
-      default:
-        return <Badge variant="success" className="text-[10px] py-0 px-2 h-5">نشط</Badge>;
-    }
-  };
-
-  const handleConfirmRemoveGroup = () => {
-    if (!groupToRemove || !studentId) return;
-    removeStudentMutation.mutate(
-      { groupId: groupToRemove.id, studentId },
-      {
-        onSuccess: () => {
-          toast.success(`تمت إزالة الطالب من "${groupToRemove.name}" بنجاح`);
-          setGroupToRemove(null);
-        },
-        onError: (err: any) => {
-          toast.error(err?.message || 'تعذر إزالة الطالب من المجموعة');
-        },
-      }
-    );
-  };
 
   const getStageLabel = (stage?: string) => {
     if (stage === 'PRIMARY') return 'المرحلة الابتدائية';
@@ -163,7 +118,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                 variant="primary" 
                 size="sm" 
                 onClick={() => setIsEditing(true)}
-                className="rounded-xl shadow-sm hidden sm:flex"
+                className="rounded-xl shadow-sm hidden sm:flex cursor-pointer"
               >
                 <Edit2 className="w-4 h-4 rtl:ml-1.5 ltr:mr-1.5" />
                 تعديل البيانات
@@ -179,7 +134,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                 variant="ghost"
                 size="icon"
                 onClick={onClose}
-                className="w-8 h-8 sm:w-10 sm:h-10 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                className="w-8 h-8 sm:w-10 sm:h-10 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
                 title="إغلاق"
               >
                 <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -240,7 +195,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                     setPasswordModalTab('student');
                     setIsPasswordModalOpen(true);
                   }}
-                  className="bg-white border-amber-200 hover:bg-amber-50 rounded-xl text-xs font-bold text-amber-800 shadow-xs flex-1 sm:flex-none justify-center"
+                  className="bg-white border-amber-200 hover:bg-amber-50 rounded-xl text-xs font-bold text-amber-800 shadow-xs flex-1 sm:flex-none justify-center cursor-pointer"
                 >
                   <KeyRound className="w-4 h-4 rtl:ml-1.5 ltr:mr-1.5 text-amber-600" />
                   كلمة مرور الطالب
@@ -254,7 +209,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                     setPasswordModalTab('parent');
                     setIsPasswordModalOpen(true);
                   }}
-                  className="bg-emerald-50 hover:bg-emerald-100 border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 shadow-xs flex-1 sm:flex-none justify-center"
+                  className="bg-emerald-50 hover:bg-emerald-100 border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 shadow-xs flex-1 sm:flex-none justify-center cursor-pointer"
                 >
                   <Users className="w-4 h-4 rtl:ml-1.5 ltr:mr-1.5 text-emerald-600" />
                   كلمة مرور ولي الأمر 🔐
@@ -313,322 +268,37 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
               </section>
 
               {/* ATTENDANCE SECTION */}
-              <section>
-                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-emerald-600" />
-                  الحضور والواجبات (آخر 10 حصص)
-                </h3>
-                
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <div className="bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100/50 flex flex-col justify-center">
-                    <span className="text-xs text-emerald-600 font-semibold mb-1">نسبة الحضور</span>
-                    <span className="text-2xl font-black text-emerald-700">
-                      {attendanceHistory && attendanceHistory.length > 0
-                        ? Math.round((attendanceHistory.filter((r: any) => r.status === 'PRESENT').length / attendanceHistory.length) * 100)
-                        : 0}%
-                    </span>
-                  </div>
-                  <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100/50 flex flex-col justify-center">
-                    <span className="text-xs text-blue-600 font-semibold mb-1">نسبة حل الواجب</span>
-                    <span className="text-2xl font-black text-blue-700">
-                      {(() => {
-                        const presentWithHw = (attendanceHistory || []).filter(
-                          (r: any) => r.status === 'PRESENT' && r.homeworkStatus && r.homeworkStatus !== 'NO_HOMEWORK'
-                        );
-                        if (presentWithHw.length === 0) {
-                          const totalPresent = (attendanceHistory || []).filter((r: any) => r.status === 'PRESENT').length;
-                          return totalPresent > 0 ? '100%' : '0%';
-                        }
-                        const done = presentWithHw.filter(
-                          (r: any) => r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED' || r.homeworkStatus === 'CHECKED_ONSITE'
-                        ).length;
-                        return `${Math.round((done / presentWithHw.length) * 100)}%`;
-                      })()}
-                    </span>
-                  </div>
-                </div>
-
-                {attendanceHistory && attendanceHistory.length > 0 ? (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto custom-scrollbar">
-                      <table className="w-full text-center text-xs">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="p-3 border-b border-slate-100 text-slate-600 font-bold whitespace-nowrap text-start">الحصة</th>
-                            {attendanceHistory.map((_: any, i: number) => (
-                              <th key={i} className="p-2 border-b border-slate-100 font-mono text-slate-400 min-w-[40px]">{attendanceHistory.length - i}</th>
-                            )).reverse()}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td className="p-3 border-b border-slate-50 text-slate-700 font-bold whitespace-nowrap text-start">الحضور</td>
-                            {[...attendanceHistory].reverse().map((record: any) => {
-                              const isPresent = record.status === 'PRESENT';
-                              return (
-                                <td key={`att-${record.id}`} className="p-2 border-b border-slate-50">
-                                  <div className={`mx-auto w-6 h-6 rounded-md flex items-center justify-center border ${
-                                    isPresent ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-red-50 border-red-200 text-red-500'
-                                  }`} title={isPresent ? 'حاضر' : 'غائب'}>
-                                    {isPresent ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
-                                  </div>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                          <tr>
-                            <td className="p-3 text-slate-700 font-bold whitespace-nowrap text-start">الواجب</td>
-                            {[...attendanceHistory].reverse().map((record: any) => {
-                              const isPresent = record.status === 'PRESENT';
-                              const hasHw = record.homeworkStatus && record.homeworkStatus !== 'NO_HOMEWORK';
-                              const hwDone = record.homeworkStatus === 'COMPLETED' || record.homeworkStatus === 'SUBMITTED' || record.homeworkStatus === 'EXCUSED' || record.homeworkStatus === 'CHECKED_ONSITE';
-                              return (
-                                <td key={`hw-${record.id}`} className="p-2">
-                                  {!isPresent ? (
-                                    <div className="mx-auto w-6 h-6 rounded-md flex items-center justify-center bg-slate-50 border border-slate-100 text-slate-300" title="لم يحضر">
-                                      -
-                                    </div>
-                                  ) : !hasHw ? (
-                                    <div className="mx-auto w-6 h-6 rounded-md flex items-center justify-center bg-slate-50 border border-slate-100 text-slate-400 text-xs" title="لا يوجد واجب لهذه الحصة">
-                                      -
-                                    </div>
-                                  ) : (
-                                    <div className={`mx-auto w-6 h-6 rounded-md flex items-center justify-center border ${
-                                      hwDone ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-red-50 border-red-200 text-red-600'
-                                    }`} title={hwDone ? 'تم حل الواجب' : 'لم يحل الواجب'}>
-                                      {hwDone ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
-                                    </div>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-slate-500 text-sm bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
-                    لا توجد سجلات حضور أو واجبات لهذا الطالب بعد.
-                  </div>
-                )}
-              </section>
+              <StudentAttendanceHistorySection attendanceHistory={attendanceHistory} />
 
               {/* PAYMENT HISTORY & OUTSTANDING BALANCE */}
-              <section>
-                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-emerald-600" />
-                  سجل المدفوعات والمستحقات
-                </h3>
-
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <div className="bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100/50 flex flex-col justify-center">
-                    <span className="text-xs text-emerald-600 font-semibold mb-1">إجمالي المدفوع</span>
-                    <span className="text-2xl font-black text-emerald-700">{formatNumber(totalPaid)} ج.م</span>
-                  </div>
-                  <div className={`p-3 rounded-2xl border flex flex-col justify-center ${totalDue > 0 ? 'bg-red-50/50 border-red-100/50' : 'bg-slate-50 border-slate-100'}`}>
-                    <span className={`text-xs font-semibold mb-1 ${totalDue > 0 ? 'text-red-600' : 'text-slate-500'}`}>المتبقي والمطلوب سداده</span>
-                    <span className={`text-2xl font-black ${totalDue > 0 ? 'text-red-700' : 'text-slate-700'}`}>{formatNumber(totalDue)} ج.م</span>
-                  </div>
-                </div>
-
-                {payments.length > 0 ? (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto custom-scrollbar">
-                      <table className="w-full text-start text-xs">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="p-3 border-b border-slate-100 text-slate-600 font-bold whitespace-nowrap text-start">البند</th>
-                            <th className="p-3 border-b border-slate-100 text-slate-600 font-bold whitespace-nowrap text-start">المطلوب</th>
-                            <th className="p-3 border-b border-slate-100 text-slate-600 font-bold whitespace-nowrap text-start">المدفوع</th>
-                            <th className="p-3 border-b border-slate-100 text-slate-600 font-bold whitespace-nowrap text-start">الحالة</th>
-                            <th className="p-3 border-b border-slate-100 text-slate-600 font-bold whitespace-nowrap text-start">التاريخ</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...payments]
-                            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                            .slice(0, 10)
-                            .map((p: any) => {
-                              const label = p.paymentType === 'BOOKLET'
-                                ? (p.booklet?.title || 'مذكرة دراسية')
-                                : `اشتراك ${p.periodMonth >= 1 && p.periodMonth <= 12 ? ARABIC_MONTHS[p.periodMonth - 1] : p.periodMonth} ${p.periodYear}`;
-                              return (
-                                <tr key={p.id} className="hover:bg-slate-50/40">
-                                  <td className="p-3 border-b border-slate-50 font-bold text-slate-800 whitespace-nowrap">{label}</td>
-                                  <td className="p-3 border-b border-slate-50 font-mono text-slate-600 whitespace-nowrap">{formatNumber(p.amountExpected)}</td>
-                                  <td className="p-3 border-b border-slate-50 font-mono text-primary-600 font-bold whitespace-nowrap">{formatNumber(p.amountPaid)}</td>
-                                  <td className="p-3 border-b border-slate-50 whitespace-nowrap">{getPaymentStatusBadge(p.paymentStatus)}</td>
-                                  <td className="p-3 border-b border-slate-50 text-slate-500 whitespace-nowrap">
-                                    {p.createdAt ? new Date(p.createdAt).toLocaleDateString('ar-EG') : '—'}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-slate-500 text-sm bg-slate-50 rounded-2xl border border-slate-100 border-dashed flex flex-col items-center gap-1.5">
-                    <Receipt className="w-6 h-6 text-slate-300" />
-                    لا توجد سجلات مدفوعات لهذا الطالب بعد.
-                  </div>
-                )}
-              </section>
+              <StudentPaymentHistorySection
+                payments={payments}
+                totalPaid={totalPaid}
+                totalDue={totalDue}
+              />
 
               {/* GROUPS */}
-              <section>
-                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-indigo-600" />
-                  المجموعات المسجلة
-                </h3>
-                {enrollments.length === 0 ? (
-                  <div className="p-4 text-slate-500 text-sm bg-slate-50 rounded-2xl border border-slate-100">
-                    غير مسجل في مجموعات حالياً.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {enrollments.map((en: any, i: number) => {
-                      const groupId = en.group?.id || en.groupId;
-                      const groupName = en.group?.name || 'المجموعة الدراسية';
-                      const status = en.status || 'ACTIVE';
-
-                      return (
-                        <div
-                          key={groupId || i}
-                          className="flex flex-col justify-between bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-colors"
-                        >
-                          <div>
-                            <div className="flex justify-between items-start gap-2 mb-1.5">
-                              <span className="font-bold text-slate-800 text-sm line-clamp-1" title={groupName}>
-                                {groupName}
-                              </span>
-                              {getEnrollmentStatusBadge(status)}
-                            </div>
-                            <span className="text-xs text-slate-500 block mb-2.5">
-                              {en.group?.gradeLevel || student.gradeLevel || '—'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                            {groupId ? (
-                              <Link
-                                href={`/teacher/groups/${groupId}`}
-                                onClick={onClose}
-                                className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
-                              >
-                                <span>عرض المجموعة</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </Link>
-                            ) : (
-                              <span />
-                            )}
-
-                            {groupId && (
-                              <button
-                                type="button"
-                                onClick={() => setGroupToRemove({ id: groupId, name: groupName })}
-                                className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors"
-                                title="إزالة من المجموعة"
-                              >
-                                <UserMinus className="w-3.5 h-3.5" />
-                                <span>إزالة</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
+              <StudentGroupsSection
+                enrollments={enrollments}
+                studentGradeLevel={student.gradeLevel}
+                onClose={onClose}
+                onRemoveGroup={setGroupToRemove}
+              />
 
               {/* GUARDIAN */}
-              {parents.length > 0 && (
-                <section>
-                  <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                    <User className="w-4 h-4 text-teal-600" />
-                    ولي الأمر
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {parents.map((p: any, i: number) => {
-                      const pName = p.parent?.user?.fullName || 'ولي الأمر';
-                      const pPhone = p.parent?.user?.phone || '';
-                      return (
-                        <div key={i} className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
-                          <div>
-                            <p className="font-bold text-sm text-slate-800">{pName}</p>
-                            {pPhone && <p className="text-xs text-slate-500 font-mono mt-0.5" dir="ltr">{pPhone}</p>}
-                          </div>
-                          {pPhone && (
-                            <div className="flex gap-2">
-                              <a href={`tel:${pPhone.replace(/[^0-9+]/g, '')}`} className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors">
-                                <Phone className="w-4 h-4" />
-                              </a>
-                              <a href={`https://wa.me/${formatWhatsAppNumber(pPhone)}`} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors">
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                                </svg>
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
+              <StudentGuardianSection parents={parents} />
 
               {/* STUDENT STATUS */}
-              <section>
-                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <UserX className="w-4 h-4 text-amber-600" />
-                  حالة الطالب
-                </h3>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={student.academicStatus === 'ACTIVE' ? 'primary' : 'outline'}
-                      disabled={updateStatusMutation.isPending}
-                      onClick={() => updateStatusMutation.mutate({ id: student.id, status: 'ACTIVE' })}
-                      className={`text-xs rounded-xl py-1.5 px-4 font-bold ${student.academicStatus !== 'ACTIVE' ? 'bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200' : ''}`}
-                    >
-                      {student.academicStatus === 'ACTIVE' && <CheckCircle className="w-3.5 h-3.5 rtl:ml-1.5 ltr:mr-1.5" />}
-                      نشط
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={student.academicStatus === 'LEFT' ? 'secondary' : 'outline'}
-                      disabled={updateStatusMutation.isPending}
-                      onClick={() => updateStatusMutation.mutate({ id: student.id, status: 'LEFT' })}
-                      className={`text-xs rounded-xl py-1.5 px-4 font-bold ${student.academicStatus === 'LEFT' ? 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200'}`}
-                    >
-                      {student.academicStatus === 'LEFT' && <CheckCircle className="w-3.5 h-3.5 rtl:ml-1.5 ltr:mr-1.5 text-amber-700" />}
-                      غادر السنتر
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={student.academicStatus === 'SUSPENDED' ? 'secondary' : 'outline'}
-                      disabled={updateStatusMutation.isPending}
-                      onClick={() => updateStatusMutation.mutate({ id: student.id, status: 'SUSPENDED' })}
-                      className={`text-xs rounded-xl py-1.5 px-4 font-bold ${student.academicStatus === 'SUSPENDED' ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200'}`}
-                    >
-                      {student.academicStatus === 'SUSPENDED' && <CheckCircle className="w-3.5 h-3.5 rtl:ml-1.5 ltr:mr-1.5 text-red-700" />}
-                      موقوف
-                    </Button>
-                  </div>
-                </div>
-              </section>
+              <StudentStatusSection
+                studentId={student.id}
+                academicStatus={student.academicStatus}
+                updateStatusMutation={updateStatusMutation}
+              />
 
               {/* QR CODE COLLAPSIBLE */}
               <section className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
                 <button 
-                  className="w-full p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition-colors focus:outline-none"
+                  className="w-full p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition-colors focus:outline-none cursor-pointer"
                   onClick={() => setIsQrExpanded(!isQrExpanded)}
                 >
                   <span className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -649,27 +319,13 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
               </section>
 
               {/* DANGER ZONE */}
-              <section className="mt-12 pt-8 border-t border-slate-200/60 border-dashed">
-                <div className="bg-red-50/40 p-5 rounded-2xl border border-red-200/60 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-red-800 flex items-center gap-1.5 mb-1">
-                      <Trash2 className="w-4 h-4" />
-                      منطقة خطرة: حذف الطالب نهائياً
-                    </h4>
-                    <p className="text-xs text-red-600/80 max-w-lg">
-                      سيؤدي حذف الطالب إلى حذفه من كافة المجموعات وإزالة سجل حضوره وغيابه. لا يمكن التراجع عن هذا الإجراء.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsConfirmingDelete(true)}
-                    className="shrink-0 bg-white border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 rounded-xl font-bold shadow-sm"
-                  >
-                    حذف الطالب
-                  </Button>
-                </div>
-              </section>
+              <StudentDangerZone
+                studentName={studentName}
+                isConfirmingDelete={isConfirmingDelete}
+                setIsConfirmingDelete={setIsConfirmingDelete}
+                deleteStudentMutation={deleteStudentMutation}
+                onDeleteStudent={handleDeleteStudent}
+              />
 
             </div>
           )}
@@ -682,26 +338,6 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
         isOpen={isPasswordModalOpen}
         initialTab={passwordModalTab}
         onClose={() => setIsPasswordModalOpen(false)}
-      />
-
-      <ConfirmModal
-        isOpen={isConfirmingDelete}
-        title="تأكيد حذف الطالب نهائياً"
-        message={`هل أنت متأكد من رغبتك في حذف الطالب "${studentName}"؟ سيؤدي ذلك إلى حذف كافة بياناته وسجل حضوره ولا يمكن التراجع عن هذا الإجراء.`}
-        confirmLabel={deleteStudentMutation.isPending ? "جاري الحذف..." : "نعم، احذف الطالب"}
-        cancelLabel="إلغاء"
-        variant="danger"
-        onConfirm={() => {
-          if (student) {
-            deleteStudentMutation.mutate(student.id, {
-              onSuccess: () => {
-                setIsConfirmingDelete(false);
-                onClose();
-              },
-            });
-          }
-        }}
-        onClose={() => setIsConfirmingDelete(false)}
       />
 
       <ConfirmModal
@@ -718,3 +354,5 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
     </div>
   );
 }
+
+export default StudentDetailsModal;

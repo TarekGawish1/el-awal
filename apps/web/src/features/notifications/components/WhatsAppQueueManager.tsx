@@ -1,22 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock,
   AlertTriangle,
-  CheckCircle2,
   RefreshCw,
   RotateCcw,
-  Send,
   Loader2,
-  Users,
-  Smartphone,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
   Info,
-  Calendar,
   Sparkles,
   Trash2,
   Play,
@@ -31,8 +24,10 @@ import {
   useClearAllFailedWhatsApp,
   useClearWhatsAppQueue,
   useDispatchWhatsAppQueueNow,
-  WhatsAppMessageLog,
 } from '@/hooks/useWhatsAppQueue';
+import { WhatsAppStatsCards } from './whatsapp/WhatsAppStatsCards';
+import { WhatsAppFailedMessageCard } from './whatsapp/WhatsAppFailedMessageCard';
+import { WhatsAppQueuedMessageCard } from './whatsapp/WhatsAppQueuedMessageCard';
 
 export function WhatsAppQueueManager() {
   const [activeSubTab, setActiveSubTab] = useState<'failed' | 'queue'>('failed');
@@ -67,129 +62,13 @@ export function WhatsAppQueueManager() {
     refetchFailed();
   };
 
-  const getTemplateLabel = (templateType: string) => {
-    switch (templateType) {
-      case 'STUDENT_APPROVAL_CREDENTIALS':
-      case 'STUDENT_REGISTRATION_CREDENTIALS':
-        return { label: 'بيانات الحساب وتأكيد التسجيل', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-      case 'ABSENCE_ALERT_PARENT':
-        return { label: 'تنبيه غياب طالب', color: 'bg-amber-50 text-amber-700 border-amber-200' };
-      case 'PAYMENT_RECEIVED_PARENT':
-        return { label: 'إيصال سداد رسوم', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-      case 'TEACHER_DAILY_SCHEDULE':
-        return { label: 'جدول الحصص الصباحي للمعلم', color: 'bg-teal-50 text-teal-700 border-teal-200' };
-      case 'ONLINE_EXAM_REMINDER':
-        return { label: 'تذكير بامتحان', color: 'bg-purple-50 text-purple-700 border-purple-200' };
-      case 'HOMEWORK_MISSING_PARENT':
-        return { label: 'تنبيه واجب مدرسي', color: 'bg-rose-50 text-rose-700 border-rose-200' };
-      default:
-        return { label: templateType || 'إشعار واتساب عام', color: 'bg-slate-50 text-slate-700 border-slate-200' };
-    }
-  };
-
-  const formatFailureReason = (reason?: string | null) => {
-    if (!reason) return 'سبب غير محدد';
-    if (reason.includes('not connected')) return 'خادم الواتساب غير متصل حالياً (انقطاع الاتصال)';
-    if (reason.includes('not registered')) return 'هذا الرقم غير مسجل على تطبيق واتساب';
-    if (reason.includes('timeout')) return 'مهلة الاتصال انتهت أثناء الإرسال';
-    if (reason.includes('quota')) return 'تم بلوغ الحد الأقصى للإرسال مؤقتاً';
-    return reason;
-  };
-
   const failedCount = stats?.failedCount ?? 0;
   const queuedCount = stats?.queuedCount ?? 0;
-  const sentTodayCount = stats?.sentToday ?? 0;
 
   return (
     <div className="space-y-6">
       {/* ── 1. Statistics Cards Overview ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Sent Today */}
-        <div className="bg-white rounded-2xl p-5 border border-emerald-100/80 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500">تم إرسالها اليوم بنجاح</span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-emerald-950 font-mono">
-              {isStatsLoading ? '...' : sentTodayCount}
-            </span>
-            <span className="text-[11px] text-emerald-600 font-bold">رسالة</span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">تراكمي منذ الساعة 00:00 بتوقيت القاهرة</p>
-        </div>
-
-        {/* Queued / Pending */}
-        <div className="bg-white rounded-2xl p-5 border border-amber-100/80 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500">قيد الانتظار في الطابور</span>
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Clock size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-amber-950 font-mono">
-              {isStatsLoading ? '...' : queuedCount}
-            </span>
-            <span className="text-[11px] text-amber-600 font-bold">في الطابور</span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">تُرسل بفاصل أمان (4-7 ثوانٍ) لمنع الحظر</p>
-        </div>
-
-        {/* Failed */}
-        <div
-          className={`rounded-2xl p-5 border shadow-xs relative overflow-hidden transition-all ${
-            failedCount > 0
-              ? 'bg-red-50/40 border-red-200 ring-2 ring-red-400/20'
-              : 'bg-white border-slate-100'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500">رسائل متعثرة / فشلت</span>
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                failedCount > 0 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500'
-              }`}
-            >
-              <AlertTriangle size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span
-              className={`text-2xl font-black font-mono ${
-                failedCount > 0 ? 'text-red-700' : 'text-slate-900'
-              }`}
-            >
-              {isStatsLoading ? '...' : failedCount}
-            </span>
-            <span className={`text-[11px] font-bold ${failedCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-              رسالة
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {failedCount > 0 ? 'تحتاج إلى إعادة إرسال بعد ربط الرقم' : 'لا توجد أي رسائل فاشلة حالياً'}
-          </p>
-        </div>
-
-        {/* Total Delivered */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500">إجمالي الرسائل المستلمة</span>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <ShieldCheck size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 font-mono">
-              {isStatsLoading ? '...' : stats?.totalDelivered ?? 0}
-            </span>
-            <span className="text-[11px] text-blue-600 font-bold">مستلمة بنجاح</span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">تم تأكيد استلامها بعلامتي الصح الزرقاء</p>
-        </div>
-      </div>
+      <WhatsAppStatsCards stats={stats} isLoading={isStatsLoading} />
 
       {/* ── 2. Sub-tab Navigation & Actions Bar ── */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
@@ -355,106 +234,18 @@ export function WhatsAppQueueManager() {
             </div>
           ) : (
             <div className="space-y-3">
-              {failedData.data.map((msg) => {
-                const tmpl = getTemplateLabel(msg.templateType);
-                const isExpanded = expandedMessageId === msg.id;
-
-                return (
-                  <div
-                    key={msg.id}
-                    className="bg-white rounded-2xl p-5 border border-red-100 hover:border-red-200 shadow-2xs space-y-3 transition-all"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-sm text-slate-900">
-                            {msg.recipientName || 'مستلم بدون اسم'}
-                          </span>
-                          <span
-                            className="font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md"
-                            dir="ltr"
-                          >
-                            +{msg.recipientPhone}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${tmpl.color}`}
-                          >
-                            {tmpl.label}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600">
-                            الدور: {msg.recipientRole === 'PARENT' ? 'ولي أمر' : msg.recipientRole === 'STUDENT' ? 'طالب' : 'معلم'}
-                          </span>
-                        </div>
-
-                        {/* Failure reason badge */}
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 text-red-700 font-bold border border-red-100">
-                            <AlertTriangle size={13} />
-                            <span>سبب الفشل: {formatFailureReason(msg.failureReason)}</span>
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            • عدد المحاولات: {msg.retryCount} / {msg.maxRetries}
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            • الوقت: {new Date(msg.createdAt).toLocaleString('ar-EG')}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Action Retry & Delete buttons */}
-                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                        <button
-                          type="button"
-                          disabled={retrySingle.isPending}
-                          onClick={() => retrySingle.mutate(msg.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition-all disabled:opacity-50 shadow-xs cursor-pointer"
-                        >
-                          <RotateCcw size={13} />
-                          <span>إعادة الإرسال 🔄</span>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={deleteSingle.isPending}
-                          onClick={() => {
-                            if (typeof window !== 'undefined' && window.confirm('هل أنت متأكد من حذف هذه الرسالة نهائياً؟')) {
-                              deleteSingle.mutate(msg.id);
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-colors cursor-pointer"
-                          title="حذف الرسالة من السجل"
-                        >
-                          <Trash2 size={13} />
-                          <span>حذف</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Message Preview Collapsible */}
-                    <div className="pt-2 border-t border-slate-100 text-xs text-slate-600">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-[11px] text-slate-500">نص الرسالة:</span>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedMessageId(isExpanded ? null : msg.id)}
-                          className="text-[11px] text-blue-600 font-bold hover:underline"
-                        >
-                          {isExpanded ? 'إخفاء النص ▲' : 'عرض نص الرسالة بالكامل ▼'}
-                        </button>
-                      </div>
-
-                      {isExpanded ? (
-                        <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-800 whitespace-pre-wrap font-sans text-xs leading-relaxed max-h-48 overflow-y-auto">
-                          {msg.messageBody}
-                        </div>
-                      ) : (
-                        <p className="mt-1 line-clamp-1 text-slate-500 text-[11px]">
-                          {msg.messageBody}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {failedData.data.map((msg) => (
+                <WhatsAppFailedMessageCard
+                  key={msg.id}
+                  message={msg}
+                  isExpanded={expandedMessageId === msg.id}
+                  onToggleExpand={() => setExpandedMessageId(expandedMessageId === msg.id ? null : msg.id)}
+                  onRetry={(id) => retrySingle.mutate(id)}
+                  onDelete={(id) => deleteSingle.mutate(id)}
+                  isRetrying={retrySingle.isPending}
+                  isDeleting={deleteSingle.isPending}
+                />
+              ))}
 
               {/* Pagination Controls */}
               {failedData.totalPages > 1 && (
@@ -517,92 +308,16 @@ export function WhatsAppQueueManager() {
             </div>
           ) : (
             <div className="space-y-3">
-              {queueData.data.map((msg) => {
-                const tmpl = getTemplateLabel(msg.templateType);
-                const isExpanded = expandedMessageId === msg.id;
-
-                return (
-                  <div
-                    key={msg.id}
-                    className="bg-white rounded-2xl p-5 border border-slate-100 shadow-2xs space-y-2.5"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-sm text-slate-900">
-                            {msg.recipientName || 'مستلم بدون اسم'}
-                          </span>
-                          <span
-                            className="font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md"
-                            dir="ltr"
-                          >
-                            +{msg.recipientPhone}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${tmpl.color}`}
-                          >
-                            {tmpl.label}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                          <span>
-                            موعد الإرسال المتوقع:{' '}
-                            <strong className="text-slate-600">
-                              {new Date(msg.scheduledFor).toLocaleTimeString('ar-EG')}
-                            </strong>
-                          </span>
-                          <span>• أُضيفت: {new Date(msg.createdAt).toLocaleTimeString('ar-EG')}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                          <span>في الانتظار (Queued)</span>
-                        </span>
-                        <button
-                          type="button"
-                          disabled={deleteSingle.isPending}
-                          onClick={() => {
-                            if (typeof window !== 'undefined' && window.confirm('هل أنت متأكد من إزالة هذه الرسالة من طابور الانتظار؟')) {
-                              deleteSingle.mutate(msg.id);
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-colors cursor-pointer"
-                          title="حذف الرسالة من الطابور"
-                        >
-                          <Trash2 size={13} />
-                          <span>حذف</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Message Preview Collapsible */}
-                    <div className="pt-2 border-t border-slate-100 text-xs text-slate-600">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-[11px] text-slate-500">نص الرسالة:</span>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedMessageId(isExpanded ? null : msg.id)}
-                          className="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer"
-                        >
-                          {isExpanded ? 'إخفاء النص ▲' : 'عرض نص الرسالة بالكامل ▼'}
-                        </button>
-                      </div>
-
-                      {isExpanded ? (
-                        <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-800 whitespace-pre-wrap font-sans text-xs leading-relaxed max-h-48 overflow-y-auto">
-                          {msg.messageBody}
-                        </div>
-                      ) : (
-                        <p className="mt-1 line-clamp-1 text-slate-500 text-[11px]">
-                          {msg.messageBody}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {queueData.data.map((msg) => (
+                <WhatsAppQueuedMessageCard
+                  key={msg.id}
+                  message={msg}
+                  isExpanded={expandedMessageId === msg.id}
+                  onToggleExpand={() => setExpandedMessageId(expandedMessageId === msg.id ? null : msg.id)}
+                  onDelete={(id) => deleteSingle.mutate(id)}
+                  isDeleting={deleteSingle.isPending}
+                />
+              ))}
 
               {/* Queue Pagination */}
               {queueData.totalPages > 1 && (

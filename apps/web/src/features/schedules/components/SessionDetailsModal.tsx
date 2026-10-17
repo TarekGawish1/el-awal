@@ -1,42 +1,25 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import React from 'react';
 import {
   X,
-  Calendar,
   Clock,
-  BookOpen,
-  Users,
-  FileText,
-  FileDown,
-  Play,
-  UploadCloud,
   Edit3,
   Trash2,
   QrCode,
-  CheckCircle2,
-  ExternalLink,
-  Layers,
-  Image as ImageIcon,
-  Video as VideoIcon,
-  Music,
-  Wallet,
-  DollarSign,
+  FileText,
   GraduationCap,
-  FileSpreadsheet,
-  Plus,
-  ClipboardList,
 } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { useDeleteSession, useGroupSessions, useUpdateSession } from '../hooks/useSchedules';
-import { useAssessments } from '@/features/assessments/hooks/use-assessments';
+import { useSessionDetailsModal } from '../hooks/useSessionDetailsModal';
+import { SessionQuickActions } from './session-details/SessionQuickActions';
+import { SessionAttachmentsSection } from './session-details/SessionAttachmentsSection';
+import { SessionAssessmentsSection } from './session-details/SessionAssessmentsSection';
 import { formatArabicTime12H } from '../utils/time.utils';
 import { VideoPlayerModal } from '@/features/content/components/VideoPlayerModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import toast from 'react-hot-toast';
 
 interface SessionDetailsModalProps {
   isOpen: boolean;
@@ -53,147 +36,29 @@ export function SessionDetailsModal({
   onEdit,
   onUploadAttachment,
 }: SessionDetailsModalProps) {
-  const [activeVideo, setActiveVideo] = useState<any | null>(null);
-  const [isCancellingMode, setIsCancellingMode] = useState(false);
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [cancellationReasonInput, setCancellationReasonInput] = useState('');
-  const { mutate: deleteSessionMutate, isPending: isDeleting } = useDeleteSession();
-  const { mutate: updateSessionMutate, isPending: isUpdating } = useUpdateSession();
-
-  const { data: assessmentsData = [] } = useAssessments(
-    session?.groupId ? { groupId: session.groupId } : undefined
-  );
-  const groupAssessments = Array.isArray(assessmentsData) ? assessmentsData : [];
-
-  const { data: groupSessions = [] } = useGroupSessions(session?.groupId);
+  const {
+    activeVideo,
+    setActiveVideo,
+    isCancellingMode,
+    setIsCancellingMode,
+    isDeleteConfirmOpen,
+    setIsDeleteConfirmOpen,
+    cancellationReasonInput,
+    setCancellationReasonInput,
+    groupAssessments,
+    isDeleting,
+    isUpdating,
+    cleanSessionDate,
+    isToday,
+    isUpcoming,
+    formatArabicFullDate,
+    buildAssessmentLink,
+    handleCancelSessionForDay,
+    handleReactivateSession,
+    handleDelete,
+  } = useSessionDetailsModal({ session, onClose });
 
   if (!isOpen || !session) return null;
-
-  const formatArabicFullDate = (dateStr: string) => {
-    try {
-      const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-      const [y, m, d] = cleanDate.split('-').map(Number);
-      const dateObj = new Date(y, m - 1, d);
-      return dateObj.toLocaleDateString('ar-EG', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const cleanSessionDate = session.sessionDate.includes('T')
-    ? session.sessionDate.split('T')[0]
-    : session.sessionDate;
-
-  /**
-   * Homework/exam created for this session is due at the START TIME of the NEXT
-   * session of the same group, so students submit their answers before the
-   * following lesson (not at the same moment they received the assignment).
-   */
-  const getSessionTime = (s: LessonSessionItem): number => {
-    const date = new Date(
-      (s.sessionDate || '').includes('T') ? s.sessionDate : `${s.sessionDate || ''}T00:00:00`,
-    );
-    const time = s.startTime || s.endTime;
-    if (time) {
-      const [h, m] = time.split(':').map(Number);
-      if (!isNaN(h)) date.setHours(h, m, 0, 0);
-    }
-    return date.getTime();
-  };
-
-  const currentSessionTime = getSessionTime(session);
-  const nextSession = (groupSessions || [])
-    .filter((s: LessonSessionItem) => !s.isCancelled && getSessionTime(s) > currentSessionTime)
-    .sort((a: LessonSessionItem, b: LessonSessionItem) => getSessionTime(a) - getSessionTime(b))[0] || null;
-
-  const hwDueDateParam = nextSession
-    ? `&dueDate=${nextSession.sessionDate.split('T')[0]}T${nextSession.startTime || nextSession.endTime || '23:59'}`
-    : '';
-
-  const buildAssessmentLink = (type: 'ASSIGNMENT' | 'EXAM') =>
-    `/teacher/assessments/new?type=${type}&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}${type === 'EXAM' ? hwDueDateParam : ''}`;
-
-  const isToday = cleanSessionDate === todayStr;
-  const isUpcoming = cleanSessionDate > todayStr;
-  const isPast = cleanSessionDate < todayStr;
-
-  const handleCancelSessionForDay = () => {
-    updateSessionMutate(
-      {
-        id: session.id,
-        payload: {
-          isCancelled: true,
-          cancellationReason: cancellationReasonInput.trim() || 'إلغاء الحصة لهذا اليوم',
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success('تم تحديد الحصة كملغاة لهذا اليوم');
-          setIsCancellingMode(false);
-          setCancellationReasonInput('');
-          onClose();
-        },
-        onError: (err: any) => {
-          toast.error(err.message || 'فشل إلغاء الحصة');
-        },
-      },
-    );
-  };
-
-  const handleReactivateSession = () => {
-    updateSessionMutate(
-      {
-        id: session.id,
-        payload: {
-          isCancelled: false,
-          cancellationReason: null,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success('تم إلغاء حالة الإلغاء وتفعيل الحصة بنجاح');
-          onClose();
-        },
-        onError: (err: any) => {
-          toast.error(err.message || 'فشل تفعيل الحصة');
-        },
-      },
-    );
-  };
-
-  const handleDelete = () => {
-    deleteSessionMutate(session.id, {
-      onSuccess: () => {
-        toast.success('تم حذف الحصة بنجاح');
-        setIsDeleteConfirmOpen(false);
-        onClose();
-      },
-      onError: (err: any) => toast.error(err.message || 'فشل حذف الحصة'),
-    });
-  };
-
-  const getContentTypeIcon = (type?: string, mime?: string | null) => {
-    if (type === 'LECTURE_RECORDING' || mime?.startsWith('video/')) {
-      return <VideoIcon className="w-4 h-4 text-purple-600" />;
-    }
-    if (mime?.startsWith('image/')) {
-      return <ImageIcon className="w-4 h-4 text-emerald-600" />;
-    }
-    if (mime?.startsWith('audio/')) {
-      return <Music className="w-4 h-4 text-amber-600" />;
-    }
-    return <FileText className="w-4 h-4 text-blue-600" />;
-  };
-
-  const isBunnyVideo = (item: any) => {
-    return item.fileKey?.startsWith('bunny:') || item.fileUrl?.includes('iframe.mediadelivery.net');
-  };
 
   return (
     <>
@@ -251,7 +116,7 @@ export function SessionDetailsModal({
 
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors shrink-0"
+              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors shrink-0 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -298,7 +163,7 @@ export function SessionDetailsModal({
                       setIsCancellingMode(false);
                       setCancellationReasonInput('');
                     }}
-                    className="text-xs text-slate-500 hover:text-slate-800 font-bold"
+                    className="text-xs text-slate-500 hover:text-slate-800 font-bold cursor-pointer"
                   >
                     تراجع
                   </button>
@@ -327,7 +192,7 @@ export function SessionDetailsModal({
                   <Button
                     type="button"
                     size="sm"
-                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs"
+                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer"
                     onClick={handleCancelSessionForDay}
                     disabled={isUpdating}
                   >
@@ -336,117 +201,12 @@ export function SessionDetailsModal({
                 </div>
               </div>
             ) : null}
-            {/* Top Quick Actions: Attendance QR & Payments QR (Immediate 1-Click Access at very top) */}
-            {(() => {
-              const sessionDateOnly = session.sessionDate.includes('T')
-                ? session.sessionDate.split('T')[0]
-                : session.sessionDate;
-              const sessionDateObj = new Date(sessionDateOnly);
-              const sessionYear = !isNaN(sessionDateObj.getFullYear())
-                ? sessionDateObj.getFullYear()
-                : new Date().getFullYear();
-              const sessionMonth = !isNaN(sessionDateObj.getMonth())
-                ? sessionDateObj.getMonth() + 1
-                : new Date().getMonth() + 1;
 
-              const assessmentsAny = groupAssessments as any[];
-              const thisSessionAssignment = assessmentsAny.find((a: any) => a.type === 'ASSIGNMENT' && a.dueDate?.includes(sessionDateOnly));
-              const thisSessionExam = assessmentsAny.find((a: any) => a.type === 'EXAM' && (a.startDate?.includes(sessionDateOnly) || a.dueDate?.includes(sessionDateOnly)));
-
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Attendance QR Action */}
-                  <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200 flex flex-col justify-between gap-3 transition-all hover:bg-emerald-50 shadow-2xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-emerald-900 font-extrabold text-xs">
-                        <QrCode className="w-4 h-4 text-emerald-600" />
-                        <span>رصد الحضور والـ QR</span>
-                      </div>
-                      <p className="text-[11px] text-emerald-700 font-medium">
-                        {session._count?.attendanceRecords || 0} طالب تم تسجيل حضورهم لهذه الحصة
-                      </p>
-                    </div>
-
-                    <Link
-                      href={`/teacher/attendance?sessionId=${session.id}&groupId=${session.groupId}&date=${sessionDateOnly}`}
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      <span>رصد الحضور بالـ QR</span>
-                    </Link>
-                  </div>
-
-                  {/* Payments / Finance QR & Manual Action */}
-                  <div className="p-4 bg-indigo-50/80 rounded-2xl border border-indigo-200 flex flex-col justify-between gap-3 transition-all hover:bg-indigo-50 shadow-2xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-indigo-900 font-extrabold text-xs">
-                        <Wallet className="w-4 h-4 text-indigo-600" />
-                        <span>رصد المدفوعات (QR ويدوي)</span>
-                      </div>
-                      <p className="text-[11px] text-indigo-700 font-medium">
-                        تسجيل سداد المصروفات والاشتراكات الشهرية للمجموعة
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <Link
-                        href={`/teacher/finance?groupId=${session.groupId}&year=${sessionYear}&month=${sessionMonth}&scan=true`}
-                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                        <span>رصد بالـ QR</span>
-                      </Link>
-                      <Link
-                        href={`/teacher/finance?groupId=${session.groupId}&year=${sessionYear}&month=${sessionMonth}&record=true`}
-                        className="w-full py-2.5 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Wallet className="w-3.5 h-3.5" />
-                        <span>رصد يدوي</span>
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Homework & Exams Submissions Quick Action */}
-                  {(thisSessionAssignment || thisSessionExam) && (
-                    <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 flex flex-col justify-between gap-3 transition-all hover:bg-amber-50 shadow-2xs sm:col-span-2">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
-                            <BookOpen className="w-4 h-4 text-amber-600" />
-                            <span>حلول الواجبات وإجابات الامتحانات للحصة</span>
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-amber-700 font-medium">
-                          عرض وتصحيح تسليمات الطلاب للواجب والامتحان المرتبط بهذه الحصة
-                        </p>
-                      </div>
-
-                      <div className={`grid gap-2 ${thisSessionAssignment && thisSessionExam ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        {thisSessionAssignment && (
-                          <Link
-                            href={`/teacher/assessments/${thisSessionAssignment.id}/submissions`}
-                            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            <ClipboardList className="w-3.5 h-3.5" />
-                            <span>حلول الواجب ({thisSessionAssignment._count?.submissions || 0})</span>
-                          </Link>
-                        )}
-
-                        {thisSessionExam && (
-                          <Link
-                            href={`/teacher/assessments/${thisSessionExam.id}/submissions`}
-                            className="w-full py-2.5 bg-white hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            <GraduationCap className="w-3.5 h-3.5" />
-                            <span>إجابات الامتحان ({thisSessionExam._count?.submissions || 0})</span>
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            {/* Top Quick Actions: Attendance QR, Payments QR & Homework/Exams */}
+            <SessionQuickActions
+              session={session}
+              groupAssessments={groupAssessments}
+            />
 
             {/* Quick Metrics Bar (المرفقات، التقييمات، الحضور) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
@@ -488,192 +248,23 @@ export function SessionDetailsModal({
             </div>
 
             {/* Attachments Section */}
-            <div className="space-y-3 pt-1">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-primary-600" />
-                  المذكرات والمرفقات والفيديوهات المرتبطة بالحصة
-                </h3>
-
-
-              </div>
-
-              {session.educationalContents && session.educationalContents.length > 0 ? (
-                <div className="space-y-2">
-                  {session.educationalContents.map((content) => (
-                    <div
-                      key={content.id}
-                      className="p-3.5 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:border-primary-200 transition-all flex items-center justify-between gap-3 group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                          {getContentTypeIcon(content.contentType, content.mimeType)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-800 truncate group-hover:text-primary-700 transition-colors">
-                            {content.title}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-medium">
-                            {content.fileSize ? `${(content.fileSize / (1024 * 1024)).toFixed(1)} MB • ` : ''}
-                            {content.contentType === 'LECTURE_RECORDING' ? 'فيديو محاضرة' : 'مستند ومذكرة'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {isBunnyVideo(content) ? (
-                          <button
-                            type="button"
-                            onClick={() => setActiveVideo(content)}
-                            className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-purple-600 text-purple-600" />
-                            مشاهدة
-                          </button>
-                        ) : (
-                          <a
-                            href={content.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-primary-50 text-slate-700 hover:text-primary-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                          >
-                            <FileDown className="w-3.5 h-3.5" />
-                            تحميل
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-5 rounded-2xl border border-dashed border-slate-200 text-center bg-slate-50/50 space-y-1.5">
-                  <p className="text-xs font-bold text-slate-600">لا توجد مذكرات أو ملفات مرفوعة لهذه الحصة بعد</p>
-                  <p className="text-[11px] text-slate-400">
-                    يمكنك رفع مذكرة الشرح، الواجب المنزلي، أو تسجيل فيديو الحصة مباشرة
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      onClose();
-                      onUploadAttachment(session);
-                    }}
-                    className="mt-1 text-xs"
-                  >
-                    <UploadCloud className="w-3.5 h-3.5 ml-1.5" />
-                    رفع ملزمة أو فيديو للحصة
-                  </Button>
-                </div>
-              )}
-            </div>
+            <SessionAttachmentsSection
+              session={session}
+              onUploadAttachment={onUploadAttachment}
+              onClose={onClose}
+              onPlayVideo={setActiveVideo}
+            />
 
             {/* Homework & Assessments Section */}
-            <div className="space-y-3 pt-1">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <GraduationCap className="w-4 h-4 text-primary-600" />
-                  الواجبات والاختبارات المرتبطة بالحصة
-                </h3>
-
-
-              </div>
-
-              {groupAssessments && groupAssessments.length > 0 ? (
-                <div className="space-y-2">
-                  {groupAssessments.slice(0, 4).map((item: any) => (
-                    <div
-                      key={item.id}
-                      className="p-3.5 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:border-primary-200 transition-all flex items-center justify-between gap-3 group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold ${
-                            item.type === 'ASSIGNMENT'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-purple-100 text-purple-700'
-                          }`}
-                        >
-                          {item.type === 'ASSIGNMENT' ? (
-                            <FileSpreadsheet className="w-4 h-4" />
-                          ) : (
-                            <GraduationCap className="w-4 h-4" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                                item.type === 'ASSIGNMENT'
-                                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                                  : 'bg-purple-50 text-purple-800 border border-purple-200'
-                              }`}
-                            >
-                              {item.type === 'ASSIGNMENT' ? 'واجب' : 'اختبار'}
-                            </span>
-                            <p className="text-xs font-bold text-slate-800 truncate group-hover:text-primary-700 transition-colors">
-                              {item.title}
-                            </p>
-                          </div>
-                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                            الدرجة: {item.totalScore} • {item._count?.questions || 0} أسئلة • {item._count?.submissions || 0} تسليمات
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Link
-                          href={`/teacher/assessments/${item.id}/submissions`}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-primary-50 text-slate-700 hover:text-primary-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          التسليمات ({item._count?.submissions || 0})
-                        </Link>
-                        <Link
-                          href={`/teacher/assessments/${item.id}`}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                        >
-                          عرض
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
-                  <Link
-                    href={buildAssessmentLink('ASSIGNMENT')}
-                    className="p-3 bg-white rounded-xl border border-slate-200 hover:border-amber-300 hover:shadow-xs transition-all flex items-center gap-2.5 text-right group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-100 transition-colors">
-                      <FileSpreadsheet className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-amber-700">إضافة واجب للحصة</p>
-                      <p className="text-[10px] text-slate-400">أسئلة تفاعلية أو من المذكرة</p>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href={buildAssessmentLink('EXAM')}
-                    className="p-3 bg-white rounded-xl border border-slate-200 hover:border-purple-300 hover:shadow-xs transition-all flex items-center gap-2.5 text-right group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:bg-purple-100 transition-colors">
-                      <GraduationCap className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-purple-700">إضافة اختبار للحصة</p>
-                      <p className="text-[10px] text-slate-400">امتحان إلكتروني ورصد فوري</p>
-                    </div>
-                  </Link>
-                </div>
-              )}
-            </div>
+            <SessionAssessmentsSection
+              groupAssessments={groupAssessments}
+              buildAssessmentLink={buildAssessmentLink}
+            />
           </div>
 
           {/* Footer Actions */}
           <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-100 bg-slate-50/80 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2 justify-center sm:justify-start">
-              {/* Only sessions added manually from the calendar can be deleted. Group scheduled sessions cannot be deleted, only cancelled. */}
               {!session.scheduleId && (
                 <button
                   type="button"
@@ -710,7 +301,7 @@ export function SessionDetailsModal({
                   onClose();
                   onEdit(session);
                 }}
-                className="shadow-xs flex-1 sm:flex-initial"
+                className="shadow-xs flex-1 sm:flex-initial cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5 ml-1.5" />
                 تعديل الحصة
@@ -744,3 +335,5 @@ export function SessionDetailsModal({
     </>
   );
 }
+
+export default SessionDetailsModal;
