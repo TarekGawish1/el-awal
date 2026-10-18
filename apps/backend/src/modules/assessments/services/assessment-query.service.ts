@@ -56,63 +56,64 @@ export class AssessmentQueryService {
   }
 
   async getCachedAssessmentBase(assessmentId: string) {
-    const cacheKey = `assessment:base:${assessmentId}`;
-    return this.assessmentDetailsCache.getOrSet(
-      cacheKey,
-      async () => {
-        return this.prisma.assessment.findUnique({
-          where: { id: assessmentId },
-          include: {
-            teacher: {
-              include: { user: { select: { fullName: true } } },
-            },
-            group: {
-              include: {
-                enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
-              },
-            },
-            targetGroups: {
-              include: {
-                enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
-              },
-            },
-            course: {
-              include: {
-                enrollments: { where: { status: CourseEnrollmentStatus.ACTIVE } },
-              },
-            },
-            courseFinalQuizOf: {
-              select: {
-                id: true,
-                enforceSequentialLessons: true,
-                modules: {
-                  include: {
-                    unitQuiz: { select: { id: true, isOptional: true } },
-                    lessons: { select: { id: true } },
-                  },
-                },
-              },
-            },
-            unitQuizOf: {
-              select: {
-                id: true,
-                courseId: true,
-                course: {
-                  select: {
-                    enforceSequentialLessons: true,
-                  },
-                },
-                lessons: { select: { id: true } },
-              },
-            },
-            questions: {
-              orderBy: { questionNumber: 'asc' },
+    const cacheKey = `assessment:blueprint:${assessmentId}`;
+    const fetcher = async () => {
+      return this.prisma.assessment.findUnique({
+        where: { id: assessmentId },
+        include: {
+          teacher: {
+            include: { user: { select: { fullName: true } } },
+          },
+          group: {
+            include: {
+              enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
             },
           },
-        });
-      },
-      45,
-    );
+          targetGroups: {
+            include: {
+              enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+            },
+          },
+          course: {
+            include: {
+              enrollments: { where: { status: CourseEnrollmentStatus.ACTIVE } },
+            },
+          },
+          courseFinalQuizOf: {
+            select: {
+              id: true,
+              enforceSequentialLessons: true,
+              modules: {
+                include: {
+                  unitQuiz: { select: { id: true, isOptional: true } },
+                  lessons: { select: { id: true } },
+                },
+              },
+            },
+          },
+          unitQuizOf: {
+            select: {
+              id: true,
+              courseId: true,
+              course: {
+                select: {
+                  enforceSequentialLessons: true,
+                },
+              },
+              lessons: { select: { id: true } },
+            },
+          },
+          questions: {
+            orderBy: { questionNumber: 'asc' },
+          },
+        },
+      });
+    };
+
+    if (this.redisCache) {
+      return this.redisCache.getOrSet(cacheKey, fetcher, 120);
+    }
+    return this.assessmentDetailsCache.getOrSet(cacheKey, fetcher, 45);
   }
 
   async getAssessments(query: AssessmentQueryDto, user: AuthenticatedUser) {

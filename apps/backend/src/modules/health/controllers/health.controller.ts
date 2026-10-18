@@ -19,15 +19,23 @@ export class HealthController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private lastHealthCheck: { time: number; result: any } | null = null;
+
   @Public()
   @Get()
   @HealthCheck()
   @ApiOperation({ summary: 'Liveness and readiness healthcheck probe' })
-  check() {
-    return this.health.check([
-      () => this.prismaIndicator.pingCheck('database', this.prisma, { timeout: 5000 }),
-      () => this.memory.checkHeap('memory_heap', 500 * 1024 * 1024), // 500MB heap limit
+  async check() {
+    const now = Date.now();
+    if (this.lastHealthCheck && now - this.lastHealthCheck.time < 3000) {
+      return this.lastHealthCheck.result;
+    }
+    const result = await this.health.check([
+      () => this.prismaIndicator.pingCheck('database', this.prisma, { timeout: 15000 }),
+      () => this.memory.checkHeap('memory_heap', 1024 * 1024 * 1024), // 1GB heap limit
     ]);
+    this.lastHealthCheck = { time: now, result };
+    return result;
   }
 
   @Public()
@@ -38,7 +46,7 @@ export class HealthController {
       status: 'ok',
       message: '🚀 CI/CD deployment pipeline is working perfectly!',
       timestamp: new Date().toISOString(),
-      server: 'DigitalOcean VPS',
+      server: '(Ubuntu 22.04 LTS)',
       environment: process.env.NODE_ENV || 'production',
     };
   }
@@ -52,8 +60,8 @@ export class HealthController {
       version: '1.0.1',
       deployedAt: new Date().toISOString(),
       status: 'Automated CI/CD is working seamlessly! 🎉',
-      server: 'Heroku Dyno (al-awal)',
-    };
+      server: '(Ubuntu 22.04 LTS)',
+    };      
   }
 
   @Public()

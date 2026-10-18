@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole, GroupEnrollmentStatus } from '@prisma/client';
 import { SyncTeacherSnapshotService } from './sync-teacher-snapshot.service';
 import { SyncStudentSnapshotService } from './sync-student-snapshot.service';
 import { BootstrapSnapshotResponse } from './sync.service';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class SyncSnapshotService {
@@ -14,6 +15,7 @@ export class SyncSnapshotService {
     private readonly prisma: PrismaService,
     private readonly teacherSnapshotService: SyncTeacherSnapshotService,
     private readonly studentSnapshotService: SyncStudentSnapshotService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
@@ -65,6 +67,13 @@ export class SyncSnapshotService {
   }
 
   async getSyncDiff(user: AuthenticatedUser, since?: string) {
+    const userKey = user.teacherProfileId || user.studentProfileId || user.id;
+    const cacheKey = `sync:diff:${userKey}:${since || 'latest'}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const sinceDate = since ? new Date(since) : new Date(0);
     let teacherProfile: any = null;
     try {
@@ -242,12 +251,18 @@ export class SyncSnapshotService {
       payments = [];
     }
 
-    return {
+    const result = {
       groups: { count: groups.length, items: groups },
       students: { count: students.length, items: students },
       attendance: { count: attendance.length, items: attendance },
       payments: { count: payments.length, items: payments },
       serverTime: new Date().toISOString(),
     };
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 20);
+    }
+
+    return result;
   }
 }

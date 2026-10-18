@@ -38,13 +38,16 @@ export class ParentOverviewService {
    * Real-time KPI Card Dashboard Overview for a linked child.
    */
   async getStudentOverview(parentId: string, studentId: string, userRole?: string) {
-    await this.parentChildrenService.verifyGuardianLink(parentId, studentId, userRole);
-
     const cacheKey = `parent:overview:${studentId}`;
     if (this.redisCache) {
       const cached = await this.redisCache.get<any>(cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        await this.parentChildrenService.verifyGuardianLink(parentId, studentId, userRole);
+        return cached;
+      }
     }
+
+    await this.parentChildrenService.verifyGuardianLink(parentId, studentId, userRole);
 
     const student = await this.prisma.studentProfile.findUnique({
       where: { id: studentId },

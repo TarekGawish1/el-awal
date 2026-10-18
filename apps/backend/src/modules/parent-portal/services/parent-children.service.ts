@@ -1,10 +1,14 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { GroupEnrollmentStatus, UserRole } from '@prisma/client';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class ParentChildrenService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redisCache?: RedisCacheService,
+  ) {}
 
   /**
    * Helper: Enforces that the authenticated parent is legally linked to the student.
@@ -12,6 +16,12 @@ export class ParentChildrenService {
   async verifyGuardianLink(parentId: string, studentId: string, userRole?: string) {
     if (userRole === UserRole.TEACHER || userRole === UserRole.SECRETARIAT) {
       return;
+    }
+
+    const cacheKey = `parent:link:${parentId}:${studentId}`;
+    if (this.redisCache) {
+      const isLinked = await this.redisCache.get<boolean>(cacheKey);
+      if (isLinked === true) return;
     }
 
     const link = await this.prisma.parentStudentLink.findFirst({
@@ -26,12 +36,22 @@ export class ParentChildrenService {
         'Guardianship authorization failed: You are not linked to this student',
       );
     }
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, true, 300);
+    }
   }
 
   /**
    * Lists all children/students registered under the authenticated parent account.
    */
   async getLinkedStudents(parentId: string) {
+    const cacheKey = `parent:linked_students:${parentId}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any[]>(cacheKey);
+      if (cached) return cached;
+    }
+
     const links = await this.prisma.parentStudentLink.findMany({
       where: {
         OR: [
@@ -53,7 +73,7 @@ export class ParentChildrenService {
       },
     });
 
-    return links.map((l) => ({
+    const result = links.map((l) => ({
       linkId: l.id,
       relationshipType: l.parent?.relationshipType || 'Guardian',
       student: {
@@ -67,5 +87,11 @@ export class ParentChildrenService {
         activeGroups: l.student.groupEnrollments.map((ge) => ge.group),
       },
     }));
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 120);
+    }
+
+    return result;
   }
 }

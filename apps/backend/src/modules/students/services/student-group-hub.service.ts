@@ -17,6 +17,7 @@ import {
   computeEffectiveDueDate,
   SessionForDeadline,
 } from '../../assessments/utils/effective-due-date.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class StudentGroupHubService {
@@ -25,6 +26,7 @@ export class StudentGroupHubService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly storageService?: StorageService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   resolveStudentId(user: AuthenticatedUser): string {
@@ -41,98 +43,121 @@ export class StudentGroupHubService {
 
   async getActiveStudentGroup(user: AuthenticatedUser) {
     const studentId = this.resolveStudentId(user);
-    const enrollment = await this.prisma.groupEnrollment.findFirst({
-      where: {
-        studentId,
-        status: GroupEnrollmentStatus.ACTIVE,
-        group: { isActive: true },
-      },
-      orderBy: { enrolledAt: 'asc' },
-      include: {
-        group: {
-          include: {
-            schedules: {
-              orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
-            },
-            teacher: {
-              include: { user: { select: { id: true, fullName: true } } },
+    const cacheKey = `student:active_group:${studentId}`;
+
+    const fetcher = async () => {
+      const enrollment = await this.prisma.groupEnrollment.findFirst({
+        where: {
+          studentId,
+          status: GroupEnrollmentStatus.ACTIVE,
+          group: { isActive: true },
+        },
+        orderBy: { enrolledAt: 'asc' },
+        include: {
+          group: {
+            include: {
+              schedules: {
+                orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+              },
+              teacher: {
+                include: { user: { select: { id: true, fullName: true } } },
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!enrollment) {
-      throw new NotFoundException(
-        'The student is not enrolled in an active academic group',
-      );
+      if (!enrollment) {
+        throw new NotFoundException(
+          'The student is not enrolled in an active academic group',
+        );
+      }
+
+      return enrollment;
+    };
+
+    if (this.redisCache) {
+      return this.redisCache.getOrSet(cacheKey, fetcher, 60);
     }
-
-    return enrollment;
+    return fetcher();
   }
 
   async getMyGroup(user: AuthenticatedUser, query?: StudentGroupQueryDto) {
-    const enrollment = await this.getActiveStudentGroup(user);
+    const studentId = this.resolveStudentId(user);
     const { month, year } = this.resolveCalendarPeriod(query);
-    const group = enrollment.group;
-    const payment = await this.prisma.studentPaymentRecord.findFirst({
-      where: {
-        studentId: enrollment.studentId,
-        groupId: group.id,
-        periodMonth: month,
-        periodYear: year,
-        paymentType: PaymentType.TUITION,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const cacheKey = `student:my_group:${studentId}:${month}:${year}`;
 
-    const amountExpected = Number(payment?.amountExpected ?? group.monthlyFee);
-    const amountPaid = Number(payment?.amountPaid ?? 0);
-    const isPaid =
-      payment?.paymentStatus === PaymentStatus.PAID &&
-      amountPaid >= amountExpected;
+    const fetcher = async () => {
+      const enrollment = await this.getActiveStudentGroup(user);
+      const group = enrollment.group;
+      const payment = await this.prisma.studentPaymentRecord.findFirst({
+        where: {
+          studentId: enrollment.studentId,
+          groupId: group.id,
+          periodMonth: month,
+          periodYear: year,
+          paymentType: PaymentType.TUITION,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    return {
-      group: {
-        id: group.id,
-        name: group.name,
-        gradeLevel: group.gradeLevel,
-        academicYear: group.academicYear,
-        academicTerm: group.academicTerm,
-        description: group.description,
-        monthlyFee: Number(group.monthlyFee),
-        schedules: group.schedules,
-      },
-      enrolledAt: enrollment.enrolledAt,
-      teacher: {
-        id: group.teacher.id,
-        fullName: group.teacher.user.fullName,
-        specialty: group.teacher.specialty,
-        bio: group.teacher.bio,
-      },
-      subscription: {
-        year,
-        month,
-        amountExpected,
-        amountPaid,
-        paymentStatus: payment?.paymentStatus || PaymentStatus.PENDING,
-        isPaid,
-      },
+      const amountExpected = Number(payment?.amountExpected ?? group.monthlyFee);
+      const amountPaid = Number(payment?.amountPaid ?? 0);
+      const isPaid =
+        payment?.paymentStatus === PaymentStatus.PAID &&
+        amountPaid >= amountExpected;
+
+      return {
+        group: {
+          id: group.id,
+          name: group.name,
+          gradeLevel: group.gradeLevel,
+          academicYear: group.academicYear,
+          academicTerm: group.academicTerm,
+          description: group.description,
+          monthlyFee: Number(group.monthlyFee),
+          schedules: group.schedules,
+        },
+        enrolledAt: enrollment.enrolledAt,
+        teacher: {
+          id: group.teacher.id,
+          fullName: group.teacher.user.fullName,
+          specialty: group.teacher.specialty,
+          bio: group.teacher.bio,
+        },
+        subscription: {
+          year,
+          month,
+          amountExpected,
+          amountPaid,
+          paymentStatus: payment?.paymentStatus || PaymentStatus.PENDING,
+          isPaid,
+        },
+      };
     };
+
+    if (this.redisCache) {
+      return this.redisCache.getOrSet(cacheKey, fetcher, 60);
+    }
+    return fetcher();
   }
 
   async getMyGroupSessions(
     user: AuthenticatedUser,
     query?: StudentGroupQueryDto,
   ) {
-    const enrollment = await this.getActiveStudentGroup(user);
-    const studentId = enrollment.studentId;
+    const studentId = this.resolveStudentId(user);
     const { month, year } = this.resolveCalendarPeriod(query);
-    const startDate = new Date(Date.UTC(year, month - 1, 1));
-    const endDate = new Date(Date.UTC(year, month, 0));
-    const groupId = enrollment.groupId;
+    const cacheKey = `student:my_group_sessions:${studentId}:${month}:${year}`;
 
-    const [sessions, assessments] = await Promise.all([
+    const fetcher = async () => {
+      const enrollment = await this.getActiveStudentGroup(user);
+      const sId = enrollment.studentId;
+      const startDate = new Date(Date.UTC(year, month - 1, 1));
+      const endDate = new Date(Date.UTC(year, month, 0));
+      const groupId = enrollment.groupId;
+
+      const [sessions, assessments] = await Promise.all([
       this.prisma.lessonSession.findMany({
         where: { groupId, sessionDate: { gte: startDate, lte: endDate } },
         orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
@@ -304,5 +329,11 @@ export class StudentGroupHubService {
         };
       }),
     );
+    };
+
+    if (this.redisCache) {
+      return this.redisCache.getOrSet(cacheKey, fetcher, 60);
+    }
+    return fetcher();
   }
 }

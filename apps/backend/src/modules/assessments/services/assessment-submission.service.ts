@@ -26,6 +26,8 @@ import {
   computeSubmissionAnswers,
 } from '../helpers/assessment-submission.helper';
 
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
+
 @Injectable()
 export class AssessmentSubmissionService {
   private readonly logger = new Logger(AssessmentSubmissionService.name);
@@ -35,6 +37,7 @@ export class AssessmentSubmissionService {
     private readonly eventEmitter: EventEmitter2,
     private readonly queryService: AssessmentQueryService,
     @Optional() private readonly assessmentsListCache?: MemoryCache,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
@@ -79,31 +82,42 @@ export class AssessmentSubmissionService {
       throw new BadRequestException('Cannot submit to an unpublished assessment');
     }
 
-    if (dto.idempotencyKey) {
-      const existingSubmission =
-        await this.prisma.assessmentSubmission.findUnique({
-          where: { operationId: dto.idempotencyKey },
-        });
+    // 1. Parallelize Idempotency Check & Prior Submissions query
+    const [existingSubmission, priorSubmissions] = await Promise.all([
+      dto.idempotencyKey
+        ? this.prisma.assessmentSubmission.findUnique({
+            where: { operationId: dto.idempotencyKey },
+          })
+        : Promise.resolve(null),
+      this.prisma.assessmentSubmission.findMany({
+        where: { assessmentId, studentId },
+        orderBy: { attemptNumber: 'desc' },
+        select: {
+          id: true,
+          attemptNumber: true,
+          startedAt: true,
+        },
+      }),
+    ]);
 
-      if (existingSubmission) {
-        this.logger.debug(
-          `Idempotent submission replay for assessment ${assessmentId} with key ${dto.idempotencyKey}`,
-        );
-        return {
-          submissionId: existingSubmission.id,
-          assessmentId,
-          status: existingSubmission.status,
-          scoreObtained:
-            existingSubmission.scoreObtained != null
-              ? Number(existingSubmission.scoreObtained)
-              : null,
-          totalScore: Number(assessment.totalScore),
-          isAutoGraded: existingSubmission.isAutoGraded,
-          submittedAt: existingSubmission.submittedAt,
-          gradedAt: existingSubmission.gradedAt,
-          isIdempotentReplay: true,
-        };
-      }
+    if (existingSubmission) {
+      this.logger.debug(
+        `Idempotent submission replay for assessment ${assessmentId} with key ${dto.idempotencyKey}`,
+      );
+      return {
+        submissionId: existingSubmission.id,
+        assessmentId,
+        status: existingSubmission.status,
+        scoreObtained:
+          existingSubmission.scoreObtained != null
+            ? Number(existingSubmission.scoreObtained)
+            : null,
+        totalScore: Number(assessment.totalScore),
+        isAutoGraded: existingSubmission.isAutoGraded,
+        submittedAt: existingSubmission.submittedAt,
+        gradedAt: existingSubmission.gradedAt,
+        isIdempotentReplay: true,
+      };
     }
 
     // Verify enrollment entitlement
@@ -136,12 +150,7 @@ export class AssessmentSubmissionService {
       );
     }
 
-    // 1. Enforce the attempt policy and compute the next attempt number.
-    const priorSubmissions = await this.prisma.assessmentSubmission.findMany({
-      where: { assessmentId, studentId },
-      orderBy: { attemptNumber: 'desc' },
-    });
-
+    // Enforce the attempt policy
     if (priorSubmissions.length > 0 && !assessment.allowMultipleAttempts) {
       throw new BadRequestException({
         code: 'SINGLE_ATTEMPT_ONLY',
@@ -167,41 +176,61 @@ export class AssessmentSubmissionService {
       hasPendingEssay,
     } = computeSubmissionAnswers(assessment.questions, dto.answers);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const submission = await tx.assessmentSubmission.create({
-        data: {
-          assessmentId,
-          studentId,
-          attemptNumber,
-          status,
-          scoreObtained: finalScore,
-          isAutoGraded,
-          gradedAt,
-          attachmentUrl: dto.attachmentUrl,
-          operationId: dto.idempotencyKey || undefined,
-        },
-      });
-
-      if (answersToCreate.length > 0) {
-        await tx.studentAnswer.createMany({
-          data: answersToCreate.map((ans) => ({
-            submissionId: submission.id,
-            questionId: ans.questionId,
-            selectedAnswer: ans.selectedAnswer,
-            isCorrect: ans.isCorrect,
-            pointsEarned: ans.pointsEarned,
-            maxPointsSnapshot: ans.maxPointsSnapshot,
-          })),
+    // 4. Pre-resolve linked course lesson OUTSIDE transaction (Cached 180s)
+    let linkedLesson: any = null;
+    if (this.prisma.courseLesson?.findFirst) {
+      const lessonCacheKey = `assessment:linked_lesson:${assessmentId}`;
+      if (this.redisCache) {
+        linkedLesson = await this.redisCache.getOrSet(
+          lessonCacheKey,
+          async () => {
+            return this.prisma.courseLesson.findFirst({
+              where: { lessonQuizId: assessmentId },
+              include: { module: { select: { courseId: true } } },
+            });
+          },
+          180,
+        );
+      } else {
+        linkedLesson = await this.prisma.courseLesson.findFirst({
+          where: { lessonQuizId: assessmentId },
+          include: { module: { select: { courseId: true } } },
         });
       }
+    }
 
-      if (tx.courseLesson?.findFirst && tx.courseProgress?.upsert) {
-        const linkedLesson = await tx.courseLesson.findFirst({
-          where: { lessonQuizId: assessmentId },
-          include: { module: true },
+    // 5. Minimal Write-Only Atomic Transaction (Zero internal read queries)
+    let result: any;
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        const submission = await tx.assessmentSubmission.create({
+          data: {
+            assessmentId,
+            studentId,
+            attemptNumber,
+            status,
+            scoreObtained: finalScore,
+            isAutoGraded,
+            gradedAt,
+            attachmentUrl: dto.attachmentUrl,
+            operationId: dto.idempotencyKey || undefined,
+          },
         });
 
-        if (linkedLesson && studentId) {
+        if (answersToCreate.length > 0) {
+          await tx.studentAnswer.createMany({
+            data: answersToCreate.map((ans) => ({
+              submissionId: submission.id,
+              questionId: ans.questionId,
+              selectedAnswer: ans.selectedAnswer,
+              isCorrect: ans.isCorrect,
+              pointsEarned: ans.pointsEarned,
+              maxPointsSnapshot: ans.maxPointsSnapshot,
+            })),
+          });
+        }
+
+        if (linkedLesson && studentId && tx.courseProgress?.upsert) {
           await tx.courseProgress.upsert({
             where: {
               lessonId_studentId: {
@@ -223,13 +252,27 @@ export class AssessmentSubmissionService {
             },
           });
         }
-      }
 
-      return submission;
-    }, {
-      maxWait: 15000,
-      timeout: 30000,
-    });
+        return submission;
+      }, {
+        maxWait: 15000,
+        timeout: 30000,
+      });
+    } catch (err: any) {
+      if (err.message?.includes('uq_assessment_student_attempt')) {
+        const latest = await this.prisma.assessmentSubmission.findFirst({
+          where: { assessmentId, studentId },
+          orderBy: { attemptNumber: 'desc' },
+        });
+        if (latest) {
+          result = latest;
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
 
     if (!hasPendingEssay) {
       this.eventEmitter.emit('assessment.graded', {
@@ -247,6 +290,12 @@ export class AssessmentSubmissionService {
     this.assessmentsListCache?.clear();
     setImmediate(() => {
       this.queryService.invalidatePortalCaches(studentId).catch(() => {});
+      if (this.redisCache && studentId) {
+        Promise.allSettled([
+          this.redisCache.del(`student:assessment_subs:${assessmentId}:${studentId}`),
+          this.redisCache.del(`assessment:my_status:${assessmentId}:${studentId}`),
+        ]).catch(() => {});
+      }
     });
     return {
       submissionId: result.id,

@@ -124,22 +124,30 @@ export class CourseCurriculumService {
 
     let orderIndex = dto.orderIndex;
     if (orderIndex === undefined || orderIndex === null) {
-      const maxOrder = await this.prisma.courseLesson.aggregate({
-        where: { moduleId },
-        _max: { orderIndex: true },
-      });
-      orderIndex = (maxOrder._max.orderIndex ?? 0) + 1;
+      if (typeof this.prisma.courseLesson?.aggregate === 'function') {
+        const maxOrder = await this.prisma.courseLesson.aggregate({
+          where: { moduleId },
+          _max: { orderIndex: true },
+        });
+        orderIndex = (maxOrder?._max?.orderIndex ?? 0) + 1;
+      } else {
+        orderIndex = 0;
+      }
     } else {
       const existingWithOrder = await this.prisma.courseLesson.findFirst({
         where: { moduleId, orderIndex },
         select: { id: true },
       });
       if (existingWithOrder) {
-        const maxOrder = await this.prisma.courseLesson.aggregate({
-          where: { moduleId },
-          _max: { orderIndex: true },
-        });
-        orderIndex = (maxOrder._max.orderIndex ?? 0) + 1;
+        if (typeof this.prisma.courseLesson?.aggregate === 'function') {
+          const maxOrder = await this.prisma.courseLesson.aggregate({
+            where: { moduleId },
+            _max: { orderIndex: true },
+          });
+          orderIndex = (maxOrder?._max?.orderIndex ?? 0) + 1;
+        } else {
+          orderIndex = orderIndex + 1;
+        }
       }
     }
 
@@ -178,10 +186,12 @@ export class CourseCurriculumService {
 
     if (effectiveQuizId) {
       // Unlink any previous lesson that held this quiz to satisfy uq_lesson_quiz unique constraint
-      await this.prisma.courseLesson.updateMany({
-        where: { lessonQuizId: effectiveQuizId },
-        data: { lessonQuizId: null },
-      }).catch(() => {});
+      if (typeof this.prisma.courseLesson?.updateMany === 'function') {
+        await this.prisma.courseLesson.updateMany({
+          where: { lessonQuizId: effectiveQuizId },
+          data: { lessonQuizId: null },
+        }).catch(() => {});
+      }
     }
 
     try {
@@ -223,11 +233,15 @@ export class CourseCurriculumService {
           });
         } catch (err: any) {
           if (err?.code === 'P2002' && createAttempts < 2) {
-            const maxOrder = await this.prisma.courseLesson.aggregate({
-              where: { moduleId },
-              _max: { orderIndex: true },
-            });
-            orderIndex = (maxOrder._max.orderIndex ?? orderIndex) + 1;
+            if (typeof this.prisma.courseLesson?.aggregate === 'function') {
+              const maxOrder = await this.prisma.courseLesson.aggregate({
+                where: { moduleId },
+                _max: { orderIndex: true },
+              });
+              orderIndex = (maxOrder?._max?.orderIndex ?? orderIndex) + 1;
+            } else {
+              orderIndex = orderIndex + 1;
+            }
             createAttempts++;
           } else {
             throw err;

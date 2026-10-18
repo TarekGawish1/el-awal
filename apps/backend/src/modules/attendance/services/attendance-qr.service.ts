@@ -35,22 +35,30 @@ export class AttendanceQrService {
     user: AuthenticatedUser,
     allowCrossGroup = false,
   ) {
-    // 1. Session Verification
-    const session = await this.prisma.lessonSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        group: {
-          include: {
-            _count: {
-              select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } },
+    // 1. Session Verification (L1/L2 Cached for door burst traffic)
+    const sessionCacheKey = `session:meta:${sessionId}`;
+    let session = this.redisCache ? await this.redisCache.get<any>(sessionCacheKey) : null;
+    if (!session) {
+      session = await this.prisma.lessonSession.findUnique({
+        where: { id: sessionId },
+        include: {
+          group: {
+            include: {
+              _count: {
+                select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } },
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!session) {
-      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+      if (!session) {
+        throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+      }
+
+      if (this.redisCache) {
+        await this.redisCache.set(sessionCacheKey, session, 60);
+      }
     }
 
     // Authorization: If user is teacher, ensure teacher owns the group
@@ -65,22 +73,30 @@ export class AttendanceQrService {
     const trimmedToken = qrCodeToken?.trim();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
 
-    const student = await this.prisma.studentProfile.findFirst({
-      where: {
-        OR: [
-          { qrCodeToken: trimmedToken },
-          { studentCode: trimmedToken },
-          ...(isUuid ? [{ id: trimmedToken }] : []),
-        ],
-      },
-      include: {
-        user: { select: { fullName: true, isActive: true, phone: true } },
-        groupEnrollments: {
-          where: { status: GroupEnrollmentStatus.ACTIVE },
-          include: { group: true },
+    const studentCacheKey = `student:qr_profile:${trimmedToken}`;
+    let student = this.redisCache ? await this.redisCache.get<any>(studentCacheKey) : null;
+    if (!student) {
+      student = await this.prisma.studentProfile.findFirst({
+        where: {
+          OR: [
+            { qrCodeToken: trimmedToken },
+            { studentCode: trimmedToken },
+            ...(isUuid ? [{ id: trimmedToken }] : []),
+          ],
         },
-      },
-    });
+        include: {
+          user: { select: { fullName: true, isActive: true, phone: true } },
+          groupEnrollments: {
+            where: { status: GroupEnrollmentStatus.ACTIVE },
+            include: { group: true },
+          },
+        },
+      });
+
+      if (student && this.redisCache) {
+        await this.redisCache.set(studentCacheKey, student, 120);
+      }
+    }
 
     if (!student || !student.user.isActive) {
       throw new BadRequestException('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
@@ -88,7 +104,7 @@ export class AttendanceQrService {
 
     // 3. Cohort Enrollment Check (Strict to selected session group)
     const directEnrollment = student.groupEnrollments.find(
-      (e) => e.groupId === session.groupId,
+      (e: any) => e.groupId === session.groupId,
     );
 
     if (!directEnrollment) {
@@ -104,7 +120,7 @@ export class AttendanceQrService {
           studentId: student.id,
           studentCode: student.studentCode,
           gradeLevel: student.gradeLevel,
-          enrolledGroups: student.groupEnrollments.map((e) => e.group?.name).filter(Boolean),
+          enrolledGroups: student.groupEnrollments.map((e: any) => e.group?.name).filter(Boolean),
           originalGroupId: student.groupEnrollments[0]?.groupId || null,
           originalGroupName: registeredGroup || null,
         });
@@ -152,58 +168,79 @@ export class AttendanceQrService {
         status: AttendanceStatus.PRESENT,
       });
 
-      // Repeated lateness detection (3 consecutive times)
+      // Repeated lateness detection (3 consecutive times) - executed asynchronously
       if (session.startTime) {
-        const rawRecordedAt = result.record?.recordedAt || (result.record as any)?.recorded_at || new Date();
-        const recordedAtDate = rawRecordedAt instanceof Date ? rawRecordedAt : new Date(rawRecordedAt);
-        const recordedAtInCairo = new Date(
-          recordedAtDate.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
-        );
-        const [startH, startM] = session.startTime.split(':').map(Number);
-
-        // Treat as late if more than 10 minutes past start time
-        const isLate =
-          recordedAtInCairo.getHours() > startH ||
-          (recordedAtInCairo.getHours() === startH && recordedAtInCairo.getMinutes() > startM + 10);
-
-        if (isLate) {
-          const last3Records = await this.prisma.attendanceRecord.findMany({
-            where: { studentId: student.id, status: AttendanceStatus.PRESENT },
-            orderBy: { session: { sessionDate: 'desc' } },
-            take: 3,
-            include: { session: true },
-          });
-
-          let consecutiveLateCount = 0;
-          for (const record of last3Records) {
-            if (!record.session.startTime) break;
-            const rawRec = record.recordedAt || (record as any).recorded_at || new Date();
-            const recDate = rawRec instanceof Date ? rawRec : new Date(rawRec);
-            const recTime = new Date(
-              recDate.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
+        setImmediate(async () => {
+          try {
+            const rawRecordedAt = result.record?.recordedAt || (result.record as any)?.recorded_at || new Date();
+            const recordedAtDate = rawRecordedAt instanceof Date ? rawRecordedAt : new Date(rawRecordedAt);
+            const recordedAtInCairo = new Date(
+              recordedAtDate.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
             );
-            const [sH, sM] = record.session.startTime.split(':').map(Number);
-            if (recTime.getHours() > sH || (recTime.getHours() === sH && recTime.getMinutes() > sM + 10)) {
-              consecutiveLateCount++;
-            } else {
-              break;
-            }
-          }
+            const [startH, startM] = session.startTime.split(':').map(Number);
 
-          if (consecutiveLateCount >= 3) {
-            this.eventEmitter.emit('student.repeated.lateness', {
-              studentId: student.id,
-              groupName: session.group.name,
-            });
+            // Treat as late if more than 10 minutes past start time
+            const isLate =
+              recordedAtInCairo.getHours() > startH ||
+              (recordedAtInCairo.getHours() === startH && recordedAtInCairo.getMinutes() > startM + 10);
+
+            if (isLate) {
+              const last3Records = await this.prisma.attendanceRecord.findMany({
+                where: { studentId: student.id, status: AttendanceStatus.PRESENT },
+                orderBy: { session: { sessionDate: 'desc' } },
+                take: 3,
+                include: { session: true },
+              });
+
+              let consecutiveLateCount = 0;
+              for (const record of last3Records) {
+                if (!record.session.startTime) break;
+                const rawRec = record.recordedAt || (record as any).recorded_at || new Date();
+                const recDate = rawRec instanceof Date ? rawRec : new Date(rawRec);
+                const recTime = new Date(
+                  recDate.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
+                );
+                const [sH, sM] = record.session.startTime.split(':').map(Number);
+                if (recTime.getHours() > sH || (recTime.getHours() === sH && recTime.getMinutes() > sM + 10)) {
+                  consecutiveLateCount++;
+                } else {
+                  break;
+                }
+              }
+
+              if (consecutiveLateCount >= 3) {
+                this.eventEmitter.emit('student.repeated.lateness', {
+                  studentId: student.id,
+                  groupName: session.group.name,
+                });
+              }
+            }
+          } catch (err) {
+            this.logger.warn(`Lateness evaluation failed for student ${student.id}: ${err}`);
           }
-        }
+        });
       }
     }
 
-    // 6. Compute real-time session statistics
-    const totalPresent = await this.prisma.attendanceRecord.count({
-      where: { sessionId, status: AttendanceStatus.PRESENT },
-    });
+    // 6. Compute real-time session statistics (Cached counter to avoid DB count saturation)
+    let totalPresent: number;
+    const countCacheKey = `session:present_count:${sessionId}`;
+    if (this.redisCache) {
+      const cachedCount = await this.redisCache.get<number>(countCacheKey);
+      if (cachedCount !== null && cachedCount !== undefined) {
+        totalPresent = !result.isDuplicate ? cachedCount + 1 : cachedCount;
+        await this.redisCache.set(countCacheKey, totalPresent, 15);
+      } else {
+        totalPresent = await this.prisma.attendanceRecord.count({
+          where: { sessionId, status: AttendanceStatus.PRESENT },
+        });
+        await this.redisCache.set(countCacheKey, totalPresent, 15);
+      }
+    } else {
+      totalPresent = await this.prisma.attendanceRecord.count({
+        where: { sessionId, status: AttendanceStatus.PRESENT },
+      });
+    }
 
     const recordedTimeStr = result.record.recordedAt
       ? new Date(result.record.recordedAt).toLocaleTimeString('ar-EG', {

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { BunnyVideoService } from '../../../integrations/video/bunny-video.service';
@@ -10,6 +11,7 @@ import { CourseVideoService } from './course-video.service';
 import { CourseQueryService } from './course-query.service';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { CourseAccessStatus, CourseEnrollmentStatus, UserRole } from '@prisma/client';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class CourseViewerService {
@@ -19,6 +21,7 @@ export class CourseViewerService {
     private readonly storageService: StorageService,
     private readonly videoService: CourseVideoService,
     private readonly queryService: CourseQueryService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
@@ -28,35 +31,41 @@ export class CourseViewerService {
    * 3. Returns student resume position, attachments, summary, and linked quiz.
    */
   async getLessonViewer(lessonId: string, user: AuthenticatedUser) {
-    const lesson = await this.prisma.courseLesson.findUnique({
-      where: { id: lessonId },
-      include: {
-        attachments: true,
-        lessonQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
-        },
-        assessments: {
-          select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
-        },
-        module: {
-          include: {
-            unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
-            },
-            course: {
-              include: {
-                teacher: {
-                  include: { user: { select: { fullName: true } } },
-                },
-                courseQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+    const fetchLesson = async () => {
+      return this.prisma.courseLesson.findUnique({
+        where: { id: lessonId },
+        include: {
+          attachments: true,
+          lessonQuiz: {
+            select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+          },
+          assessments: {
+            select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
+          },
+          module: {
+            include: {
+              unitQuiz: {
+                select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+              },
+              course: {
+                include: {
+                  teacher: {
+                    include: { user: { select: { fullName: true } } },
+                  },
+                  courseQuiz: {
+                    select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+                  },
                 },
               },
             },
           },
         },
-      },
-    });
+      });
+    };
+
+    const lesson = this.redisCache
+      ? await this.redisCache.getOrSet(`course:lesson_viewer:${lessonId}`, fetchLesson, 60)
+      : await fetchLesson();
 
     if (!lesson) {
       throw new NotFoundException(`Lesson [${lessonId}] not found`);
@@ -78,17 +87,26 @@ export class CourseViewerService {
     } else if (user.role === UserRole.SECRETARIAT) {
       isAuthorized = true;
     } else if (user.role === UserRole.STUDENT || user.studentProfileId) {
-      const access = await this.prisma.courseAccess.findFirst({
-        where: {
-          courseId: course.id,
-          studentId,
-          accessStatus: CourseAccessStatus.ACTIVE,
-          OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
-        },
-      });
-
-      if (access) {
+      const accessCacheKey = `student:access:${course.id}:${studentId}`;
+      let hasAccess = this.redisCache ? await this.redisCache.get<boolean>(accessCacheKey) : null;
+      if (hasAccess === true) {
         isAuthorized = true;
+      } else {
+        const access = await this.prisma.courseAccess.findFirst({
+          where: {
+            courseId: course.id,
+            studentId,
+            accessStatus: CourseAccessStatus.ACTIVE,
+            OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+          },
+        });
+
+        if (access) {
+          isAuthorized = true;
+          if (this.redisCache) {
+            await this.redisCache.set(accessCacheKey, true, 60);
+          }
+        }
       }
     }
 

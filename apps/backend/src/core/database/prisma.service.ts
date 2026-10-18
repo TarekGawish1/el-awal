@@ -3,50 +3,77 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-@Injectable()
-export class PrismaService
-  extends PrismaClient<Prisma.PrismaClientOptions, 'info' | 'warn' | 'error'>
-  implements OnModuleInit, OnModuleDestroy
-{
-  private readonly logger = new Logger(PrismaService.name);
+import { Pool } from 'pg';
 
-  constructor(configService: ConfigService) {
-    let databaseUrl = configService.get<string>('DATABASE_URL') || '';
+function createPrismaOptions(configService: ConfigService): {
+  options: Prisma.PrismaClientOptions;
+  pool?: Pool;
+} {
+  let databaseUrl = configService.get<string>('DATABASE_URL') || '';
 
-    // If using Supabase transaction pooler (port 6543 / pooler.supabase.com / pgbouncer),
-    // ensure pgbouncer=true is appended so Prisma disables prepared statements
-    if (databaseUrl.includes(':6543') || databaseUrl.includes('pooler.supabase.com')) {
-      if (!databaseUrl.includes('pgbouncer=true')) {
-        const separator = databaseUrl.includes('?') ? '&' : '?';
-        databaseUrl = `${databaseUrl}${separator}pgbouncer=true`;
-      }
-      if (!databaseUrl.includes('connection_limit=')) {
-        const separator = databaseUrl.includes('?') ? '&' : '?';
-        databaseUrl = `${databaseUrl}${separator}connection_limit=60`;
-      }
-      if (!databaseUrl.includes('pool_timeout=')) {
-        const separator = databaseUrl.includes('?') ? '&' : '?';
-        databaseUrl = `${databaseUrl}${separator}pool_timeout=30`;
-      }
+  // If using Supabase transaction pooler (port 6543 / pooler.supabase.com / pgbouncer),
+  // ensure pgbouncer=true is appended so Prisma disables prepared statements
+  if (databaseUrl.includes(':6543') || databaseUrl.includes('pooler.supabase.com')) {
+    if (!databaseUrl.includes('pgbouncer=true')) {
+      const separator = databaseUrl.includes('?') ? '&' : '?';
+      databaseUrl = `${databaseUrl}${separator}pgbouncer=true`;
     }
-
-    let connectionUrl = databaseUrl;
-    if (connectionUrl.includes('sslmode=require') || connectionUrl.includes('sslmode=prefer')) {
-      connectionUrl = connectionUrl.replace(/sslmode=[a-z\-]+/i, 'sslmode=no-verify');
+    if (!databaseUrl.includes('connection_limit=')) {
+      const separator = databaseUrl.includes('?') ? '&' : '?';
+      databaseUrl = `${databaseUrl}${separator}connection_limit=60`;
     }
+    if (!databaseUrl.includes('pool_timeout=')) {
+      const separator = databaseUrl.includes('?') ? '&' : '?';
+      databaseUrl = `${databaseUrl}${separator}pool_timeout=30`;
+    }
+  }
 
-    const adapter = connectionUrl
-      ? new PrismaPg({ connectionString: connectionUrl })
-      : undefined;
+  let connectionUrl = databaseUrl;
+  if (connectionUrl.includes('sslmode=require') || connectionUrl.includes('sslmode=prefer')) {
+    connectionUrl = connectionUrl.replace(/sslmode=[a-z\-]+/i, 'sslmode=no-verify');
+  }
 
-    super({
+  let pool: Pool | undefined;
+  if (connectionUrl) {
+    pool = new Pool({
+      connectionString: connectionUrl,
+      max: 60,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 15000,
+      ssl:
+        connectionUrl.includes('pooler.supabase.com') || connectionUrl.includes('sslmode')
+          ? { rejectUnauthorized: false }
+          : undefined,
+    });
+  }
+
+  const adapter = pool ? new PrismaPg(pool) : undefined;
+
+  return {
+    pool,
+    options: {
       ...(adapter ? { adapter } : {}),
       log: [
         { emit: 'event', level: 'info' },
         { emit: 'event', level: 'warn' },
         { emit: 'event', level: 'error' },
       ],
-    });
+    },
+  };
+}
+
+@Injectable()
+export class PrismaService
+  extends PrismaClient<Prisma.PrismaClientOptions, 'info' | 'warn' | 'error'>
+  implements OnModuleInit, OnModuleDestroy
+{
+  private readonly logger = new Logger(PrismaService.name);
+  private readonly pool?: Pool;
+
+  constructor(configService: ConfigService) {
+    const config = createPrismaOptions(configService);
+    super(config.options);
+    this.pool = config.pool;
 
     // Custom event-based logger that filters harmless serverless idle socket disconnects
     this.$on('info', (e) => {
@@ -107,5 +134,8 @@ export class PrismaService
   async onModuleDestroy() {
     this.logger.log('Disconnecting from PostgreSQL Database...');
     await this.$disconnect();
+    if (this.pool) {
+      await this.pool.end();
+    }
   }
 }

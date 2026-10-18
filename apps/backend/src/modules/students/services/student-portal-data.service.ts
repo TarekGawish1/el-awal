@@ -35,7 +35,7 @@ export class StudentPortalDataService {
   ) {
     this.groupHubService =
       groupHubService ??
-      new StudentGroupHubService(this.prisma, this.storageService);
+      new StudentGroupHubService(this.prisma, this.storageService, this.redisCache);
   }
 
   async getMyGroup(user: AuthenticatedUser, query?: StudentGroupQueryDto) {

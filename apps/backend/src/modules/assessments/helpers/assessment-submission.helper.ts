@@ -23,11 +23,14 @@ export function validateAssessmentTiming(
   priorSubmissions: { startedAt?: Date | null }[],
   effectiveDueDate?: Date | null,
 ) {
+  const parseDate = (d: any) => (d ? (d instanceof Date ? d : new Date(d)) : null);
   const now = new Date();
   const GRACE_PERIOD_MS = 60 * 1000; // 60s network latency allowance
-  const effectiveStartTime = assessment.startTime || assessment.startDate;
-  const effectiveEndTime =
-    assessment.endTime || assessment.dueDate || assessment.deadline;
+  const effectiveStartTime = parseDate(assessment.startTime || assessment.startDate);
+  const effectiveEndTime = parseDate(
+    assessment.endTime || assessment.dueDate || assessment.deadline,
+  );
+  const parsedEffectiveDueDate = parseDate(effectiveDueDate);
   const timingType =
     assessment.timingType ||
     (assessment.type === AssessmentType.EXAM
@@ -65,7 +68,7 @@ export function validateAssessmentTiming(
       });
     }
     if (assessment.durationMinutes) {
-      const studentStartedAt = priorSubmissions[0]?.startedAt || now;
+      const studentStartedAt = parseDate(priorSubmissions[0]?.startedAt) || now;
       const allowedDurationMs = assessment.durationMinutes * 60 * 1000;
       const individualExpiry = studentStartedAt.getTime() + allowedDurationMs;
       if (now.getTime() > individualExpiry + GRACE_PERIOD_MS) {
@@ -77,7 +80,7 @@ export function validateAssessmentTiming(
     }
   } else if ((timingType as any) === 'DURATION_ONLY') {
     if (assessment.durationMinutes) {
-      const studentStartedAt = priorSubmissions[0]?.startedAt || now;
+      const studentStartedAt = parseDate(priorSubmissions[0]?.startedAt) || now;
       const allowedDurationMs = assessment.durationMinutes * 60 * 1000;
       const individualExpiry = studentStartedAt.getTime() + allowedDurationMs;
       if (now.getTime() > individualExpiry + GRACE_PERIOD_MS) {
@@ -90,8 +93,8 @@ export function validateAssessmentTiming(
   } else {
     // Session-linked homework due date check
     if (
-      effectiveDueDate &&
-      now.getTime() > effectiveDueDate.getTime() + GRACE_PERIOD_MS
+      parsedEffectiveDueDate &&
+      now.getTime() > parsedEffectiveDueDate.getTime() + GRACE_PERIOD_MS
     ) {
       throw new BadRequestException(
         'Assessment submission deadline has already passed',

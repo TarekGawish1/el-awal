@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
@@ -14,6 +15,7 @@ import {
 } from '@prisma/client';
 import { resolveOfficialSubmission } from '../utils/submission-grade.util';
 import { AssessmentQueryService } from './assessment-query.service';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class AssessmentSessionService {
@@ -22,6 +24,7 @@ export class AssessmentSessionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly queryService: AssessmentQueryService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   async getAssessmentById(assessmentId: string, user: AuthenticatedUser) {
@@ -32,18 +35,29 @@ export class AssessmentSessionService {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
     }
 
-    const submissions: any[] =
-      baseAssessment.submissions && Array.isArray(baseAssessment.submissions)
-        ? baseAssessment.submissions
-        : studentId && this.prisma.assessmentSubmission?.findMany
-          ? ((await this.prisma.assessmentSubmission.findMany({
-              where: { assessmentId, studentId },
-              orderBy: { attemptNumber: 'asc' },
-              include: {
-                answers: true,
-              },
-            })) || [])
-          : [];
+    let submissions: any[] = [];
+    if (baseAssessment.submissions && Array.isArray(baseAssessment.submissions)) {
+      submissions = baseAssessment.submissions;
+    } else if (studentId && this.prisma.assessmentSubmission?.findMany) {
+      const subCacheKey = `student:assessment_subs:${assessmentId}:${studentId}`;
+      const fetcher = async () => {
+        return (
+          (await this.prisma.assessmentSubmission.findMany({
+            where: { assessmentId, studentId },
+            orderBy: { attemptNumber: 'asc' },
+            include: {
+              answers: true,
+            },
+          })) || []
+        );
+      };
+
+      if (this.redisCache) {
+        submissions = await this.redisCache.getOrSet(subCacheKey, fetcher, 30);
+      } else {
+        submissions = await fetcher();
+      }
+    }
 
     const assessment: any = {
       ...baseAssessment,
@@ -133,8 +147,9 @@ export class AssessmentSessionService {
     const isPrivileged =
       user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT;
 
-    const effectiveStartTime = assessment.startTime || assessment.startDate;
-    const effectiveEndTime = assessment.endTime || assessment.dueDate || assessment.deadline;
+    const parseDate = (d: any) => (d ? (d instanceof Date ? d : new Date(d)) : null);
+    const effectiveStartTime = parseDate(assessment.startTime || assessment.startDate);
+    const effectiveEndTime = parseDate(assessment.endTime || assessment.dueDate || assessment.deadline);
     const timingType =
       assessment.timingType ||
       (assessment.type === AssessmentType.EXAM
@@ -285,60 +300,68 @@ export class AssessmentSessionService {
     const studentId =
       user.studentProfileId ||
       (user.role === UserRole.STUDENT ? user.id : null);
+    const cacheKey = `assessment:my_status:${assessmentId}:${studentId || 'anon'}`;
 
-    const assessment = await this.prisma.assessment.findUnique({
-      where: { id: assessmentId },
-      select: {
-        id: true,
-        totalScore: true,
-        allowMultipleAttempts: true,
-        isOptional: true,
-        requirePassingScore: true,
-      },
-    });
+    const fetcher = async () => {
+      const assessment = await this.prisma.assessment.findUnique({
+        where: { id: assessmentId },
+        select: {
+          id: true,
+          totalScore: true,
+          allowMultipleAttempts: true,
+          isOptional: true,
+          requirePassingScore: true,
+        },
+      });
 
-    if (!assessment) {
-      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
-    }
+      if (!assessment) {
+        throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+      }
 
-    const totalScore = Number(assessment.totalScore);
+      const totalScore = Number(assessment.totalScore);
 
-    if (!studentId) {
+      if (!studentId) {
+        return {
+          hasSubmitted: false,
+          score: null,
+          totalScore,
+          percentage: null,
+          attemptsCount: 0,
+          allowMultipleAttempts: assessment.allowMultipleAttempts,
+          isOptional: assessment.isOptional,
+          requirePassingScore: assessment.requirePassingScore,
+        };
+      }
+
+      const submissions = await this.prisma.assessmentSubmission.findMany({
+        where: { assessmentId, studentId },
+        orderBy: { attemptNumber: 'asc' },
+        select: { attemptNumber: true, status: true, scoreObtained: true },
+      });
+
+      const official = resolveOfficialSubmission(submissions);
+      const score =
+        official?.scoreObtained != null ? Number(official.scoreObtained) : null;
+      const percentage =
+        score != null && totalScore > 0
+          ? Math.round((score / totalScore) * 100)
+          : null;
+
       return {
-        hasSubmitted: false,
-        score: null,
+        hasSubmitted: submissions.length > 0,
+        score,
         totalScore,
-        percentage: null,
-        attemptsCount: 0,
+        percentage,
+        attemptsCount: submissions.length,
         allowMultipleAttempts: assessment.allowMultipleAttempts,
         isOptional: assessment.isOptional,
         requirePassingScore: assessment.requirePassingScore,
       };
-    }
-
-    const submissions = await this.prisma.assessmentSubmission.findMany({
-      where: { assessmentId, studentId },
-      orderBy: { attemptNumber: 'asc' },
-      select: { attemptNumber: true, status: true, scoreObtained: true },
-    });
-
-    const official = resolveOfficialSubmission(submissions);
-    const score =
-      official?.scoreObtained != null ? Number(official.scoreObtained) : null;
-    const percentage =
-      score != null && totalScore > 0
-        ? Math.round((score / totalScore) * 100)
-        : null;
-
-    return {
-      hasSubmitted: submissions.length > 0,
-      score,
-      totalScore,
-      percentage,
-      attemptsCount: submissions.length,
-      allowMultipleAttempts: assessment.allowMultipleAttempts,
-      isOptional: assessment.isOptional,
-      requirePassingScore: assessment.requirePassingScore,
     };
+
+    if (this.redisCache) {
+      return this.redisCache.getOrSet(cacheKey, fetcher, 30);
+    }
+    return fetcher();
   }
 }

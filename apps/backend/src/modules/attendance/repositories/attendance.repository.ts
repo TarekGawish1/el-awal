@@ -25,66 +25,70 @@ export class AttendanceRepository {
     recordedById: string,
     notes?: string,
   ): Promise<QrScanResult> {
-    const runInTx = async (tx: any): Promise<QrScanResult> => {
-      const insertedRows = await tx.$queryRaw<AttendanceRecord[]>`
-        INSERT INTO "attendance_records" (
-          "id",
-          "session_id",
-          "student_id",
-          "status",
-          "recording_method",
-          "recorded_by_id",
-          "notes",
-          "recorded_at"
-        ) VALUES (
-          gen_random_uuid(),
-          ${sessionId}::uuid,
-          ${studentId}::uuid,
-          'PRESENT'::"attendance_status",
-          'QR_SCAN'::"recording_method",
-          ${recordedById}::uuid,
-          ${notes || null},
-          CURRENT_TIMESTAMP
-        )
-        ON CONFLICT ("session_id", "student_id") DO NOTHING
-        RETURNING *;
-      `;
+    const insertedRows = await this.prisma.$queryRaw<AttendanceRecord[]>`
+      INSERT INTO "attendance_records" (
+        "id",
+        "session_id",
+        "student_id",
+        "status",
+        "recording_method",
+        "recorded_by_id",
+        "notes",
+        "recorded_at"
+      ) VALUES (
+        gen_random_uuid(),
+        ${sessionId}::uuid,
+        ${studentId}::uuid,
+        'PRESENT'::"attendance_status",
+        'QR_SCAN'::"recording_method",
+        ${recordedById}::uuid,
+        ${notes || null},
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("session_id", "student_id") DO NOTHING
+      RETURNING *;
+    `;
 
-      if (insertedRows && insertedRows.length > 0) {
-        return {
-          record: insertedRows[0],
-          isDuplicate: false,
-        };
-      }
-
-      const existingRecord = await tx.attendanceRecord.findUniqueOrThrow({
-        where: {
-          sessionId_studentId: {
-            sessionId,
-            studentId,
-          },
-        },
-      });
-
-      // Conflict Resolution: If a manual override exists, the QR scan must NOT silently claim success.
-      if (existingRecord.status !== 'PRESENT' && existingRecord.recordingMethod === 'MANUAL') {
-        throw new Error(`CONFLICT_MANUAL_OVERRIDE: Student was manually marked ${existingRecord.status}`);
-      }
-
-      this.logger.debug(
-        `Idempotent QR Scan: student ${studentId} was already marked ${existingRecord.status} for session ${sessionId}`,
-      );
-
-      return {
-        record: existingRecord,
-        isDuplicate: true,
+    if (insertedRows && insertedRows.length > 0) {
+      const row: any = insertedRows[0];
+      const record: AttendanceRecord = {
+        id: row.id,
+        sessionId: row.sessionId || row.session_id,
+        studentId: row.studentId || row.student_id,
+        status: row.status,
+        recordingMethod: row.recordingMethod || row.recording_method,
+        recordedById: row.recordedById || row.recorded_by_id,
+        notes: row.notes,
+        recordedAt: row.recordedAt || row.recorded_at || new Date(),
       };
-    };
-
-    if (typeof this.prisma.$transaction === 'function') {
-      return this.prisma.$transaction(runInTx, { maxWait: 15000, timeout: 30000 });
+      return {
+        record,
+        isDuplicate: false,
+      };
     }
-    return runInTx(this.prisma);
+
+    const existingRecord = await this.prisma.attendanceRecord.findUniqueOrThrow({
+      where: {
+        sessionId_studentId: {
+          sessionId,
+          studentId,
+        },
+      },
+    });
+
+    // Conflict Resolution: If a manual override exists, the QR scan must NOT silently claim success.
+    if (existingRecord.status !== 'PRESENT' && existingRecord.recordingMethod === 'MANUAL') {
+      throw new Error(`CONFLICT_MANUAL_OVERRIDE: Student was manually marked ${existingRecord.status}`);
+    }
+
+    this.logger.debug(
+      `Idempotent QR Scan: student ${studentId} was already marked ${existingRecord.status} for session ${sessionId}`,
+    );
+
+    return {
+      record: existingRecord,
+      isDuplicate: true,
+    };
   }
 
   /**

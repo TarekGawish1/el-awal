@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import {
@@ -11,18 +12,26 @@ import {
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UpdateProgressDto } from '../dto/update-progress.dto';
 import { CourseAccessStatus, CourseEnrollmentStatus, UserRole } from '@prisma/client';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class CourseProgressService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly progressRepository: CourseProgressRepository,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
    * Retrieves all courses enrolled by the student with dynamic progress completion percentages.
    */
   async getMyCourses(studentId: string) {
+    const cacheKey = `student:my_courses:${studentId}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const enrollments = await this.prisma.courseEnrollment.findMany({
       where: {
         studentId,
@@ -224,6 +233,10 @@ export class CourseProgressService {
       }),
     );
 
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, results, 60);
+    }
+
     return results;
   }
 
@@ -323,6 +336,12 @@ export class CourseProgressService {
         targetStudentId,
         courseId,
       );
+
+    if (this.redisCache && targetStudentId) {
+      setImmediate(() => {
+        this.redisCache?.del(`student:my_courses:${targetStudentId}`).catch(() => {});
+      });
+    }
 
     return {
       lessonId,

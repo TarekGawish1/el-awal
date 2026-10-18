@@ -1,18 +1,21 @@
 import {
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CourseVideoService } from './course-video.service';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { CourseStatus, UserRole } from '@prisma/client';
 import { resolveOfficialSubmission } from '../../assessments/utils/submission-grade.util';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
 @Injectable()
 export class CourseQueryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly videoService: CourseVideoService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   /**
@@ -128,46 +131,52 @@ export class CourseQueryService {
    * Retrieves full course outline including ordered modules, lessons, attachments, and quizzes.
    */
   async getCourseDetails(courseId: string, user?: AuthenticatedUser) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        teacher: {
-          include: { user: { select: { fullName: true, email: true, phone: true } } },
-        },
-        courseQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
-        },
-        groupAccess: {
-          include: {
-            group: { select: { id: true, name: true, gradeLevel: true } },
+    const fetcher = async () => {
+      return this.prisma.course.findUnique({
+        where: { id: courseId },
+        include: {
+          teacher: {
+            include: { user: { select: { fullName: true, email: true, phone: true } } },
           },
-        },
-        modules: {
-          orderBy: { orderIndex: 'asc' },
-          include: {
-            unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+          courseQuiz: {
+            select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
+          },
+          groupAccess: {
+            include: {
+              group: { select: { id: true, name: true, gradeLevel: true } },
             },
-            lessons: {
-              orderBy: { orderIndex: 'asc' },
-              include: {
-                attachments: true,
-                lessonQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
-                },
-                assessments: {
-                  select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
-                },
-                _count: {
-                  select: { questions: true },
+          },
+          modules: {
+            orderBy: { orderIndex: 'asc' },
+            include: {
+              unitQuiz: {
+                select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+              },
+              lessons: {
+                orderBy: { orderIndex: 'asc' },
+                include: {
+                  attachments: true,
+                  lessonQuiz: {
+                    select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+                  },
+                  assessments: {
+                    select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
+                  },
+                  _count: {
+                    select: { questions: true },
+                  },
                 },
               },
             },
           },
+          _count: { select: { enrollments: true } },
         },
-        _count: { select: { enrollments: true } },
-      },
-    });
+      });
+    };
+
+    const course = this.redisCache
+      ? await this.redisCache.getOrSet(`course:curriculum:${courseId}`, fetcher, 60)
+      : await fetcher();
 
     if (!course) {
       throw new NotFoundException(`Course [${courseId}] not found`);
