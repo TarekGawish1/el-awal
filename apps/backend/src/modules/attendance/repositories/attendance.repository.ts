@@ -82,7 +82,7 @@ export class AttendanceRepository {
     };
 
     if (typeof this.prisma.$transaction === 'function') {
-      return this.prisma.$transaction(runInTx);
+      return this.prisma.$transaction(runInTx, { maxWait: 15000, timeout: 30000 });
     }
     return runInTx(this.prisma);
   }

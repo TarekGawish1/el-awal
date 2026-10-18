@@ -123,9 +123,24 @@ export class CourseCurriculumService {
     }
 
     let orderIndex = dto.orderIndex;
-    if (!orderIndex) {
-      const lessonCount = await this.prisma.courseLesson.count({ where: { moduleId } });
-      orderIndex = lessonCount + 1;
+    if (orderIndex === undefined || orderIndex === null) {
+      const maxOrder = await this.prisma.courseLesson.aggregate({
+        where: { moduleId },
+        _max: { orderIndex: true },
+      });
+      orderIndex = (maxOrder._max.orderIndex ?? 0) + 1;
+    } else {
+      const existingWithOrder = await this.prisma.courseLesson.findFirst({
+        where: { moduleId, orderIndex },
+        select: { id: true },
+      });
+      if (existingWithOrder) {
+        const maxOrder = await this.prisma.courseLesson.aggregate({
+          where: { moduleId },
+          _max: { orderIndex: true },
+        });
+        orderIndex = (maxOrder._max.orderIndex ?? 0) + 1;
+      }
     }
 
     let normalizedBunnyId = this.videoService.extractBunnyVideoId(dto.bunnyVideoId);
@@ -161,38 +176,64 @@ export class CourseCurriculumService {
         ? (dto.homeworkId || null)
         : (dto.lessonHomeworkId || null);
 
+    if (effectiveQuizId) {
+      // Unlink any previous lesson that held this quiz to satisfy uq_lesson_quiz unique constraint
+      await this.prisma.courseLesson.updateMany({
+        where: { lessonQuizId: effectiveQuizId },
+        data: { lessonQuizId: null },
+      }).catch(() => {});
+    }
+
     try {
-      const lesson = await this.prisma.courseLesson.create({
-        data: {
-          moduleId,
-          title: dto.title,
-          description: dto.description,
-          summary: dto.summary || null,
-          orderIndex,
-          lessonType: effectiveLessonType,
-          bunnyVideoId: normalizedBunnyId || dto.bunnyVideoId,
-          contentUrl: normalizedContentUrl,
-          videoDurationSeconds: effectiveDurationSeconds,
-          isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
-          lessonQuizId: effectiveQuizId,
-          attachments: dto.attachments?.length
-            ? {
-                create: dto.attachments.map((att) => ({
-                  title: att.title,
-                  fileUrl: att.fileUrl,
-                  fileKey: att.fileKey,
-                  fileSize: att.fileSize,
-                  fileType: att.fileType || 'application/pdf',
-                })),
-              }
-            : undefined,
-        },
-        include: {
-          attachments: true,
-          lessonQuiz: { select: { id: true, title: true, type: true } },
-          assessments: { select: { id: true, title: true, type: true, assessmentType: true } },
-        },
-      });
+      let lesson: any = null;
+      let createAttempts = 0;
+
+      while (!lesson && createAttempts < 3) {
+        try {
+          lesson = await this.prisma.courseLesson.create({
+            data: {
+              moduleId,
+              title: dto.title,
+              description: dto.description,
+              summary: dto.summary || null,
+              orderIndex,
+              lessonType: effectiveLessonType,
+              bunnyVideoId: normalizedBunnyId || dto.bunnyVideoId,
+              contentUrl: normalizedContentUrl,
+              videoDurationSeconds: effectiveDurationSeconds,
+              isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
+              lessonQuizId: effectiveQuizId,
+              attachments: dto.attachments?.length
+                ? {
+                    create: dto.attachments.map((att) => ({
+                      title: att.title,
+                      fileUrl: att.fileUrl,
+                      fileKey: att.fileKey,
+                      fileSize: att.fileSize,
+                      fileType: att.fileType || 'application/pdf',
+                    })),
+                  }
+                : undefined,
+            },
+            include: {
+              attachments: true,
+              lessonQuiz: { select: { id: true, title: true, type: true } },
+              assessments: { select: { id: true, title: true, type: true, assessmentType: true } },
+            },
+          });
+        } catch (err: any) {
+          if (err?.code === 'P2002' && createAttempts < 2) {
+            const maxOrder = await this.prisma.courseLesson.aggregate({
+              where: { moduleId },
+              _max: { orderIndex: true },
+            });
+            orderIndex = (maxOrder._max.orderIndex ?? orderIndex) + 1;
+            createAttempts++;
+          } else {
+            throw err;
+          }
+        }
+      }
 
       if (effectiveQuizId) {
         try {
@@ -231,24 +272,26 @@ export class CourseCurriculumService {
 
       await this.coreService.clearCatalogCache();
       return lesson;
-    } catch (error) {
-      const bunnyIdsToCleanup = new Set<string>();
-      const b1 = this.videoService.extractBunnyVideoId(dto.bunnyVideoId);
-      const b2 = this.videoService.extractBunnyVideoId(dto.contentUrl);
-      if (b1) bunnyIdsToCleanup.add(b1);
-      if (b2) bunnyIdsToCleanup.add(b2);
+    } catch (error: any) {
+      if (error?.code !== 'P2002') {
+        const bunnyIdsToCleanup = new Set<string>();
+        const b1 = this.videoService.extractBunnyVideoId(dto.bunnyVideoId);
+        const b2 = this.videoService.extractBunnyVideoId(dto.contentUrl);
+        if (b1) bunnyIdsToCleanup.add(b1);
+        if (b2) bunnyIdsToCleanup.add(b2);
 
-      for (const videoId of bunnyIdsToCleanup) {
-        await this.bunnyVideoService.deleteVideo(videoId).catch((delErr) => {
-          this.logger.warn(`Failed to clean up Bunny video [${videoId}] after failed lesson creation:`, delErr);
-        });
-      }
+        for (const videoId of bunnyIdsToCleanup) {
+          await this.bunnyVideoService.deleteVideo(videoId).catch((delErr) => {
+            this.logger.warn(`Failed to clean up Bunny video [${videoId}] after failed lesson creation:`, delErr);
+          });
+        }
 
-      if (dto.attachments?.length) {
-        for (const att of dto.attachments) {
-          const key = att.fileKey || att.fileUrl;
-          if (key) {
-            await this.storageService.deleteObject(key).catch(() => {});
+        if (dto.attachments?.length) {
+          for (const att of dto.attachments) {
+            const key = att.fileKey || att.fileUrl;
+            if (key) {
+              await this.storageService.deleteObject(key).catch(() => {});
+            }
           }
         }
       }

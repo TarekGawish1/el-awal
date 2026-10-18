@@ -598,6 +598,7 @@ model AttendanceRecord {
 
   @@unique([sessionId, studentId], map: "uq_session_student")
   @@index([studentId, status], map: "idx_attendance_student_status")
+  @@index([studentId, status, recordedAt], map: "idx_attendance_student_status_recorded_at")
   @@index([sessionId], map: "idx_attendance_session")
   @@index([sessionId, status], map: "idx_attendance_session_status")
   @@index([recordedById], map: "idx_attendance_recorder")
@@ -817,6 +818,7 @@ model CourseProgress {
   student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
 
   @@unique([lessonId, studentId], map: "uq_lesson_student_progress")
+  @@index([studentId, lessonId], map: "idx_course_progress_student_lesson")
   @@index([studentId, courseId], map: "idx_course_progress_student")
   @@index([lessonId], map: "idx_course_progress_lesson")
   @@map("course_progress")
@@ -984,6 +986,8 @@ model AssessmentSubmission {
 
   @@unique([assessmentId, studentId, attemptNumber], map: "uq_assessment_student_attempt")
   @@index([assessmentId, status], map: "idx_submissions_assessment_status")
+  @@index([assessmentId, studentId], map: "idx_submissions_assessment_student")
+  @@index([studentId, status, submittedAt], map: "idx_submissions_student_status_submitted")
   @@index([studentId], map: "idx_submissions_student")
   @@index([sessionId], map: "idx_submissions_session")
   @@map("assessment_submissions")
@@ -1194,6 +1198,7 @@ model StudentPaymentRecord {
   recordedBy User           @relation("RecordedPayments", fields: [recordedById], references: [id], onDelete: Restrict)
 
   @@index([studentId, groupId, periodYear, periodMonth], map: "idx_student_group_billing_period")
+  @@index([studentId, periodYear, periodMonth, paymentStatus], map: "idx_payments_student_period_status")
   @@index([studentId], map: "idx_payments_student")
   @@index([studentId, paymentType, paymentStatus], map: "idx_payments_student_type_status")
   @@index([bookletId], map: "idx_payments_booklet")

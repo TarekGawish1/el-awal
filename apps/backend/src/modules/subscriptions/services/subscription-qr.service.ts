@@ -30,7 +30,7 @@ export class SubscriptionQrService {
 
   private async runInTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
     if (typeof this.prisma.$transaction === 'function') {
-      return this.prisma.$transaction(fn);
+      return this.prisma.$transaction(fn, { maxWait: 15000, timeout: 30000 });
     }
     return fn(this.prisma);
   }
@@ -383,8 +383,12 @@ export class SubscriptionQrService {
     );
 
     if (this.redisCache) {
-      await this.redisCache.del(`student:dashboard:${student.id}`);
-      await this.redisCache.del(`parent:overview:${student.id}`);
+      setImmediate(() => {
+        Promise.allSettled([
+          this.redisCache?.del(`student:dashboard:${student.id}`),
+          this.redisCache?.del(`parent:overview:${student.id}`),
+        ]).catch(() => {});
+      });
     }
 
     return {

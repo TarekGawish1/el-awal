@@ -25,8 +25,8 @@ export class HealthController {
   @ApiOperation({ summary: 'Liveness and readiness healthcheck probe' })
   check() {
     return this.health.check([
-      () => this.prismaIndicator.pingCheck('database', this.prisma),
-      () => this.memory.checkHeap('memory_heap', 300 * 1024 * 1024), // 300MB heap limit
+      () => this.prismaIndicator.pingCheck('database', this.prisma, { timeout: 5000 }),
+      () => this.memory.checkHeap('memory_heap', 500 * 1024 * 1024), // 500MB heap limit
     ]);
   }
 

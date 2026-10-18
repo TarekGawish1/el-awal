@@ -73,6 +73,15 @@ export class PrismaService
       }
       this.logger.error(`Database error: ${e.message}`);
     });
+
+    const originalTransaction = this.$transaction.bind(this);
+    (this as any).$transaction = (args: any, options?: any) => {
+      if (typeof args === 'function') {
+        const defaultOptions = { maxWait: 15000, timeout: 30000, ...options };
+        return originalTransaction(args, defaultOptions);
+      }
+      return originalTransaction(args, options);
+    };
   }
 
   async onModuleInit() {

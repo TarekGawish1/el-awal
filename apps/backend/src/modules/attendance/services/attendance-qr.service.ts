@@ -139,8 +139,12 @@ export class AttendanceQrService {
     // 5. Emit domain event if this was the first successful scan
     if (!result.isDuplicate) {
       if (this.redisCache) {
-        await this.redisCache.del(`student:dashboard:${student.id}`);
-        await this.redisCache.del(`parent:overview:${student.id}`);
+        setImmediate(() => {
+          Promise.allSettled([
+            this.redisCache?.del(`student:dashboard:${student.id}`),
+            this.redisCache?.del(`parent:overview:${student.id}`),
+          ]).catch(() => {});
+        });
       }
       this.eventEmitter.emit('attendance.recorded', {
         sessionId: session.id,

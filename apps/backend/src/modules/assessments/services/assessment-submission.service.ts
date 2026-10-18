@@ -245,7 +245,9 @@ export class AssessmentSubmissionService {
     );
 
     this.assessmentsListCache?.clear();
-    await this.queryService.invalidatePortalCaches(studentId);
+    setImmediate(() => {
+      this.queryService.invalidatePortalCaches(studentId).catch(() => {});
+    });
     return {
       submissionId: result.id,
       assessmentId,

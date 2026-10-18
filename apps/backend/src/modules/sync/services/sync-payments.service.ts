@@ -114,7 +114,7 @@ export class SyncPaymentsService {
       if (op.type === 'DELETE_PAYMENT') {
         await this.prisma.$transaction(async (tx) => {
           await handleDeletePaymentSync(tx, op, opId, user, result, this.logger);
-        });
+        }, { maxWait: 15000, timeout: 30000 });
         continue;
       }
 
@@ -394,7 +394,7 @@ export class SyncPaymentsService {
 
           result.syncedCount++;
           result.processedOperationIds.push(opId);
-        });
+        }, { maxWait: 15000, timeout: 30000 });
       } catch (err: any) {
         if (err?.code === 'P2002') {
           result.duplicatesIgnored++;

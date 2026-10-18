@@ -37,43 +37,46 @@ export class RedisCacheService implements OnModuleInit {
   }
 
   /**
-   * Retrieve item from Redis with local fallback.
+   * Retrieve item with L1 in-memory check followed by L2 Redis.
+   * L1 RAM delivers sub-millisecond responses (<0.1ms), avoiding external network round-trips.
    */
   async get<T>(key: string): Promise<T | null> {
+    const memVal = this.memoryFallback.get(key);
+    if (memVal !== undefined && memVal !== null) {
+      return memVal as T;
+    }
+
     if (this.isRedisHealthy && this.redis) {
       try {
         const val = await this.redis.get<T>(key);
         if (val !== null && val !== undefined) {
+          // Warm L1 in-memory cache for fast repeated reads (up to 60s)
+          this.memoryFallback.set(key, val, 60);
           return val;
         }
         return null;
       } catch (err: any) {
-        this.logger.warn(`Redis GET error for key [${key}]: ${err?.message}. Falling back to memory.`);
+        this.logger.warn(`Redis GET error for key [${key}]: ${err?.message}.`);
       }
     }
-    const memVal = this.memoryFallback.get(key);
-    return memVal !== undefined ? memVal : null;
+    return null;
   }
 
   /**
-   * Set cache item with expiration TTL (in seconds).
-   * Stores directly into Redis without consuming server RAM.
-   * Local memoryFallback is strictly an emergency fallback when Redis is unreachable.
+   * Set cache item into both L1 memory cache and L2 Redis.
    */
   async set<T>(key: string, value: T, ttlSeconds = 300): Promise<void> {
+    // Populate L1 memory cache immediately
+    const l1Ttl = Math.min(ttlSeconds, 120);
+    this.memoryFallback.set(key, value, l1Ttl);
+
     if (this.isRedisHealthy && this.redis) {
       try {
         await this.redis.set(key, value, { ex: ttlSeconds });
-        return;
       } catch (err: any) {
-        this.logger.warn(`Redis SET error for key [${key}]: ${err?.message}. Falling back to emergency memory.`);
-        this.memoryFallback.set(key, value, ttlSeconds);
-        return;
+        this.logger.warn(`Redis SET error for key [${key}]: ${err?.message}.`);
       }
     }
-
-    // Only when Redis is unreachable or unconfigured
-    this.memoryFallback.set(key, value, ttlSeconds);
   }
 
   /**

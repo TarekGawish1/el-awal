@@ -380,8 +380,17 @@ export class TeacherDashboardService {
   }
 
   async getDashboardInit(teacherId: string, query: DashboardOverviewQueryDto) {
+    const cacheKey = `teacher:dashboard:init:${teacherId}:${JSON.stringify(query)}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<any>(cacheKey);
+      if (cached) return cached;
+    }
     const overview = await this.getDashboardOverview(teacherId, query);
-    return this.initService.getDashboardInit(teacherId, query, overview);
+    const result = await this.initService.getDashboardInit(teacherId, query, overview);
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 60);
+    }
+    return result;
   }
 }
 

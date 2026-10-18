@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { PrismaService } from "../../../core/database/prisma.service";
+import { RedisCacheService } from "../../../core/cache/redis-cache.service";
 import { GeoAnalyticsService } from "./geo-analytics.service";
 import { StudentAnalyticsService } from "./student-analytics.service";
 import { VisitorAnalyticsService } from "./visitor-analytics.service";
@@ -24,12 +25,19 @@ export class DashboardOverviewService {
     private readonly geoAnalyticsService: GeoAnalyticsService,
     private readonly studentAnalyticsService: StudentAnalyticsService,
     private readonly visitorAnalyticsService: VisitorAnalyticsService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
   public async getOverview(
     query: AnalyticsOverviewQueryDto,
     userTenantId?: string,
   ): Promise<AnalyticsOverviewResponse> {
+    const cacheKey = `analytics:overview:${userTenantId || 'global'}:${JSON.stringify(query)}`;
+    if (this.redisCache) {
+      const cached = await this.redisCache.get<AnalyticsOverviewResponse>(cacheKey);
+      if (cached) return cached;
+    }
+
     const geoScope = query.scope === "system" ? "platform" : (query.scope as any);
 
     const [stats, geoRanking, leaderboard, visitors] = await Promise.all([
@@ -82,12 +90,18 @@ export class DashboardOverviewService {
       ),
     ]);
 
-    return {
+    const result: AnalyticsOverviewResponse = {
       stats,
       geoRanking,
       leaderboard,
       visitors,
     };
+
+    if (this.redisCache) {
+      await this.redisCache.set(cacheKey, result, 180);
+    }
+
+    return result;
   }
 
   public async getStats(

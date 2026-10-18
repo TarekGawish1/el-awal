@@ -228,16 +228,13 @@ export function useLessonEditor({
       await queryClient.invalidateQueries({ queryKey: ["assessments"] });
       toast.success(isEditing ? "تم حفظ التعديلات بنجاح" : "تمت إضافة الدرس بنجاح");
       onClose();
-    } catch {
+    } catch (err: any) {
       isSubmittedRef.current = false;
-      if (
-        videoUpload.bunnyVideoId &&
-        videoUpload.bunnyVideoId !== videoUpload.initialBunnyVideoIdRef.current
-      ) {
-        coursesApi.deleteUploadedFile(`bunny:${videoUpload.bunnyVideoId}`);
-        videoUpload.setBunnyVideoId(videoUpload.initialBunnyVideoIdRef.current || "");
-        videoUpload.setVideoEmbedUrl("");
-      }
+      const errorMsg =
+        err?.response?.data?.message ||
+        (Array.isArray(err?.message) ? err.message.join(", ") : err?.message) ||
+        "تعذر حفظ الدرس، يرجى المحاولة مرة أخرى";
+      toast.error(errorMsg);
     }
   };
 
