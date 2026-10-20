@@ -87,35 +87,42 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
       className="lg:hidden pb-[env(safe-area-inset-bottom,0px)] h-[calc(4rem+env(safe-area-inset-bottom,0px))] fixed bottom-0 inset-x-0 z-40 select-none pointer-events-none"
     >
       {/* Scooped / Notched Curved Shell Background */}
-      <div className="absolute inset-0 flex items-stretch pointer-events-none drop-shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
-        {/* Right Wing (RTL) */}
-        <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tr-2xl" />
+      <div className="absolute inset-0 pointer-events-none drop-shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+        {/* Top 64px (h-16) Bar containing the smooth Scoop Notch */}
+        <div className="h-16 w-full flex items-stretch">
+          {/* Right Wing (RTL) */}
+          <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tr-2xl" />
 
-        {/* Center Scoop Notch (Fixed 116px width, never distorted) */}
-        <div className="relative w-[116px] shrink-0 overflow-visible">
-          <svg
-            viewBox="0 0 116 64"
-            className="w-[116px] h-full overflow-visible"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            {/* Notch top border stroke */}
-            <path
-              d="M 0 0.5 C 16 0.5, 24 2.5, 32 10.5 C 40 18.5, 48 38, 58 38 C 68 38, 76 18.5, 84 10.5 C 92 2.5, 100 0.5, 116 0.5"
-              stroke="#E2E8F0"
-              strokeWidth="1.2"
+          {/* Center Scoop Notch (Fixed 120px width, 64px height, exact 1:1 aspect) */}
+          <div className="relative w-[120px] h-16 shrink-0 -mx-[1px] overflow-visible">
+            <svg
+              viewBox="0 0 120 64"
+              className="w-full h-full overflow-visible"
               fill="none"
-            />
-            {/* Notch solid fill seamless with wings */}
-            <path
-              d="M 0 0.5 C 16 0.5, 24 2.5, 32 10.5 C 40 18.5, 48 38, 58 38 C 68 38, 76 18.5, 84 10.5 C 92 2.5, 100 0.5, 116 0.5 L 116 64 L 0 64 Z"
-              fill="white"
-            />
-          </svg>
+              preserveAspectRatio="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {/* Notch top border stroke */}
+              <path
+                d="M 0 0.5 C 16 0.5, 22 6, 28 12 C 34 18, 42 36, 60 36 C 78 36, 86 18, 92 12 C 98 6, 104 0.5, 120 0.5"
+                stroke="#E2E8F0"
+                strokeWidth="1.2"
+                fill="none"
+              />
+              {/* Notch solid fill seamless with wings */}
+              <path
+                d="M 0 0.5 C 16 0.5, 22 6, 28 12 C 34 18, 42 36, 60 36 C 78 36, 86 18, 92 12 C 98 6, 104 0.5, 120 0.5 L 120 64 L 0 64 Z"
+                fill="white"
+              />
+            </svg>
+          </div>
+
+          {/* Left Wing (RTL) */}
+          <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tl-2xl" />
         </div>
 
-        {/* Left Wing (RTL) */}
-        <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tl-2xl" />
+        {/* Bottom Safe Area Inset Fill (Solid White) */}
+        <div className="flex-1 bg-white w-full" />
       </div>
 
       {/* Navigation Tabs and Floating Action Button Container */}
@@ -159,17 +166,17 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
         </div>
 
         {/* Center Floating Action Button (Elevated inside the wide curved scoop) */}
-        <div className="w-[116px] shrink-0 flex items-center justify-center relative -top-7">
+        <div className="w-[120px] shrink-0 flex items-center justify-center relative -top-[32px]">
           <Link
             href={highlightedTab.href}
             className="relative group flex items-center justify-center focus:outline-none"
             aria-label={highlightedTab.label}
           >
             <div
-              className={`w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${
                 isHighlightedActive
-                  ? 'bg-blue-600 text-white shadow-[0_6px_20px_rgba(37,99,235,0.4)] scale-105'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_6px_16px_rgba(37,99,235,0.3)]'
+                  ? 'bg-blue-600 text-white shadow-[0_8px_24px_rgba(37,99,235,0.45)] scale-105'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_8px_20px_rgba(37,99,235,0.38)]'
               }`}
             >
               <HighlightedIcon className="w-6 h-6 stroke-[2.2]" />
