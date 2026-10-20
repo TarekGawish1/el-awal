@@ -61,7 +61,7 @@ export class CourseModulesService {
         unitQuiz: { select: { id: true, title: true, type: true } },
       },
     });
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(courseId);
     return created;
   }
 
@@ -97,7 +97,7 @@ export class CourseModulesService {
         unitQuiz: { select: { id: true, title: true, type: true } },
       },
     });
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(module.course.id);
     return updated;
   }
 
@@ -151,7 +151,7 @@ export class CourseModulesService {
     }
 
     const deleted = await this.prisma.courseModule.delete({ where: { id: moduleId } });
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(module.course.id);
     return deleted;
   }
 
@@ -186,7 +186,7 @@ export class CourseModulesService {
         }),
       ),
     ]);
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(courseId);
     return result;
   }
 }

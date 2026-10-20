@@ -34,6 +34,7 @@ export class CourseCoreService {
     if (this.redisCache) {
       try {
         await Promise.all([
+          this.redisCache.delPattern('course:*'),
           this.redisCache.delPattern('courses:*'),
           this.redisCache.delPattern('student:dashboard:*'),
           this.redisCache.delPattern('parent:overview:*'),
@@ -44,6 +45,25 @@ export class CourseCoreService {
       }
     }
   }
+
+  public async clearCourseCurriculumCache(courseId: string) {
+    this.catalogCache.clear();
+    if (this.redisCache) {
+      try {
+        await Promise.all([
+          this.redisCache.del(`course:curriculum:${courseId}`),
+          this.redisCache.delPattern('course:*'),
+          this.redisCache.delPattern('courses:*'),
+          this.redisCache.delPattern('student:dashboard:*'),
+          this.redisCache.delPattern('parent:overview:*'),
+          this.redisCache.delPattern('parent:dashboard:*'),
+        ]);
+      } catch (err) {
+        this.logger.warn(`Failed to clear curriculum cache for course [${courseId}]: ${err}`);
+      }
+    }
+  }
+
 
   /**
    * Creates a new course scoped to the instructor.

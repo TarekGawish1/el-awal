@@ -110,7 +110,16 @@ export function useCreateModule(courseId: string) {
   return useMutation({
     mutationFn: (data: { title: string; description?: string; unitQuizId?: string }) =>
       coursesApi.createModule(courseId, data),
-    onSuccess: () => {
+    onSuccess: (newModule: any) => {
+      queryClient.setQueryData(['course-detail', courseId], (old: any) => {
+        if (!old) return old;
+        const exists = (old.modules || []).some((m: any) => m.id === newModule?.id);
+        if (exists) return old;
+        return {
+          ...old,
+          modules: [...(old.modules || []), { ...newModule, lessons: newModule.lessons || [] }],
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تمت إضافة الوحدة بنجاح');
     },
@@ -125,7 +134,16 @@ export function useUpdateModule(courseId: string) {
   return useMutation({
     mutationFn: ({ moduleId, data }: { moduleId: string; data: { title?: string; description?: string; orderIndex?: number; unitQuizId?: string | null } }) =>
       coursesApi.updateModule(moduleId, data),
-    onSuccess: () => {
+    onSuccess: (updatedModule: any) => {
+      queryClient.setQueryData(['course-detail', courseId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          modules: (old.modules || []).map((m: any) =>
+            m.id === updatedModule.id ? { ...m, ...updatedModule } : m,
+          ),
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم تحديث بيانات الوحدة');
     },
@@ -139,12 +157,29 @@ export function useDeleteModule(courseId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (moduleId: string) => coursesApi.deleteModule(moduleId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
-      toast.success('تم حذف الوحدة');
+    onMutate: async (moduleId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['course-detail', courseId] });
+      const previousCourse = queryClient.getQueryData(['course-detail', courseId]);
+      queryClient.setQueryData(['course-detail', courseId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          modules: (old.modules || []).filter((m: any) => m.id !== moduleId),
+        };
+      });
+      return { previousCourse };
     },
-    onError: (err: any) => {
+    onError: (err: any, _moduleId, context: any) => {
+      if (context?.previousCourse) {
+        queryClient.setQueryData(['course-detail', courseId], context.previousCourse);
+      }
       toast.error(err?.message || 'تعذر حذف الوحدة');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
+    },
+    onSuccess: () => {
+      toast.success('تم حذف الوحدة');
     },
   });
 }
@@ -170,7 +205,22 @@ export function useCreateLesson(courseId: string) {
   return useMutation({
     mutationFn: ({ moduleId, data }: { moduleId: string; data: any }) =>
       coursesApi.createLesson(moduleId, data),
-    onSuccess: () => {
+    onSuccess: (newLesson: any, variables) => {
+      queryClient.setQueryData(['course-detail', courseId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          modules: (old.modules || []).map((m: any) => {
+            if (m.id !== variables.moduleId) return m;
+            const exists = (m.lessons || []).some((l: any) => l.id === newLesson?.id);
+            if (exists) return m;
+            return {
+              ...m,
+              lessons: [...(m.lessons || []), newLesson],
+            };
+          }),
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تمت إضافة الدرس بنجاح');
     },
@@ -201,7 +251,19 @@ export function useUpdateLesson(courseId: string) {
   return useMutation({
     mutationFn: ({ lessonId, data }: { lessonId: string; data: any }) =>
       coursesApi.updateLesson(lessonId, data),
-    onSuccess: () => {
+    onSuccess: (updatedLesson: any) => {
+      queryClient.setQueryData(['course-detail', courseId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          modules: (old.modules || []).map((m: any) => ({
+            ...m,
+            lessons: (m.lessons || []).map((l: any) =>
+              l.id === updatedLesson.id ? { ...l, ...updatedLesson } : l,
+            ),
+          })),
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم تحديث الدرس');
     },
@@ -215,12 +277,32 @@ export function useDeleteLesson(courseId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (lessonId: string) => coursesApi.deleteLesson(lessonId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
-      toast.success('تم حذف الدرس');
+    onMutate: async (lessonId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['course-detail', courseId] });
+      const previousCourse = queryClient.getQueryData(['course-detail', courseId]);
+      queryClient.setQueryData(['course-detail', courseId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          modules: (old.modules || []).map((m: any) => ({
+            ...m,
+            lessons: (m.lessons || []).filter((l: any) => l.id !== lessonId),
+          })),
+        };
+      });
+      return { previousCourse };
     },
-    onError: (err: any) => {
+    onError: (err: any, _lessonId, context: any) => {
+      if (context?.previousCourse) {
+        queryClient.setQueryData(['course-detail', courseId], context.previousCourse);
+      }
       toast.error(err?.message || 'تعذر حذف الدرس');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
+    },
+    onSuccess: () => {
+      toast.success('تم حذف الدرس');
     },
   });
 }

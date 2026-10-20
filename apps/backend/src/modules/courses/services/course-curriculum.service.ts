@@ -92,7 +92,7 @@ export class CourseCurriculumService {
         }),
       ),
     ]);
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(courseId);
     return result;
   }
 
@@ -284,7 +284,7 @@ export class CourseCurriculumService {
         }
       }
 
-      await this.coreService.clearCatalogCache();
+      await this.coreService.clearCourseCurriculumCache(module.course.id);
       return lesson;
     } catch (error: any) {
       if (error?.code !== 'P2002') {
@@ -515,7 +515,7 @@ export class CourseCurriculumService {
       }
     }
 
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(lesson.module.course.id);
     return updatedLesson;
   }
 
@@ -560,7 +560,7 @@ export class CourseCurriculumService {
     }
 
     const deleted = await this.prisma.courseLesson.delete({ where: { id: lessonId } });
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(lesson.module.course.id);
     return deleted;
   }
 
@@ -594,7 +594,7 @@ export class CourseCurriculumService {
         fileType: dto.fileType || 'application/pdf',
       },
     });
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(lesson.module.course.id);
     return created;
   }
 
@@ -617,7 +617,7 @@ export class CourseCurriculumService {
       throw new ForbiddenException('You do not have permission to delete this attachment');
     }
     const deleted = await this.prisma.lessonAttachment.delete({ where: { id: attachmentId } });
-    await this.coreService.clearCatalogCache();
+    await this.coreService.clearCourseCurriculumCache(attachment.lesson.module.course.id);
     return deleted;
   }
 }
