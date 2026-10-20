@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MobileBottomNav } from '@/components/navigation';
+import { PullToRefresh } from '@/components/pwa';
 import { useDashboardLayout } from './useDashboardLayout';
 import { DashboardSidebar } from './DashboardSidebar';
 import { DashboardHeader } from './DashboardHeader';
@@ -97,11 +98,13 @@ export function DashboardLayoutShell({ children }: { children: React.ReactNode }
 
         <main
           ref={mainScrollRef}
-          className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-10 pt-3 px-3 sm:px-6"
+          className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-10 pt-3 px-3 sm:px-6 overscroll-y-contain relative"
         >
-          <div className="max-w-7xl mx-auto w-full min-h-full">
-            {children}
-          </div>
+          <PullToRefresh containerRef={mainScrollRef}>
+            <div className="max-w-7xl mx-auto w-full min-h-full">
+              {children}
+            </div>
+          </PullToRefresh>
         </main>
 
         <MobileBottomNav
