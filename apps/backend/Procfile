@@ -1,2 +1,2 @@
 release: bun x prisma db push --accept-data-loss
-web: bun dist/main.js
+web: NODE_OPTIONS="--max-old-space-size=384" BUN_JSC_forceRAMSize=384000000 bun dist/main.js

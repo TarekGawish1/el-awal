@@ -1,1 +1,1 @@
-web: bun run start
+web: NODE_OPTIONS="--max-old-space-size=384" BUN_JSC_forceRAMSize=384000000 bun run start

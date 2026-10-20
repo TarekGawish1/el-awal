@@ -220,6 +220,20 @@ async function bootstrap() {
   logger.log(`🚀 ${workerInfo}NestJS Backend Server running on port ${port} (Environment: ${configService.get<string>('NODE_ENV', 'development')}) - Onsite Homework Delivery & Attendance Sync v1.0.1 ready`);
 }
 
+// Global crash guards to prevent transient async rejections from crashing dynos on Heroku
+process.on('unhandledRejection', (reason: any) => {
+  const msg = reason?.stack || reason?.message || String(reason);
+  console.error('⚠️ [ProcessGuard] Unhandled Rejection intercepted (prevented crash):', msg);
+});
+
+process.on('uncaughtException', (err: Error) => {
+  console.error('💥 [ProcessGuard] Uncaught Exception intercepted:', err.message, err.stack);
+  // Allow process to finish in-flight work before exiting if fatal
+  if (err.message?.includes('ENOMEM') || err.message?.includes('heap out of memory')) {
+    process.exit(1);
+  }
+});
+
 const isClusterMode =
   process.env.ENABLE_CLUSTER === 'true' ||
   (process.env.ENABLE_CLUSTER !== 'false' && process.env.NODE_ENV === 'production');
@@ -232,3 +246,4 @@ if (cluster.isPrimary && isClusterMode) {
     process.exit(1);
   });
 }
+

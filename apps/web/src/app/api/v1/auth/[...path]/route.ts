@@ -43,7 +43,7 @@ async function proxyAuthRequest(request: NextRequest, pathSegments: string[]) {
     body = await request.text();
   }
 
-  // Attempt primary backend URL, then fallback if network connection fails
+  // Attempt primary backend URL with 10s timeout, then fallback if network connection fails/times out
   let backendResponse: Response | null = null;
   try {
     backendResponse = await fetch(primaryUrl, {
@@ -51,6 +51,7 @@ async function proxyAuthRequest(request: NextRequest, pathSegments: string[]) {
       headers: forwardHeaders,
       body,
       redirect: 'manual',
+      signal: AbortSignal.timeout(10000),
     });
   } catch (primaryErr) {
     console.warn(`Primary auth proxy error for ${primaryUrl}:`, primaryErr);
@@ -60,6 +61,7 @@ async function proxyAuthRequest(request: NextRequest, pathSegments: string[]) {
         headers: forwardHeaders,
         body,
         redirect: 'manual',
+        signal: AbortSignal.timeout(10000),
       });
     } catch (fallbackErr) {
       console.error(`Fallback auth proxy error for ${fallbackUrl}:`, fallbackErr);

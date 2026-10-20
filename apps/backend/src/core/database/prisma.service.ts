@@ -18,9 +18,10 @@ function createPrismaOptions(configService: ConfigService): {
       const separator = databaseUrl.includes('?') ? '&' : '?';
       databaseUrl = `${databaseUrl}${separator}pgbouncer=true`;
     }
+    const poolMax = Number(process.env.DB_POOL_MAX) || 15;
     if (!databaseUrl.includes('connection_limit=')) {
       const separator = databaseUrl.includes('?') ? '&' : '?';
-      databaseUrl = `${databaseUrl}${separator}connection_limit=60`;
+      databaseUrl = `${databaseUrl}${separator}connection_limit=${poolMax}`;
     }
     if (!databaseUrl.includes('pool_timeout=')) {
       const separator = databaseUrl.includes('?') ? '&' : '?';
@@ -35,9 +36,10 @@ function createPrismaOptions(configService: ConfigService): {
 
   let pool: Pool | undefined;
   if (connectionUrl) {
+    const poolMax = Number(process.env.DB_POOL_MAX) || 15;
     pool = new Pool({
       connectionString: connectionUrl,
-      max: 60,
+      max: poolMax,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 15000,
       ssl:

@@ -4,6 +4,9 @@ const isDev = process.env.NODE_ENV !== 'production';
 const nextConfig = {
   output: 'standalone',
   compress: true,
+  poweredByHeader: false,
+  // Limit in-memory SSR and page cache to 25MB to prevent Heroku 512MB RAM OOM crashes (R14/R15)
+  cacheMaxMemorySize: 25 * 1024 * 1024,
 
   // Reduce server bundle size by externalizing large native packages
   serverExternalPackages: ['sharp'],
