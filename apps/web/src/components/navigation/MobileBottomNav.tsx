@@ -91,24 +91,24 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
         {/* Right Wing (RTL) */}
         <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tr-2xl" />
 
-        {/* Center Scoop Notch (Fixed 96px width, never distorted) */}
-        <div className="relative w-[96px] shrink-0 overflow-visible">
+        {/* Center Scoop Notch (Fixed 116px width, never distorted) */}
+        <div className="relative w-[116px] shrink-0 overflow-visible">
           <svg
-            viewBox="0 0 96 64"
-            className="w-[96px] h-full overflow-visible"
+            viewBox="0 0 116 64"
+            className="w-[116px] h-full overflow-visible"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
             {/* Notch top border stroke */}
             <path
-              d="M 0 0.5 C 22 0.5, 26 38, 48 38 C 70 38, 74 0.5, 96 0.5"
+              d="M 0 0.5 C 16 0.5, 24 2.5, 32 10.5 C 40 18.5, 48 38, 58 38 C 68 38, 76 18.5, 84 10.5 C 92 2.5, 100 0.5, 116 0.5"
               stroke="#E2E8F0"
               strokeWidth="1.2"
               fill="none"
             />
             {/* Notch solid fill seamless with wings */}
             <path
-              d="M 0 0.5 C 22 0.5, 26 38, 48 38 C 70 38, 74 0.5, 96 0.5 L 96 64 L 0 64 Z"
+              d="M 0 0.5 C 16 0.5, 24 2.5, 32 10.5 C 40 18.5, 48 38, 58 38 C 68 38, 76 18.5, 84 10.5 C 92 2.5, 100 0.5, 116 0.5 L 116 64 L 0 64 Z"
               fill="white"
             />
           </svg>
@@ -158,21 +158,21 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
           })}
         </div>
 
-        {/* Center Floating Action Button (Elevated inside the curved scoop) */}
-        <div className="w-[96px] shrink-0 flex items-center justify-center relative -top-8">
+        {/* Center Floating Action Button (Elevated inside the wide curved scoop) */}
+        <div className="w-[116px] shrink-0 flex items-center justify-center relative -top-7">
           <Link
             href={highlightedTab.href}
             className="relative group flex items-center justify-center focus:outline-none"
             aria-label={highlightedTab.label}
           >
             <div
-              className={`w-14 h-14 rounded-full flex items-center justify-center ring-4 ring-white transition-all duration-200 active:scale-90 ${
+              className={`w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${
                 isHighlightedActive
-                  ? 'bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.48)] scale-105'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_8px_20px_rgba(37,99,235,0.38)]'
+                  ? 'bg-blue-600 text-white shadow-[0_6px_20px_rgba(37,99,235,0.4)] scale-105'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_6px_16px_rgba(37,99,235,0.3)]'
               }`}
             >
-              <HighlightedIcon className="w-7 h-7 stroke-[2.2]" />
+              <HighlightedIcon className="w-6 h-6 stroke-[2.2]" />
             </div>
             <span className="sr-only">{highlightedTab.label}</span>
           </Link>
