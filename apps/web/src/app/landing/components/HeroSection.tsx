@@ -3,7 +3,6 @@
 import React from 'react';
 import NextImage from 'next/image';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { HeroImageSequence } from './HeroImageSequence';
 import { Navbar } from './Navbar';
 
@@ -24,12 +23,7 @@ export function HeroSection() {
 
       <div className="flex-1 relative z-10 container mx-auto px-6 pt-32 pb-16 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
         {/* Right side: Teacher Image */}
-        <motion.div
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-full lg:w-1/2 flex justify-center lg:justify-end relative"
-        >
+        <div className="w-full lg:w-1/2 flex justify-center lg:justify-end relative">
           <div className="relative w-full max-w-[350px] lg:max-w-[500px] h-[350px] lg:h-[500px] flex items-end justify-center mt-10 lg:mt-0">
             {/* The Cutout Image with Bottom Fade */}
             <div
@@ -53,15 +47,10 @@ export function HeroSection() {
               />
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Left side: Text & CTA */}
-        <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-right"
-        >
+        <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-right">
           <h1 className="flex flex-col gap-4 text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 mb-8 leading-normal">
             <span className="text-blue-600">الاستاذ/ أحمد غريب</span>
           </h1>
@@ -156,7 +145,7 @@ export function HeroSection() {
               <span className="font-semibold text-lg">بنك أسئلة</span>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Smooth Bottom Transition to next Section */}

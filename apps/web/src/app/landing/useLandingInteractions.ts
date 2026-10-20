@@ -17,7 +17,7 @@ export interface UseLandingInteractionsResult {
 export function useLandingInteractions(): UseLandingInteractionsResult {
   const router = useRouter();
   const { user, isAuthenticated, isInitialized } = useAuthStore();
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {

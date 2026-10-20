@@ -9,15 +9,23 @@ export function PwaRegister() {
       return;
     }
 
-    // Request persistent storage to protect IndexedDB data from eviction
-    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
-      navigator.storage.persist().then((isPersisted) => {
-        if (isPersisted) {
-          console.debug('[Storage] Persistent storage granted');
-        }
-      }).catch((e) => {
-        console.debug('[Storage] Storage persist request ignored:', e);
-      });
+    // Request persistent storage to protect IndexedDB data from eviction (deferred to idle time)
+    const requestPersistSafely = () => {
+      if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().then((isPersisted) => {
+          if (isPersisted) {
+            console.debug('[Storage] Persistent storage granted');
+          }
+        }).catch((e) => {
+          console.debug('[Storage] Storage persist request ignored:', e);
+        });
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(requestPersistSafely, { timeout: 5000 });
+    } else {
+      setTimeout(requestPersistSafely, 3000);
     }
 
     // In Next.js dev server, avoid registering SW unless explicitly enabled

@@ -47,7 +47,7 @@ export function PwaInstallPrompt() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       if (!isDismissedRecently) {
-        setTimeout(() => setIsVisible(true), 1200);
+        setTimeout(() => setIsVisible(true), 6000);
       }
     };
 
@@ -57,7 +57,7 @@ export function PwaInstallPrompt() {
     if (isMobileDevice && !isDismissedRecently) {
       const timer = setTimeout(() => {
         setIsVisible(true);
-      }, 1800);
+      }, 6000);
       return () => {
         clearTimeout(timer);
         window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

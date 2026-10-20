@@ -35,12 +35,7 @@ export function Navbar() {
   }, []);
 
   return (
-    <motion.nav
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.8, delay: 0.5, ease: 'easeOut' }}
-      className="fixed top-0 left-0 right-0 z-40 px-6 py-4 flex items-center justify-between"
-    >
+    <nav className="fixed top-0 left-0 right-0 z-40 px-6 py-4 flex items-center justify-between">
       {/* Glass Background */}
       <div className="absolute inset-0 bg-white/70 backdrop-blur-md border-b border-white/20 shadow-sm" />
 
@@ -199,6 +194,6 @@ export function Navbar() {
           )}
         </div>
       </div>
-    </motion.nav>
+    </nav>
   );
 }
