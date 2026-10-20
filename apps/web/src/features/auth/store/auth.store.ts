@@ -9,7 +9,6 @@ import {
   clearStoredTokens,
   setStoredUser,
 } from '../utils/auth-tokens';
-import { disconnectRealtimeSocket } from '@/lib/realtime/socket';
 
 interface AuthActions {
   setSession: (session: AuthTokensResponse) => void;
@@ -78,7 +77,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   clearSession: () => {
     clearStoredTokens();
     // Drop the realtime socket so the closed session no longer receives pushes
-    disconnectRealtimeSocket();
+    if (typeof window !== 'undefined') {
+      import('@/lib/realtime/socket')
+        .then(({ disconnectRealtimeSocket }) => {
+          disconnectRealtimeSocket();
+        })
+        .catch(() => {});
+    }
     set({
       user: null,
       accessToken: null,

@@ -63,8 +63,10 @@ export function usePaymentQrScanner({
   } = useScannerCamera();
 
   useEffect(() => {
-    initQrDetector();
-  }, []);
+    if (isOpen) {
+      initQrDetector();
+    }
+  }, [isOpen]);
 
   const { data: groups = [] } = useGroups();
   const { booklets = [] } = useBooklets();
