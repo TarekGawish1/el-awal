@@ -135,10 +135,32 @@ export function useWebPush(options?: UseWebPushOptions): UseWebPushReturn {
       const vapidKey = await fetchVapidPublicKey();
       const applicationServerKey = urlBase64ToUint8Array(vapidKey);
 
-      // Subscribe via PushManager (reuse existing if already subscribed)
-      let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
+      // Clean up any stale/mismatched subscription to prevent Chrome AbortError key conflicts
+      let subscription: PushSubscription | null = null;
+      try {
+        const existing = await registration.pushManager.getSubscription();
+        if (existing) {
+          try {
+            await existing.unsubscribe();
+          } catch {
+            // ignore cleanup error
+          }
+        }
+      } catch {
+        // ignore check error
+      }
+
+      // Subscribe via PushManager with automatic retry on transient push service errors
+      try {
         subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey as unknown as BufferSource,
+        });
+      } catch (firstErr: any) {
+        console.warn('[useWebPush] Initial PushManager subscribe note, attempting clean retry:', firstErr);
+        await new Promise((r) => setTimeout(r, 350));
+        const readyReg = await navigator.serviceWorker.ready;
+        subscription = await readyReg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: applicationServerKey as unknown as BufferSource,
         });
@@ -167,7 +189,7 @@ export function useWebPush(options?: UseWebPushOptions): UseWebPushReturn {
             'في متصفح Brave: يرجى تفعيل "Use Google services for push messaging" من إعدادات الخصوصية (brave://settings/privacy) ثم إعادة تشغيل المتصفح.';
         } else {
           msg =
-            'تعذر الاتصال بخدمة الإشعارات الفورية في المتصفح. تأكد من اتصال الإنترنت وعدم حظر خدمات الإشعارات.';
+            'تعذر الاتصال بخدمة إشعارات المتصفح (Push Service). يرجى التأكد من استقرار الإنترنت، وإلغاء قيود توفير البطارية للمتصفح في إعدادات الهاتف.';
         }
       }
 

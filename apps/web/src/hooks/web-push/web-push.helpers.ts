@@ -196,12 +196,22 @@ export async function subscribeSilently(registration: ServiceWorkerRegistration)
     // 2. Fallback to standard VAPID
     const standardVapidKey = await fetchVapidPublicKey();
     const applicationServerKey = urlBase64ToUint8Array(standardVapidKey);
-    let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
+    let subscription: PushSubscription | null = null;
+    try {
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        try {
+          await existing.unsubscribe();
+        } catch {
+          // ignore
+        }
+      }
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: applicationServerKey as unknown as BufferSource,
       });
+    } catch (silentErr) {
+      console.debug('[useWebPush] subscribeSilently PushManager error:', silentErr);
     }
     if (subscription) {
       await postSubscription(subscription.toJSON()).catch(() => undefined);
