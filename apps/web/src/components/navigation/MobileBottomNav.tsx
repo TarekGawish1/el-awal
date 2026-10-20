@@ -101,14 +101,14 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
           >
             {/* Notch top border stroke */}
             <path
-              d="M 0 0.5 C 22 0.5, 26 34, 48 34 C 70 34, 74 0.5, 96 0.5"
+              d="M 0 0.5 C 22 0.5, 26 38, 48 38 C 70 38, 74 0.5, 96 0.5"
               stroke="#E2E8F0"
               strokeWidth="1.2"
               fill="none"
             />
             {/* Notch solid fill seamless with wings */}
             <path
-              d="M 0 0.5 C 22 0.5, 26 34, 48 34 C 70 34, 74 0.5, 96 0.5 L 96 64 L 0 64 Z"
+              d="M 0 0.5 C 22 0.5, 26 38, 48 38 C 70 38, 74 0.5, 96 0.5 L 96 64 L 0 64 Z"
               fill="white"
             />
           </svg>
@@ -159,10 +159,10 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
         </div>
 
         {/* Center Floating Action Button (Elevated inside the curved scoop) */}
-        <div className="w-[96px] shrink-0 flex flex-col items-center justify-center relative -top-3">
+        <div className="w-[96px] shrink-0 flex items-center justify-center relative -top-8">
           <Link
             href={highlightedTab.href}
-            className="relative group -top-2 flex flex-col items-center focus:outline-none"
+            className="relative group flex items-center justify-center focus:outline-none"
             aria-label={highlightedTab.label}
           >
             <div
@@ -174,13 +174,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
             >
               <HighlightedIcon className="w-7 h-7 stroke-[2.2]" />
             </div>
-            <span
-              className={`text-[10px] font-bold tracking-tight mt-1 transition-colors ${
-                isHighlightedActive ? 'text-blue-600 font-extrabold' : 'text-slate-700'
-              }`}
-            >
-              {highlightedTab.label}
-            </span>
+            <span className="sr-only">{highlightedTab.label}</span>
           </Link>
         </div>
 
