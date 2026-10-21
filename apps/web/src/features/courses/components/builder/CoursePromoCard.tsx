@@ -16,7 +16,7 @@ export function CoursePromoCard({
 }: CoursePromoCardProps) {
   if (previewVideoUrl) {
     return (
-      <div className="bg-white border border-emerald-200/80 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xs relative overflow-hidden">
+      <div className="bg-white border border-emerald-200/80 rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-xs relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 shadow-2xs">
@@ -56,7 +56,7 @@ export function CoursePromoCard({
           </div>
         </div>
 
-        <div className="mt-4 aspect-video max-w-3xl mx-auto rounded-2xl overflow-hidden bg-black border border-slate-200 shadow-md">
+        <div className="mt-4 aspect-video w-full max-w-4xl mx-auto rounded-xl sm:rounded-2xl overflow-hidden bg-black border border-slate-200 shadow-md">
           {!previewVideoUrl.startsWith("bunny:") ? (
             <iframe
               src={`${previewVideoUrl}${previewVideoUrl.includes("?") ? "&" : "?"}autoplay=0`}

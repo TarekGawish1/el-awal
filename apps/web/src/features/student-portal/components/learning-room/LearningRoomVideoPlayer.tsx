@@ -64,7 +64,7 @@ export function LearningRoomVideoPlayer({
   return (
     <div
       ref={videoContainerRef}
-      className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
+      className="bg-white border border-slate-200 rounded-none sm:rounded-2xl border-x-0 sm:border-x -mx-3 sm:mx-0 overflow-hidden shadow-sm"
     >
       <div
         className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center select-none"

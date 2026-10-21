@@ -34,7 +34,7 @@ export function LearningRoomHeader({
   onOpenMobileSyllabus,
 }: LearningRoomHeaderProps) {
   return (
-    <div className="flex items-center justify-between bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-sm">
+    <div className="flex items-center justify-between bg-white border border-slate-200 px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-sm">
       <div className="flex items-center gap-3">
         <Link
           href={isTeacherOrAdmin ? `/teacher/courses/${courseId}` : '/student/courses'}

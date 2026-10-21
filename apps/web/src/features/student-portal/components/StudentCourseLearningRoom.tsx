@@ -231,6 +231,33 @@ export function StudentCourseLearningRoom({
               />
             )}
           </div>
+
+          {/* Mobile Course Syllabus Section: Placed below tabs for seamless scroll-through on mobile */}
+          <div className="block lg:hidden mt-8 pt-6 border-t border-slate-200">
+            <div className="mb-3.5 flex items-center justify-between">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-primary-600 inline-block" />
+                <span>فصول ومنهج الدورة</span>
+              </h3>
+              <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                {room.progress.completedLessonIds.length} من {room.allLessons.length} مكتمل
+              </span>
+            </div>
+            <CourseSyllabusSidebar
+              modules={room.course?.modules || []}
+              allLessons={room.allLessons}
+              activeLessonId={room.selectedLessonId}
+              onSelectLesson={(id) => {
+                room.setSelectedLessonId(id);
+                room.videoContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              onSelectQuiz={room.handleSelectQuizFromSidebar}
+              completedLessonIds={room.progress.completedLessonIds}
+              enforceSequentialLessons={room.course?.enforceSequentialLessons ?? false}
+              requireExamPassingToUnlock={room.course?.requireExamPassingToUnlock ?? false}
+              courseQuiz={room.course?.courseQuiz || null}
+            />
+          </div>
         </div>
 
         {/* Right Column: Syllabus & Modules Accordion on Desktop */}
