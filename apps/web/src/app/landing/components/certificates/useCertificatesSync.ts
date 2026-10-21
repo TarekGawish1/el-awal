@@ -133,19 +133,8 @@ export function useCertificatesSync() {
           );
         }
 
-        // 3. Fetch all certificates from backend
-        let apiCerts = Array.isArray(publicCerts) && publicCerts.length > 0 ? publicCerts : [];
-        if (apiCerts.length === 0) {
-          try {
-            const res = await fetch(`${baseUrl}/certificates/public`);
-            if (res.ok) {
-              const json = await res.json();
-              apiCerts = json?.data || json || [];
-            }
-          } catch (apiError) {
-            console.warn("Could not fetch API certificates", apiError);
-          }
-        }
+        // 3. Use certificates from TanStack Query hook
+        let apiCerts = Array.isArray(publicCerts) ? publicCerts : [];
 
         if (!Array.isArray(apiCerts)) apiCerts = [];
         if (!Array.isArray(localCerts)) localCerts = [];
