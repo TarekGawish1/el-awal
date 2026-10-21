@@ -16,8 +16,19 @@ export function resolveCoverUrl(url?: string | null): string {
 }
 
 export function isOptimizableImage(url?: string | null): boolean {
-  if (!url) return false;
-  if (url.startsWith('data:') || url.startsWith('blob:')) return false;
-  if (url.startsWith('/') && !url.startsWith('//')) return true;
-  return url.includes('.r2.dev');
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return false;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:') return false;
+    const hostname = parsed.hostname.toLowerCase();
+    return hostname === 'r2.dev' || hostname.endsWith('.r2.dev');
+  } catch {
+    return false;
+  }
 }
+

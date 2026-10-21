@@ -26,6 +26,12 @@ export const CourseCatalogCard = memo(function CourseCatalogCard({
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-primary-300 hover:shadow-md transition-all flex flex-col group shadow-sm">
       {/* Course Cover Image Banner */}
       <div className="relative aspect-video bg-slate-100 overflow-hidden">
+        {/* Consistent fallback displayed when no cover image exists or when the image fails to load */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-primary-50 to-slate-100 text-primary-600 p-4 text-center">
+          <Video className="w-12 h-12 stroke-[1.5] mb-2 opacity-80" />
+          <span className="text-xs font-bold text-slate-800">{course.subject}</span>
+        </div>
+
         {course.coverImageUrl ? (
           <Image
             src={resolveCoverUrl(course.coverImageUrl)}
@@ -38,15 +44,10 @@ export const CourseCatalogCard = memo(function CourseCatalogCard({
               e.currentTarget.style.display = "none";
             }}
           />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary-50 to-slate-100 text-primary-600 p-4 text-center">
-            <Video className="w-12 h-12 stroke-[1.5] mb-2 opacity-80" />
-            <span className="text-xs font-bold text-slate-800">{course.subject}</span>
-          </div>
-        )}
+        ) : null}
 
         {/* Status Badge */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold backdrop-blur-md bg-white/95 border border-slate-200 shadow-sm">
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold backdrop-blur-md bg-white/95 border border-slate-200 shadow-sm">
           {isPublished ? (
             <>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -61,7 +62,7 @@ export const CourseCatalogCard = memo(function CourseCatalogCard({
         </div>
 
         {/* Price Tag */}
-        <div className="absolute bottom-3 left-3 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md bg-white/95 border border-slate-200 text-slate-900 flex items-center gap-1 shadow-sm font-mono">
+        <div className="absolute bottom-3 left-3 z-10 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md bg-white/95 border border-slate-200 text-slate-900 flex items-center gap-1 shadow-sm font-mono">
           {Number(course.price) > 0 ? (
             <>
               <span className="text-emerald-600">{course.price}</span>
