@@ -4,52 +4,73 @@ import React, { useEffect, useRef } from 'react';
 
 const HERO_FRAME_COUNT = 22;
 const HERO_FRAME_DURATION_MS = 150;
+
 let cachedHeroFrames: HTMLImageElement[] | null = null;
+let cachedFrame0: HTMLImageElement | null = null;
 let heroFramesLoadPromise: Promise<HTMLImageElement[]> | null = null;
+
+function checkPrefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  } catch {
+    return false;
+  }
+}
+
+function checkSaveDataEnabled(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  try {
+    return !!(navigator as any).connection?.saveData;
+  } catch {
+    return false;
+  }
+}
 
 function loadSingleHeroFrame(index: number): Promise<HTMLImageElement | null> {
   return new Promise<HTMLImageElement | null>((resolve) => {
+    if (typeof window === 'undefined') return resolve(null);
     const image = new Image();
     image.decoding = 'async';
-    // Decorative frames must never out-prioritize LCP
+    // Decorative frames must never compete with LCP or critical page assets
     (image as any).fetchPriority = 'low';
-    image.onload = () => {
-      resolve(image);
-    };
-    image.onerror = () => {
-      resolve(null);
-    };
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
     image.src = `/hero-animation/frame_${String(index).padStart(6, '0')}.webp`;
   });
 }
 
-function loadHeroFramesOnce(): Promise<HTMLImageElement[]> {
+function loadInitialStaticFrame(): Promise<HTMLImageElement | null> {
+  if (cachedFrame0) return Promise.resolve(cachedFrame0);
+  if (cachedHeroFrames && cachedHeroFrames[0]) return Promise.resolve(cachedHeroFrames[0]);
+
+  return loadSingleHeroFrame(0).then((frame) => {
+    if (frame) {
+      cachedFrame0 = frame;
+    }
+    return frame;
+  });
+}
+
+function loadRemainingHeroFrames(frame0: HTMLImageElement | null): Promise<HTMLImageElement[]> {
   if (cachedHeroFrames) return Promise.resolve(cachedHeroFrames);
   if (heroFramesLoadPromise) return heroFramesLoadPromise;
 
-  // Load in small batches (concurrency 3) instead of 22 parallel requests,
-  // so the animation never saturates bandwidth needed by critical resources.
   const CONCURRENCY = 3;
   heroFramesLoadPromise = (async () => {
-    const results: (HTMLImageElement | null)[] = new Array(
-      HERO_FRAME_COUNT,
-    ).fill(null);
-    for (let start = 0; start < HERO_FRAME_COUNT; start += CONCURRENCY) {
-      const batch = Array.from(
-        { length: Math.min(CONCURRENCY, HERO_FRAME_COUNT - start) },
-        (_, offset) => start + offset,
-      );
-      const loaded = await Promise.all(
-        batch.map((index) => loadSingleHeroFrame(index)),
-      );
-      loaded.forEach((image, offset) => {
-        results[start + offset] = image;
-      });
+    const remainingIndices = Array.from({ length: HERO_FRAME_COUNT - 1 }, (_, i) => i + 1);
+    const loadedRemaining: (HTMLImageElement | null)[] = [];
+
+    for (let start = 0; start < remainingIndices.length; start += CONCURRENCY) {
+      const batch = remainingIndices.slice(start, start + CONCURRENCY);
+      const batchResults = await Promise.all(batch.map((idx) => loadSingleHeroFrame(idx)));
+      loadedRemaining.push(...batchResults);
     }
-    cachedHeroFrames = results.filter(
-      (frame): frame is HTMLImageElement => frame !== null,
-    );
-    return cachedHeroFrames;
+
+    const validRemaining = loadedRemaining.filter((f): f is HTMLImageElement => f !== null);
+    const allFrames = frame0 ? [frame0, ...validRemaining] : validRemaining;
+    cachedHeroFrames = allFrames;
+    return allFrames;
   })();
 
   return heroFramesLoadPromise;
@@ -62,13 +83,26 @@ export function HeroImageSequence() {
     let isActive = true;
     let animationFrameId: number | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let intersectionObserver: IntersectionObserver | null = null;
+    let idleCallbackId: number | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
     let currentFrameIndex = 0;
     let lastFrameTime = 0;
-    let frames: HTMLImageElement[] = [];
+    let frames: HTMLImageElement[] = cachedHeroFrames || [];
+    let isVisible = true;
 
-    const drawFrame = () => {
+    // Check user accessibility & connection preferences
+    const reducedMotion = checkPrefersReducedMotion();
+    const saveData = checkSaveDataEnabled();
+
+    // If user requested Data Saver, do not download any decorative animation frames
+    if (saveData) {
+      return;
+    }
+
+    const drawFrame = (targetImage?: HTMLImageElement) => {
       const canvas = canvasRef.current;
-      const image = frames[currentFrameIndex];
+      const image = targetImage || frames[currentFrameIndex];
       if (!canvas || !image) return;
 
       const context = canvas.getContext('2d');
@@ -98,7 +132,7 @@ export function HeroImageSequence() {
     };
 
     const animate = (timestamp: number) => {
-      if (!isActive) return;
+      if (!isActive || !isVisible || frames.length <= 1) return;
       if (timestamp - lastFrameTime >= HERO_FRAME_DURATION_MS) {
         currentFrameIndex = (currentFrameIndex + 1) % frames.length;
         lastFrameTime = timestamp;
@@ -107,66 +141,106 @@ export function HeroImageSequence() {
       animationFrameId = window.requestAnimationFrame(animate);
     };
 
-    // Defer decorative hero frames until AFTER the page is fully loaded
-    const startLoading = () => {
-      const run = () => {
-        if (!isActive) return;
-        loadHeroFramesOnce().then((loadedFrames) => {
-          if (!isActive) return;
-          frames = loadedFrames;
-          if (frames.length === 0) return;
+    // If all frames were already loaded and cached on a previous page visit:
+    if (frames.length > 1) {
+      drawFrame();
+      if (!reducedMotion) {
+        lastFrameTime = performance.now();
+        animationFrameId = window.requestAnimationFrame(animate);
+      }
+      if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => drawFrame());
+        resizeObserver.observe(canvasRef.current);
+      }
+      return () => {
+        isActive = false;
+        resizeObserver?.disconnect();
+        if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+      };
+    }
 
-          drawFrame();
+    // Step 1: Provide static visual fallback with frame 0
+    let staticFrame: HTMLImageElement | null = null;
+
+    loadInitialStaticFrame().then((frame) => {
+      if (!isActive || !frame) return;
+      staticFrame = frame;
+      frames = [frame];
+      drawFrame(frame);
+
+      if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => drawFrame());
+        resizeObserver.observe(canvasRef.current);
+      }
+
+      // If user prefers reduced motion, we stop here (static visual displayed, 0 animation frames fetched)
+      if (reducedMotion) {
+        return;
+      }
+
+      // Step 2: Defer frames 1..21 until after page is fully loaded and idle
+      const startDeferredSequence = () => {
+        if (!isActive || !isVisible) return;
+        loadRemainingHeroFrames(staticFrame).then((allFrames) => {
+          if (!isActive || allFrames.length <= 1) return;
+          frames = allFrames;
           lastFrameTime = performance.now();
-          if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
-            resizeObserver = new ResizeObserver(drawFrame);
-            resizeObserver.observe(canvasRef.current);
+          if (isVisible && animationFrameId === null) {
+            animationFrameId = window.requestAnimationFrame(animate);
           }
-          animationFrameId = window.requestAnimationFrame(animate);
         });
       };
+
       const scheduleIdle = () => {
         if (!isActive) return;
-        if (
-          typeof window !== 'undefined' &&
-          'requestIdleCallback' in (window as any)
-        ) {
-          (window as any).requestIdleCallback(run, { timeout: 5000 });
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          idleCallbackId = (window as any).requestIdleCallback(startDeferredSequence, { timeout: 5000 });
         } else {
-          setTimeout(run, 2500);
+          timeoutId = setTimeout(startDeferredSequence, 2500);
         }
       };
-      if (
-        typeof document !== 'undefined' &&
-        document.readyState === 'complete'
-      ) {
-        scheduleIdle();
+
+      // Add a deliberate 2.5s post-load deferral window so initial hydration and fonts are 100% idle
+      if (typeof document !== 'undefined' && document.readyState === 'complete') {
+        timeoutId = setTimeout(scheduleIdle, 2500);
       } else if (typeof window !== 'undefined') {
-        let loadFired = false;
         const onLoad = () => {
-          loadFired = true;
           window.removeEventListener('load', onLoad);
-          scheduleIdle();
+          timeoutId = setTimeout(scheduleIdle, 2500);
         };
         window.addEventListener('load', onLoad, { once: true });
-        setTimeout(() => {
-          if (!loadFired && isActive) {
-            window.removeEventListener('load', onLoad);
-            scheduleIdle();
-          }
-        }, 6000);
-      } else {
-        setTimeout(run, 2500);
       }
-    };
+    });
 
-    startLoading();
+    // Pause animation when the hero canvas scrolls out of the viewport
+    if (typeof IntersectionObserver !== 'undefined' && canvasRef.current) {
+      intersectionObserver = new IntersectionObserver(
+        ([entry]) => {
+          isVisible = entry.isIntersecting;
+          if (isVisible && frames.length > 1 && !reducedMotion && animationFrameId === null) {
+            lastFrameTime = performance.now();
+            animationFrameId = window.requestAnimationFrame(animate);
+          } else if (!isVisible && animationFrameId !== null) {
+            window.cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
+        },
+        { threshold: 0.05 }
+      );
+      intersectionObserver.observe(canvasRef.current);
+    }
 
     return () => {
       isActive = false;
       resizeObserver?.disconnect();
-      if (animationFrameId !== null)
+      intersectionObserver?.disconnect();
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      if (idleCallbackId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        (window as any).cancelIdleCallback(idleCallbackId);
+      }
+      if (animationFrameId !== null) {
         window.cancelAnimationFrame(animationFrameId);
+      }
     };
   }, []);
 
