@@ -1,4 +1,3 @@
-export { IntroSequence } from './IntroSequence';
 export { Navbar } from './Navbar';
 export { HeroImageSequence } from './HeroImageSequence';
 export { HeroSection } from './HeroSection';
@@ -9,4 +8,3 @@ export { CertificatesSection } from './CertificatesSection';
 export { AboutUsSection } from './AboutUsSection';
 export { ContactUsSection } from './ContactUsSection';
 export { FooterSection } from './FooterSection';
-export { CoursePreviewModal } from './CoursePreviewModal';
