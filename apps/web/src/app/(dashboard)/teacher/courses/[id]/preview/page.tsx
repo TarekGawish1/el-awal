@@ -26,7 +26,7 @@ export default async function TeacherCoursePreviewPage({
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full mx-auto">
       <StudentCourseLearningRoom
         courseId={resolvedParams?.id}
         initialLessonId={resolvedSearchParams?.lessonId}

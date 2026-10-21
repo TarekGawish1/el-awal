@@ -12,6 +12,8 @@ export function DashboardLayoutShell({ children }: { children: React.ReactNode }
   const {
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
+    toggleDesktopSidebar,
     isSyncReviewOpen,
     setIsSyncReviewOpen,
     isSyncConfirmationOpen,
@@ -61,6 +63,8 @@ export function DashboardLayoutShell({ children }: { children: React.ReactNode }
       <DashboardSidebar
         isMobileSidebarOpen={isMobileSidebarOpen}
         onCloseMobileSidebar={() => setIsMobileSidebarOpen(false)}
+        isDesktopSidebarCollapsed={isDesktopSidebarCollapsed}
+        onToggleDesktopSidebar={toggleDesktopSidebar}
         user={user}
         canSwitchRoles={canSwitchRoles}
         availableRoles={availableRoles}
@@ -78,6 +82,8 @@ export function DashboardLayoutShell({ children }: { children: React.ReactNode }
         <DashboardHeader
           isMobileSidebarOpen={isMobileSidebarOpen}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          isDesktopSidebarCollapsed={isDesktopSidebarCollapsed}
+          onToggleDesktopSidebar={toggleDesktopSidebar}
           user={user}
           isOnline={isOnline}
           isSyncMenuOpen={isSyncMenuOpen}
@@ -99,7 +105,11 @@ export function DashboardLayoutShell({ children }: { children: React.ReactNode }
           ref={mainScrollRef}
           className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-10 pt-3 px-3 sm:px-6"
         >
-          <div className="max-w-7xl mx-auto w-full min-h-full">
+          <div
+            className={`mx-auto w-full min-h-full transition-all duration-300 ${
+              isDesktopSidebarCollapsed ? 'max-w-[1600px]' : 'max-w-7xl'
+            }`}
+          >
             {children}
           </div>
         </main>

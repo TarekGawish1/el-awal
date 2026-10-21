@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 
 export function useDashboardLayout() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false);
   const [isSyncConfirmationOpen, setIsSyncConfirmationOpen] = useState(false);
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
@@ -37,6 +38,47 @@ export function useDashboardLayout() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const [isSwitchingRole, setIsSwitchingRole] = useState(false);
+
+  // Initialize desktop sidebar collapse preference from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('el_awal_sidebar_collapsed');
+      if (stored === 'true') {
+        setIsDesktopSidebarCollapsed(true);
+      }
+    } catch {}
+  }, []);
+
+  const toggleDesktopSidebar = () => {
+    setIsDesktopSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('el_awal_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Keyboard shortcut: Ctrl+B or Cmd+B to toggle sidebar on desktop
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        const target = e.target as HTMLElement | null;
+        if (
+          target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable)
+        ) {
+          return;
+        }
+        e.preventDefault();
+        toggleDesktopSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -277,6 +319,9 @@ export function useDashboardLayout() {
   return {
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
+    setIsDesktopSidebarCollapsed,
+    toggleDesktopSidebar,
     isSyncReviewOpen,
     setIsSyncReviewOpen,
     isSyncConfirmationOpen,

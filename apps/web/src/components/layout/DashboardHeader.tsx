@@ -15,6 +15,7 @@ import {
   ArrowLeftRight,
   ChevronDown,
   LogOut,
+  PanelRightClose,
 } from 'lucide-react';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
 import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
@@ -25,6 +26,8 @@ import { UserRole } from '@/features/auth/types/auth.types';
 interface DashboardHeaderProps {
   isMobileSidebarOpen: boolean;
   onToggleMobileSidebar: () => void;
+  isDesktopSidebarCollapsed?: boolean;
+  onToggleDesktopSidebar?: () => void;
   user: any;
   isOnline: boolean;
   isSyncMenuOpen: boolean;
@@ -45,6 +48,8 @@ interface DashboardHeaderProps {
 export function DashboardHeader({
   isMobileSidebarOpen,
   onToggleMobileSidebar,
+  isDesktopSidebarCollapsed = false,
+  onToggleDesktopSidebar,
   user,
   isOnline,
   isSyncMenuOpen,
@@ -90,6 +95,30 @@ export function DashboardHeader({
             منصة الأول التعليمية
           </span>
         </Link>
+
+        {onToggleDesktopSidebar && (
+          <button
+            type="button"
+            onClick={onToggleDesktopSidebar}
+            className="hidden lg:flex items-center justify-center p-2 rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors cursor-pointer"
+            title={
+              isDesktopSidebarCollapsed
+                ? 'توسيع القائمة الجانبية (Ctrl+B)'
+                : 'تصغير القائمة الجانبية (Ctrl+B)'
+            }
+            aria-label={
+              isDesktopSidebarCollapsed
+                ? 'توسيع القائمة الجانبية'
+                : 'تصغير القائمة الجانبية'
+            }
+          >
+            <PanelRightClose
+              className={`w-5 h-5 transition-transform duration-300 ${
+                isDesktopSidebarCollapsed ? 'rotate-180 text-primary-600' : 'text-neutral-500'
+              }`}
+            />
+          </button>
+        )}
 
         <div className="hidden lg:block ms-2 border-s border-neutral-200 ps-4">
           <DashboardBreadcrumbs />

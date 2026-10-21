@@ -30,6 +30,25 @@ export function StudentCourseLearningRoom({
   initialLessonId,
 }: StudentCourseLearningRoomProps) {
   const room = useLearningRoom({ courseId, initialLessonId });
+  const [isSyllabusCollapsed, setIsSyllabusCollapsed] = React.useState(false);
+
+  React.useEffect(() => {
+    try {
+      if (localStorage.getItem('el_awal_syllabus_collapsed') === 'true') {
+        setIsSyllabusCollapsed(true);
+      }
+    } catch {}
+  }, []);
+
+  const handleToggleSyllabus = () => {
+    setIsSyllabusCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('el_awal_syllabus_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   if (room.isCourseLoading) {
     return (
@@ -146,12 +165,18 @@ export function StudentCourseLearningRoom({
         isMarkingComplete={room.progress.isMarkingComplete}
         onToggleComplete={room.progress.handleToggleComplete}
         onOpenMobileSyllabus={() => room.setIsMobileSyllabusOpen(true)}
+        isDesktopSyllabusCollapsed={isSyllabusCollapsed}
+        onToggleDesktopSyllabus={handleToggleSyllabus}
       />
 
-      {/* Main Grid: Player & Tabs (Left 8 cols) + Syllabus Accordion (Right 4 cols) */}
+      {/* Main Grid: Player & Tabs (Left 8 or 12 cols) + Syllabus Accordion (Right 4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Player & Tab Content */}
-        <div className="lg:col-span-8 space-y-6">
+        <div
+          className={`${
+            isSyllabusCollapsed ? 'lg:col-span-12' : 'lg:col-span-8'
+          } space-y-6 transition-all duration-300`}
+        >
           <LearningRoomVideoPlayer
             videoContainerRef={room.videoContainerRef}
             iframeRef={room.iframeRef}
@@ -261,8 +286,9 @@ export function StudentCourseLearningRoom({
         </div>
 
         {/* Right Column: Syllabus & Modules Accordion on Desktop */}
-        <div className="hidden lg:block lg:col-span-4">
-          <div className="sticky top-6">
+        {!isSyllabusCollapsed && (
+          <div className="hidden lg:block lg:col-span-4 transition-all duration-300">
+            <div className="sticky top-6">
             <CourseSyllabusSidebar
               modules={room.course?.modules || []}
               allLessons={room.allLessons}
@@ -276,6 +302,7 @@ export function StudentCourseLearningRoom({
             />
           </div>
         </div>
+        )}
       </div>
 
       {/* Mobile Syllabus Drawer */}

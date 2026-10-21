@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle, Menu, RotateCcw, Lock } from 'lucide-react';
+import { ArrowRight, CheckCircle, Menu, RotateCcw, Lock, Columns } from 'lucide-react';
 
 export interface LearningRoomHeaderProps {
   courseId: string;
@@ -17,6 +17,8 @@ export interface LearningRoomHeaderProps {
   isMarkingComplete: boolean;
   onToggleComplete: () => void;
   onOpenMobileSyllabus: () => void;
+  isDesktopSyllabusCollapsed?: boolean;
+  onToggleDesktopSyllabus?: () => void;
 }
 
 export function LearningRoomHeader({
@@ -32,6 +34,8 @@ export function LearningRoomHeader({
   isMarkingComplete,
   onToggleComplete,
   onOpenMobileSyllabus,
+  isDesktopSyllabusCollapsed = false,
+  onToggleDesktopSyllabus,
 }: LearningRoomHeaderProps) {
   return (
     <div className="flex items-center justify-between bg-white border border-slate-200 px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-sm">
@@ -93,6 +97,27 @@ export function LearningRoomHeader({
               className={`w-4 h-4 ${isLessonCompleted ? 'text-white' : 'text-emerald-600'}`}
             />
             <span>{isLessonCompleted ? 'مكتمل ومُتقن' : 'تحديد كمكتمل'}</span>
+          </button>
+        )}
+
+        {/* Toggle Syllabus on Desktop (Expand video player / Theater mode) */}
+        {onToggleDesktopSyllabus && (
+          <button
+            type="button"
+            onClick={onToggleDesktopSyllabus}
+            className={`hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
+              isDesktopSyllabusCollapsed
+                ? 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+            title={
+              isDesktopSyllabusCollapsed
+                ? 'إظهار قائمة الدروس'
+                : 'توسيع مشغل الفيديو وإخفاء قائمة الدروس'
+            }
+          >
+            <Columns className="w-4 h-4 text-slate-500" />
+            <span>{isDesktopSyllabusCollapsed ? 'إظهار الدروس' : 'توسيع المشغل'}</span>
           </button>
         )}
 
