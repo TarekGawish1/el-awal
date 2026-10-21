@@ -93,10 +93,10 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
           {/* Right Wing (RTL) */}
           <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tr-2xl" />
 
-          {/* Center Scoop Notch (Fixed 120px width, 64px height, exact 1:1 aspect) */}
-          <div className="relative w-[120px] h-16 shrink-0 -mx-[1px] overflow-visible">
+          {/* Center Scoop Notch (Vaya curved recess with smooth raised shoulders and circular cradle) */}
+          <div className="relative w-[110px] h-16 shrink-0 -mx-[1px] overflow-visible">
             <svg
-              viewBox="0 0 120 64"
+              viewBox="0 0 110 64"
               className="w-full h-full overflow-visible"
               fill="none"
               preserveAspectRatio="none"
@@ -104,14 +104,14 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
             >
               {/* Notch top border stroke */}
               <path
-                d="M 0 0.5 C 16 0.5, 22 6, 28 12 C 34 18, 42 36, 60 36 C 78 36, 86 18, 92 12 C 98 6, 104 0.5, 120 0.5"
+                d="M 0 0.5 C 6 0.5, 9 -5, 15 -5 C 21 -5, 22 5, 25 15 A 35 35 0 0 0 85 15 C 88 5, 89 -5, 95 -5 C 101 -5, 104 0.5, 110 0.5"
                 stroke="#E2E8F0"
                 strokeWidth="1.2"
                 fill="none"
               />
               {/* Notch solid fill seamless with wings */}
               <path
-                d="M 0 0.5 C 16 0.5, 22 6, 28 12 C 34 18, 42 36, 60 36 C 78 36, 86 18, 92 12 C 98 6, 104 0.5, 120 0.5 L 120 64 L 0 64 Z"
+                d="M 0 0.5 C 6 0.5, 9 -5, 15 -5 C 21 -5, 22 5, 25 15 A 35 35 0 0 0 85 15 C 88 5, 89 -5, 95 -5 C 101 -5, 104 0.5, 110 0.5 L 110 64 L 0 64 Z"
                 fill="white"
               />
             </svg>
@@ -128,7 +128,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
       {/* Navigation Tabs and Floating Action Button Container */}
       <div className="relative z-10 w-full h-16 max-w-lg mx-auto flex items-center justify-between px-2 pointer-events-auto">
         {/* Right Tabs (e.g. الرئيسية, المجموعات) */}
-        <div className="flex-1 flex items-center justify-around">
+        <div className="flex-1 flex items-center justify-around pr-2 pl-1">
           {rightTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive =
@@ -141,7 +141,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all duration-150 active:scale-95 ${
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-150 active:scale-95 ${
                   isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                 }`}
                 aria-label={tab.label}
@@ -165,18 +165,18 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
           })}
         </div>
 
-        {/* Center Floating Action Button (Elevated inside the wide curved scoop) */}
-        <div className="w-[120px] shrink-0 flex items-center justify-center relative -top-[32px]">
+        {/* Center Floating Action Button (Vaya style: pure solid blue circle, elevated at baseline) */}
+        <div className="w-[110px] shrink-0 flex items-center justify-center relative -top-8">
           <Link
             href={highlightedTab.href}
             className="relative group flex items-center justify-center focus:outline-none"
             aria-label={highlightedTab.label}
           >
             <div
-              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${
+              className={`w-[54px] h-[54px] rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${
                 isHighlightedActive
-                  ? 'bg-blue-600 text-white shadow-[0_8px_24px_rgba(37,99,235,0.45)] scale-105'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_8px_20px_rgba(37,99,235,0.38)]'
+                  ? 'bg-blue-600 text-white shadow-[0_10px_26px_rgba(37,99,235,0.48)] scale-105'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_8px_22px_rgba(37,99,235,0.42)]'
               }`}
             >
               <HighlightedIcon className="w-6 h-6 stroke-[2.2]" />
@@ -186,7 +186,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
         </div>
 
         {/* Left Tabs (e.g. الجدول / التقييمات + المزيد) */}
-        <div className="flex-1 flex items-center justify-around">
+        <div className="flex-1 flex items-center justify-around pl-2 pr-1">
           {leftTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive =
