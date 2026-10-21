@@ -93,25 +93,25 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
           {/* Right Wing (RTL) */}
           <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tr-2xl" />
 
-          {/* Center Scoop Notch (Vaya curved recess with smooth raised shoulders and circular cradle) */}
-          <div className="relative w-[110px] h-16 shrink-0 -mx-[1px] overflow-visible">
+          {/* Center Scoop Notch — smooth Bézier circular cradle, no overflow above navbar */}
+          <div className="relative w-[100px] h-16 shrink-0 -mx-[1px] overflow-hidden">
             <svg
-              viewBox="0 0 110 64"
-              className="w-full h-full overflow-visible"
+              viewBox="0 0 100 64"
+              className="w-full h-full"
               fill="none"
               preserveAspectRatio="none"
               xmlns="http://www.w3.org/2000/svg"
             >
               {/* Notch top border stroke */}
               <path
-                d="M 0 0.5 C 6 0.5, 9 -5, 15 -5 C 21 -5, 22 5, 25 15 A 35 35 0 0 0 85 15 C 88 5, 89 -5, 95 -5 C 101 -5, 104 0.5, 110 0.5"
+                d="M 0 0.5 C 20 0.5, 24 40, 50 40 C 76 40, 80 0.5, 100 0.5"
                 stroke="#E2E8F0"
                 strokeWidth="1.2"
                 fill="none"
               />
               {/* Notch solid fill seamless with wings */}
               <path
-                d="M 0 0.5 C 6 0.5, 9 -5, 15 -5 C 21 -5, 22 5, 25 15 A 35 35 0 0 0 85 15 C 88 5, 89 -5, 95 -5 C 101 -5, 104 0.5, 110 0.5 L 110 64 L 0 64 Z"
+                d="M 0 0.5 C 20 0.5, 24 40, 50 40 C 76 40, 80 0.5, 100 0.5 L 100 64 L 0 64 Z"
                 fill="white"
               />
             </svg>
@@ -165,8 +165,8 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
           })}
         </div>
 
-        {/* Center Floating Action Button (Vaya style: pure solid blue circle, elevated at baseline) */}
-        <div className="w-[110px] shrink-0 flex items-center justify-center relative -top-8">
+        {/* Center Floating Action Button */}
+        <div className="w-[100px] shrink-0 flex items-center justify-center relative -top-7">
           <Link
             href={highlightedTab.href}
             className="relative group flex items-center justify-center focus:outline-none"
