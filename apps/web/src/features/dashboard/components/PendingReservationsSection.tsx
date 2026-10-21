@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Portal } from '@/components/ui/Portal';
 import { Input } from '@/components/ui/Input';
 import { CheckCircle2, XCircle, Clock, User, Phone, MapPin, QrCode, Banknote, CalendarClock, AlertCircle, X, Search } from 'lucide-react';
 import { usePendingReservations, useAcceptReservation, useRejectReservation, useGroups, useChangeReservationGroup } from '@/features/groups';
@@ -232,33 +233,35 @@ export function PendingReservationsSection() {
 
       {/* Scanner Modal */}
       {isScannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
-            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
-              <h3 className="font-bold text-lg text-neutral-800">مسح كود الطالب</h3>
-              <button onClick={() => setIsScannerOpen(false)} className="text-neutral-400 hover:text-neutral-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 bg-neutral-50 flex flex-col items-center">
-              <div className="w-full max-w-[300px] aspect-square rounded-xl overflow-hidden shadow-inner border border-neutral-200 relative bg-black">
-                <Scanner
-                  onScan={(detectedCodes) => {
-                    if (detectedCodes && detectedCodes.length > 0) {
-                      handleScan(detectedCodes[0].rawValue);
-                    }
-                  }}
-                  onError={(error) => console.error(error?.message)}
-                  scanDelay={2000}
-                  retryDelay={200}
-                />
+        <Portal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+              <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
+                <h3 className="font-bold text-lg text-neutral-800">مسح كود الطالب</h3>
+                <button onClick={() => setIsScannerOpen(false)} className="text-neutral-400 hover:text-neutral-600">
+                  <X className="w-6 h-6" />
+                </button>
               </div>
-              <p className="mt-4 text-center text-sm text-neutral-500">
-                قم بتوجيه الكاميرا نحو بطاقة الطالب أو شاشة هاتفه التي تحتوي على رمز الـ QR
-              </p>
+              <div className="p-6 bg-neutral-50 flex flex-col items-center">
+                <div className="w-full max-w-[300px] aspect-square rounded-xl overflow-hidden shadow-inner border border-neutral-200 relative bg-black">
+                  <Scanner
+                    onScan={(detectedCodes) => {
+                      if (detectedCodes && detectedCodes.length > 0) {
+                        handleScan(detectedCodes[0].rawValue);
+                      }
+                    }}
+                    onError={(error) => console.error(error?.message)}
+                    scanDelay={2000}
+                    retryDelay={200}
+                  />
+                </div>
+                <p className="mt-4 text-center text-sm text-neutral-500">
+                  قم بتوجيه الكاميرا نحو بطاقة الطالب أو شاشة هاتفه التي تحتوي على رمز الـ QR
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
 
       {/* Payment Confirmation Modal */}

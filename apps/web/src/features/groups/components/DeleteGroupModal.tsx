@@ -2,6 +2,7 @@
 
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Portal } from '@/components/ui/Portal';
 
 interface DeleteGroupModalProps {
   isOpen: boolean;
@@ -21,7 +22,8 @@ export function DeleteGroupModal({ isOpen, onClose, onConfirm, isDeleting, group
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200" onClick={handleBackdropClick}>
+    <Portal>
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200" onClick={handleBackdropClick}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -71,5 +73,6 @@ export function DeleteGroupModal({ isOpen, onClose, onConfirm, isDeleting, group
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

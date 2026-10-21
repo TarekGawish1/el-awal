@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { X, Loader2, Search, UserPlus, QrCode, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Portal } from '@/components/ui/Portal';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { useAddStudent, useSearchStudents, useGroupStudents } from '../hooks/useGroups';
@@ -137,7 +138,8 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
+    <Portal>
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
 
         {/* Header */}
@@ -271,5 +273,6 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

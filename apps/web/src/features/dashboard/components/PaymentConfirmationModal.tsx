@@ -3,6 +3,7 @@
 import React from 'react';
 import { CheckCircle2, X, AlertCircle, Banknote, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Portal } from '@/components/ui/Portal';
 import { useAcceptReservation } from '@/features/groups';
 import toast from 'react-hot-toast';
 
@@ -31,7 +32,8 @@ export function PaymentConfirmationModal({ reservationId, studentName, onClose }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between bg-primary-50">
           <div className="flex items-center gap-3">
@@ -78,5 +80,6 @@ export function PaymentConfirmationModal({ reservationId, studentName, onClose }
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Portal } from '@/components/ui/Portal';
 import { StudentQrBadge } from './StudentQrBadge';
 import { StudentPasswordModal } from './StudentPasswordModal';
 import { StudentEditForm } from './StudentEditForm';
@@ -72,10 +73,11 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-      onClick={onClose}
-    >
+    <Portal>
+      <div
+        className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+        onClick={onClose}
+      >
       <div
         className="relative bg-white rounded-t-3xl sm:rounded-3xl max-w-4xl w-full shadow-2xl flex flex-col max-h-[95dvh] sm:max-h-[90dvh]"
         onClick={(e) => e.stopPropagation()}
@@ -352,6 +354,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
         onClose={() => setGroupToRemove(null)}
       />
     </div>
+    </Portal>
   );
 }
 

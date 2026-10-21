@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Portal } from '@/components/ui/Portal';
 import { X, KeyRound, User, Users } from 'lucide-react';
 import {
   useStudentCredentials,
@@ -43,13 +44,14 @@ export function StudentPasswordModal({
   if (!isOpen || !studentId) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="إدارة كلمة المرور وبيانات الدخول"
-    >
+    <Portal>
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+        onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+        aria-label="إدارة كلمة المرور وبيانات الدخول"
+      >
       <div
         className="relative bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-5"
         onClick={(e) => e.stopPropagation()}
@@ -130,6 +132,7 @@ export function StudentPasswordModal({
         )}
       </div>
     </div>
+    </Portal>
   );
 }
 

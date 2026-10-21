@@ -54,6 +54,7 @@ export function useDashboardLayout() {
 
   // Scroll to top and set title on route change
   useEffect(() => {
+    setIsMobileSidebarOpen(false);
     if (mainScrollRef.current) {
       mainScrollRef.current.scrollTop = 0;
     }

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, Printer, Download, Loader2, AlertCircle, QrCode, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Portal } from '@/components/ui/Portal';
 import { useGroupStudents } from '../hooks/useGroups';
 import { exportGroupQrCodesPdf, StudentQrData } from '../utils/qr-pdf-exporter';
 import { printQrSheetDirectly } from '../utils/qr-print-helpers';
@@ -68,10 +69,11 @@ export function GroupQrPrintModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white"
-      onClick={onClose}
-    >
+    <Portal>
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white"
+        onClick={onClose}
+      >
       <div
         className="relative bg-white rounded-3xl max-w-5xl w-full p-5 sm:p-7 shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden print:max-w-none print:max-h-none print:shadow-none print:border-0 print:rounded-none print:p-0"
         onClick={(e) => e.stopPropagation()}
@@ -252,5 +254,6 @@ export function GroupQrPrintModal({
         }
       `}</style>
     </div>
+    </Portal>
   );
 }

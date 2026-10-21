@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { X, Loader2, MapPin, Users } from 'lucide-react';
+import { Portal } from '@/components/ui/Portal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
@@ -60,7 +61,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
+    <Portal>
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h2 className="text-xl font-bold text-slate-800">إنشاء مجموعة جديدة</h2>
@@ -245,5 +247,6 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
         </form>
       </div>
     </div>
+    </Portal>
   );
 }

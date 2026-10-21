@@ -3,6 +3,7 @@
 import React from 'react';
 import { QrCode, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Portal } from '@/components/ui/Portal';
 import { CameraPermissionModal } from '@/components/camera';
 import { usePaymentQrScanner } from '../hooks/usePaymentQrScanner';
 import { PaymentScannerControls } from './qr-scanner/PaymentScannerControls';
@@ -68,7 +69,8 @@ export function PaymentQrScannerModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+    <Portal>
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 overflow-hidden animate-in fade-in duration-200">
       <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-xl max-h-[88dvh] overflow-y-auto border border-slate-100 animate-in fade-in zoom-in-95 duration-200 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-0">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -154,5 +156,6 @@ export function PaymentQrScannerModal({
         }}
       />
     </div>
+    </Portal>
   );
 }

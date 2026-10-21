@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { X, Link2, Copy, Check, Search, GraduationCap, MessageCircle, Loader2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
+import { Portal } from '@/components/ui/Portal';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useGroups, useGenerateRegistrationLink } from '../hooks/useGroups';
@@ -120,13 +121,14 @@ export function GroupLinkGeneratorModal({ isOpen, onClose }: GroupLinkGeneratorM
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
-      onClick={handleClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="إنشاء رابط تسجيل للمجموعة"
-    >
+    <Portal>
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+        onClick={handleClose}
+        role="dialog"
+        aria-modal="true"
+        aria-label="إنشاء رابط تسجيل للمجموعة"
+      >
       <div
         className="relative bg-white rounded-3xl max-w-lg w-full p-5 sm:p-8 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto space-y-6"
         onClick={(e) => e.stopPropagation()}
@@ -265,5 +267,6 @@ export function GroupLinkGeneratorModal({ isOpen, onClose }: GroupLinkGeneratorM
         )}
       </div>
     </div>
+    </Portal>
   );
 }

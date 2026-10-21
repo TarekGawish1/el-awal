@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangle, Trash2, X } from 'lucide-react';
+import { Portal } from './Portal';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -72,14 +73,15 @@ export function ConfirmModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-modal-title"
-      aria-describedby="confirm-modal-description"
-      dir="rtl"
-    >
+    <Portal>
+      <div
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-modal-title"
+        aria-describedby="confirm-modal-description"
+        dir="rtl"
+      >
       <div className="w-full max-w-lg rounded-t-3xl sm:rounded-2xl bg-white border border-slate-200 p-5 shadow-2xl dark:bg-slate-900 max-h-[88dvh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 animate-in zoom-in-95 duration-200 text-right">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -143,5 +145,6 @@ export function ConfirmModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

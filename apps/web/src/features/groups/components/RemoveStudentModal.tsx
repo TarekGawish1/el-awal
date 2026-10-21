@@ -3,6 +3,7 @@
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
+import { Portal } from '@/components/ui/Portal';
 import { useRemoveStudent } from '../hooks/useGroups';
 
 interface RemoveStudentModalProps {
@@ -36,7 +37,8 @@ export function RemoveStudentModal({ isOpen, onClose, groupId, studentId, studen
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
+    <Portal>
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-red-50/50">
           <div className="flex items-center text-red-600 font-bold">
@@ -90,5 +92,6 @@ export function RemoveStudentModal({ isOpen, onClose, groupId, studentId, studen
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

@@ -12,3 +12,4 @@ export { Pagination } from './Pagination';
 export { StatusBadge } from './StatusBadge';
 export { FilterBar } from './FilterBar';
 export { EmptyState } from './EmptyState';
+export { Portal } from './Portal';
