@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { BookOpen, Award, FileQuestion } from 'lucide-react';
-import { resolveAssetUrl } from '@/lib/utils/asset-url';
+import Image from 'next/image';
+import { resolveAssetUrl, isOptimizableImage } from '@/lib/utils/asset-url';
 
 interface StudentEnrolledCoursesListProps {
   courses?: any[];
@@ -40,10 +41,13 @@ export function StudentEnrolledCoursesList({
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {course.coverImageUrl ? (
-                      <img
+                      <Image
                         src={resolveAssetUrl(course.coverImageUrl)}
                         alt={course.title}
+                        width={48}
+                        height={48}
                         className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200"
+                        unoptimized={!isOptimizableImage(resolveAssetUrl(course.coverImageUrl))}
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                         }}

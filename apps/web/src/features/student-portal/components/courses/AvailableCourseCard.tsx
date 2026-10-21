@@ -12,7 +12,8 @@ import {
   TrendingUp,
   RotateCcw,
 } from 'lucide-react';
-import { resolveAssetUrl } from '@/lib/utils/asset-url';
+import Image from 'next/image';
+import { resolveAssetUrl, isOptimizableImage } from '@/lib/utils/asset-url';
 
 export interface AvailableCourseCardProps {
   course: any;
@@ -69,10 +70,13 @@ export function AvailableCourseCard({
       {/* Banner / Cover */}
       <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
         {c.coverImageUrl ? (
-          <img
+          <Image
             src={resolveAssetUrl(c.coverImageUrl)}
             alt={c.title}
-            className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover group-hover:scale-103 transition-transform duration-500"
+            unoptimized={!isOptimizableImage(resolveAssetUrl(c.coverImageUrl))}
             onError={(e) => {
               e.currentTarget.style.display = 'none';
             }}

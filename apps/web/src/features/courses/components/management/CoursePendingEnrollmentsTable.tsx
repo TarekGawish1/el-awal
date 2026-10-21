@@ -3,7 +3,9 @@
 import React from "react";
 import { CheckCircle, Phone, Check, X } from "lucide-react";
 import { SelectedReceiptState } from "../../types/course-management.types";
+import Image from "next/image";
 import { resolveReceiptUrl } from "./CourseReceiptModal";
+import { isOptimizableImage } from "@/lib/utils/asset-url";
 
 export interface CoursePendingEnrollmentsTableProps {
   filteredPending: any[];
@@ -110,10 +112,13 @@ export function CoursePendingEnrollmentsTable({
                     }
                     className="group flex items-center gap-2 p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
                   >
-                    <img
+                    <Image
                       src={resolveReceiptUrl(req.receiptImageUrl)}
                       alt="إيصال"
+                      width={40}
+                      height={40}
                       className="w-10 h-10 object-cover rounded-lg border border-slate-200 shadow-xs group-hover:scale-105 transition-transform"
+                      unoptimized={!isOptimizableImage(resolveReceiptUrl(req.receiptImageUrl))}
                     />
                     <div className="text-right">
                       <span className="block text-xs font-bold text-primary-600 group-hover:underline">

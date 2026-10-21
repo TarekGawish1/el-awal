@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
+import { isOptimizableImage } from '@/lib/utils/asset-url';
 
 interface CertificateCardProps {
   cert: any;
@@ -11,6 +13,7 @@ export function CertificateCard({ cert, index }: CertificateCardProps) {
   const displayName = cert.student || cert.studentName || "طالب";
   const displayTitle = cert.title || (cert.subject ? `التفوق في ${cert.subject}` : "شهادة تقدير");
   const hasRealCertificateImage = Boolean(cert.image) && cert.image !== "/certification-bg.webp";
+  const imageSrc = cert.image || "/certification-bg.webp";
 
   return (
     <div
@@ -18,12 +21,13 @@ export function CertificateCard({ cert, index }: CertificateCardProps) {
       className="shrink-0 w-[280px] sm:w-[320px] bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
     >
       <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
-        <img
-          src={cert.image}
+        <Image
+          src={imageSrc}
+          fill
+          sizes="(max-width: 640px) 280px, 320px"
           alt={displayTitle}
-          loading="lazy"
-          decoding="async"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          unoptimized={!isOptimizableImage(imageSrc)}
+          className="object-cover group-hover:scale-105 transition-transform duration-500"
         />
         {!hasRealCertificateImage && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">

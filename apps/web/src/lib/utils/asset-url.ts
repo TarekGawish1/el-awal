@@ -14,3 +14,10 @@ export function resolveAssetUrl(url?: string | null): string {
 export function resolveCoverUrl(url?: string | null): string {
   return resolveAssetUrl(url);
 }
+
+export function isOptimizableImage(url?: string | null): boolean {
+  if (!url) return false;
+  if (url.startsWith('data:') || url.startsWith('blob:')) return false;
+  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  return url.includes('.r2.dev');
+}

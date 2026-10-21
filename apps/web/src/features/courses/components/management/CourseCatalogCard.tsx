@@ -3,7 +3,8 @@
 import React, { memo } from "react";
 import Link from "next/link";
 import { Video, Layers, Users, Edit, Settings2, Trash2 } from "lucide-react";
-import { resolveCoverUrl } from "@/lib/utils/asset-url";
+import Image from "next/image";
+import { resolveCoverUrl, isOptimizableImage } from "@/lib/utils/asset-url";
 import { CourseDetail } from "../../types/courses.types";
 
 export interface CourseCatalogCardProps {
@@ -26,10 +27,13 @@ export const CourseCatalogCard = memo(function CourseCatalogCard({
       {/* Course Cover Image Banner */}
       <div className="relative aspect-video bg-slate-100 overflow-hidden">
         {course.coverImageUrl ? (
-          <img
+          <Image
             src={resolveCoverUrl(course.coverImageUrl)}
             alt={course.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            unoptimized={!isOptimizableImage(resolveCoverUrl(course.coverImageUrl))}
             onError={(e) => {
               e.currentTarget.style.display = "none";
             }}

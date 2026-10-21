@@ -3,7 +3,9 @@
 import React from "react";
 import { Users, Phone, CheckCircle, UserMinus } from "lucide-react";
 import { SelectedReceiptState } from "../../types/course-management.types";
+import Image from "next/image";
 import { resolveReceiptUrl } from "./CourseReceiptModal";
+import { isOptimizableImage } from "@/lib/utils/asset-url";
 
 export interface CourseActiveEnrollmentsTableProps {
   filteredActive: any[];
@@ -103,10 +105,13 @@ export function CourseActiveEnrollmentsTable({
                       className="group flex items-center gap-2 p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-primary-300 rounded-xl transition-all cursor-pointer shadow-2xs"
                       title="انقر لمعاينة إيصال الدفع"
                     >
-                      <img
+                      <Image
                         src={receiptUrl}
                         alt="إيصال"
+                        width={40}
+                        height={40}
                         className="w-10 h-10 object-cover rounded-lg border border-slate-200 group-hover:scale-105 transition-transform"
+                        unoptimized={!isOptimizableImage(receiptUrl)}
                       />
                       <div className="text-right">
                         <span className="block text-xs font-bold text-primary-600 group-hover:underline">

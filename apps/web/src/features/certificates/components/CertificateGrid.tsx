@@ -2,6 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { isOptimizableImage } from "@/lib/utils/asset-url";
 import { Plus, Award, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -96,10 +98,13 @@ export function CertificateGrid({
             )}
             <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
               {certificateImage ? (
-                <img
+                <Image
                   src={certificateImage}
                   alt={`شهادة ${cert.studentName}`}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  className="object-cover"
+                  unoptimized={!isOptimizableImage(certificateImage)}
                 />
               ) : (
                 <div

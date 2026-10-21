@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, PlayCircle } from 'lucide-react';
 import { usePublicCatalog } from '@/hooks/usePublicContent';
-import { resolveAssetUrl } from '@/lib/utils/asset-url';
+import { resolveAssetUrl, isOptimizableImage } from '@/lib/utils/asset-url';
 
 const CoursePreviewModal = dynamic(
   () => import('./CoursePreviewModal').then((mod) => mod.CoursePreviewModal),
@@ -257,12 +257,13 @@ export function CoursesSection() {
                   className={`h-48 w-full bg-gradient-to-br ${course.color || "from-blue-600 to-cyan-600"} relative overflow-hidden flex items-start justify-start p-6`}
                 >
                   {course.coverImageUrl && (
-                    <img
+                    <NextImage
                       src={resolveAssetUrl(course.coverImageUrl)}
                       alt={course.title}
-                      loading="lazy"
-                      decoding="async"
-                      className="absolute inset-0 w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      unoptimized={!isOptimizableImage(resolveAssetUrl(course.coverImageUrl))}
+                      className="object-cover"
                       onError={(event) => {
                         event.currentTarget.style.display = "none";
                       }}
