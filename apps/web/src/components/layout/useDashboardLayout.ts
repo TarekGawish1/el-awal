@@ -148,6 +148,7 @@ export function useDashboardLayout() {
   // Sync engine listener
   useEffect(() => {
     setIsMounted(true);
+    syncEngine.setQueryClient(queryClient);
     const unsubscribe = syncEngine.subscribe((event) => {
       setPendingSyncCount(event.pendingCount);
       if (event.type === 'SYNC_REVIEW_REQUIRED') {
@@ -155,7 +156,7 @@ export function useDashboardLayout() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   // Offline warming
   useEffect(() => {

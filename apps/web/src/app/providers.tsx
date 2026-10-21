@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
-import { syncEngine } from '@/lib/offline/sync-engine';
 
 import { AnalyticsTracker } from '@/components/analytics/AnalyticsTracker';
 
@@ -24,10 +23,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
-
-  useEffect(() => {
-    syncEngine.setQueryClient(queryClient);
-  }, [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>
