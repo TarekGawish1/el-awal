@@ -8,6 +8,10 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
+import {
+  sanitizeNameInput,
+  validatePersonName,
+} from '@/lib/validation/name-validator';
 
 interface CreateStudentFormProps {
   onSuccess: (data?: any, password?: string, parentPhone?: string) => void;
@@ -83,8 +87,13 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    const finalValue =
+      name === 'fullName' || name === 'parentName'
+        ? sanitizeNameInput(value)
+        : value;
+
     setFormData((prev) => {
-      const updated = { ...prev, [name]: value };
+      const updated = { ...prev, [name]: finalValue };
       if (name === 'educationalStage') {
         updated.gradeLevel = ''; // Reset grade when stage changes
         updated.initialGroupId = ''; // Reset group
@@ -98,7 +107,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
       }
 
       if (name === 'fullName' && updated.parentRelationship === 'الأب') {
-        const parts = value.trim().split(' ');
+        const parts = finalValue.trim().split(' ');
         updated.parentName = parts.length > 1 ? parts.slice(1).join(' ') : '';
       }
 
@@ -124,6 +133,27 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    const studentNameCheck = validatePersonName(formData.fullName, {
+      fieldName: 'اسم الطالب',
+      minLength: 3,
+    });
+    if (!studentNameCheck.isValid) {
+      setErrorMsg(studentNameCheck.errorMessage || 'اسم الطالب غير صالح');
+      return;
+    }
+
+    if (formData.parentName) {
+      const parentNameCheck = validatePersonName(formData.parentName, {
+        fieldName: 'اسم ولي الأمر',
+        minLength: 3,
+        required: false,
+      });
+      if (!parentNameCheck.isValid) {
+        setErrorMsg(parentNameCheck.errorMessage || 'اسم ولي الأمر غير صالح');
+        return;
+      }
+    }
 
     mutate(
       {

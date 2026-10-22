@@ -131,9 +131,6 @@ export const PARENT_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     id: 'top',
     items: [
       { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard, onlineOnly: false },
-      { label: 'الماليات والمصروفات', href: '/parent/dashboard#finance', icon: DollarSign, onlineOnly: false },
-      { label: 'سجل الحضور', href: '/parent/dashboard#attendance', icon: Calendar, onlineOnly: false },
-      { label: 'الواجبات والتقييمات', href: '/parent/dashboard#assignments', icon: FileText, onlineOnly: false },
     ],
   },
 ];

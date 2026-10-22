@@ -75,3 +75,66 @@ export function isSimilarStudentName(nameA: string, nameB: string): boolean {
 
   return false;
 }
+
+/**
+ * Regex matching any Western, Arabic-Indic, or Persian digits.
+ */
+export const CONTAINS_DIGITS_REGEX = /[0-9\u0660-\u0669\u06F0-\u06F9]/;
+
+/**
+ * Strict regex for valid person names:
+ * Accepts Arabic characters (including hamzas, diacritics, and tatweel) and Latin letters,
+ * separated by spaces, hyphens, or apostrophes.
+ * Rejects all digits, symbols, emojis, and punctuation.
+ */
+export const PERSON_NAME_REGEX =
+  /^[\u0621-\u064A\u0640-\u0652\u0671-\u06D3a-zA-Z]+(?:[\s'-]+[\u0621-\u064A\u0640-\u0652\u0671-\u06D3a-zA-Z]+)*$/;
+
+export type NameValidationError =
+  | 'EMPTY'
+  | 'CONTAINS_NUMBERS'
+  | 'TOO_SHORT'
+  | 'TOO_LONG'
+  | 'INVALID_CHARACTERS';
+
+export function validatePersonName(
+  name: unknown,
+  minLength = 3,
+  maxLength = 200,
+): { isValid: boolean; error?: NameValidationError } {
+  if (typeof name !== 'string') {
+    return { isValid: false, error: 'EMPTY' };
+  }
+
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { isValid: false, error: 'EMPTY' };
+  }
+
+  if (CONTAINS_DIGITS_REGEX.test(trimmed)) {
+    return { isValid: false, error: 'CONTAINS_NUMBERS' };
+  }
+
+  if (trimmed.length < minLength) {
+    return { isValid: false, error: 'TOO_SHORT' };
+  }
+
+  if (trimmed.length > maxLength) {
+    return { isValid: false, error: 'TOO_LONG' };
+  }
+
+  if (!PERSON_NAME_REGEX.test(trimmed)) {
+    return { isValid: false, error: 'INVALID_CHARACTERS' };
+  }
+
+  return { isValid: true };
+}
+
+export function isValidPersonName(
+  name: unknown,
+  minLength = 3,
+  maxLength = 200,
+): boolean {
+  return validatePersonName(name, minLength, maxLength).isValid;
+}
+

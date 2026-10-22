@@ -17,6 +17,10 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components/ui';
 import { useGroupInvite, useGroupRegistration } from '../hooks/useGroupRegistration';
+import {
+  sanitizeNameInput,
+  validatePersonName,
+} from '@/lib/validation/name-validator';
 
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
 
@@ -67,8 +71,14 @@ export function GroupRegistrationForm({ token }: { token: string }) {
   const validate = (): boolean => {
     const errors: FieldErrors = {};
 
-    if (fullName.trim().length < 3) {
+    const studentNameCheck = validatePersonName(fullName, {
+      fieldName: 'اسم الطالب',
+      minLength: 3,
+    });
+    if (!fullName.trim() || fullName.trim().length < 3) {
       errors.fullName = 'يرجى إدخال اسم الطالب رباعياً (3 أحرف على الأقل)';
+    } else if (!studentNameCheck.isValid) {
+      errors.fullName = studentNameCheck.errorMessage;
     }
 
     const studentPhone = normalizePhone(phone);
@@ -78,8 +88,14 @@ export function GroupRegistrationForm({ token }: { token: string }) {
       errors.phone = 'رقم الهاتف غير صحيح';
     }
 
+    const parentNameCheck = validatePersonName(parentName, {
+      fieldName: 'اسم ولي الأمر',
+      minLength: 3,
+    });
     if (!parentName.trim()) {
       errors.parentName = 'يرجى إدخال اسم ولي الأمر';
+    } else if (!parentNameCheck.isValid) {
+      errors.parentName = parentNameCheck.errorMessage;
     }
 
     const guardianPhone = normalizePhone(parentPhone);
@@ -213,7 +229,8 @@ export function GroupRegistrationForm({ token }: { token: string }) {
           placeholder="مثال: محمود أحمد علي"
           value={fullName}
           onChange={(e) => {
-            setFullName(e.target.value);
+            const sanitized = sanitizeNameInput(e.target.value);
+            setFullName(sanitized);
             if (fieldErrors.fullName) setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
           }}
           error={fieldErrors.fullName}
@@ -250,7 +267,8 @@ export function GroupRegistrationForm({ token }: { token: string }) {
           placeholder="مثال: محمد أحمد علي"
           value={parentName}
           onChange={(e) => {
-            setParentName(e.target.value);
+            const sanitized = sanitizeNameInput(e.target.value);
+            setParentName(sanitized);
             if (fieldErrors.parentName) setFieldErrors((prev) => ({ ...prev, parentName: undefined }));
           }}
           error={fieldErrors.parentName}

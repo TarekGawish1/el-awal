@@ -167,4 +167,43 @@ describe('GroupRegistrationForm', () => {
     expect(screen.getByText('كلمة المرور يجب أن تكون 8 أحرف على الأقل')).toBeInTheDocument();
     expect(registerStudentMock).not.toHaveBeenCalled();
   });
+
+  it('prevents adding numbers to parentName and fullName by stripping digits in real-time', () => {
+    renderForm();
+
+    const parentNameInput = screen.getByLabelText(FIELD_LABELS.parentName) as HTMLInputElement;
+    fireEvent.change(parentNameInput, {
+      target: { value: '01012345678' },
+    });
+    // Digits must be completely stripped out
+    expect(parentNameInput.value).toBe('');
+
+    fireEvent.change(parentNameInput, {
+      target: { value: 'محمد 123 أحمد' },
+    });
+    expect(parentNameInput.value).toBe('محمد  أحمد');
+
+    const fullNameInput = screen.getByLabelText(FIELD_LABELS.fullName) as HTMLInputElement;
+    fireEvent.change(fullNameInput, {
+      target: { value: 'علي 456 حسن' },
+    });
+    expect(fullNameInput.value).toBe('علي  حسن');
+  });
+
+  it('rejects invalid names containing symbols or punctuation', () => {
+    renderForm();
+
+    fillValidForm();
+    fireEvent.change(screen.getByLabelText(FIELD_LABELS.parentName), {
+      target: { value: 'محمد @ أحمد' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'التسجيل والانضمام للمجموعة' }));
+
+    expect(
+      screen.getByText(/اسم ولي الأمر غير صالح/i),
+    ).toBeInTheDocument();
+    expect(registerStudentMock).not.toHaveBeenCalled();
+  });
 });
+

@@ -10,6 +10,10 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { StudentDetail } from '../types/students.types';
+import {
+  sanitizeNameInput,
+  validatePersonName,
+} from '@/lib/validation/name-validator';
 
 interface StudentEditFormProps {
   student: StudentDetail;
@@ -101,8 +105,13 @@ export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFor
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    const finalValue =
+      name === 'fullName' || name === 'parentName'
+        ? sanitizeNameInput(value)
+        : value;
+
     setFormData((prev) => {
-      const updated = { ...prev, [name]: value };
+      const updated = { ...prev, [name]: finalValue };
       if (name === 'educationalStage') {
         updated.gradeLevel = '';
         updated.initialGroupId = '';
@@ -131,6 +140,27 @@ export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFor
       return;
     }
     setErrorMsg('');
+
+    const studentNameCheck = validatePersonName(formData.fullName, {
+      fieldName: 'اسم الطالب',
+      minLength: 3,
+    });
+    if (!studentNameCheck.isValid) {
+      setErrorMsg(studentNameCheck.errorMessage || 'اسم الطالب غير صالح');
+      return;
+    }
+
+    if (formData.parentName) {
+      const parentNameCheck = validatePersonName(formData.parentName, {
+        fieldName: 'اسم ولي الأمر',
+        minLength: 3,
+        required: false,
+      });
+      if (!parentNameCheck.isValid) {
+        setErrorMsg(parentNameCheck.errorMessage || 'اسم ولي الأمر غير صالح');
+        return;
+      }
+    }
 
     mutate(
       {

@@ -1,6 +1,7 @@
 import { IsIn, IsNotEmpty, IsString, MinLength, MaxLength, ValidateIf, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
+import { IsPersonName } from '../../../common/decorators/is-person-name.decorator';
 
 export const ACADEMIC_STAGES = [
   'PRIMARY',
@@ -19,6 +20,7 @@ export class RegisterStudentDto {
   @IsNotEmpty({ message: 'Full name is required' })
   @MinLength(3, { message: 'Full name must be at least 3 characters' })
   @MaxLength(200, { message: 'Full name must not exceed 200 characters' })
+  @IsPersonName({ message: 'اسم الطالب يجب أن يتكون من حروف فقط ولا يحتوي على أرقام أو رموز' })
   fullName: string;
 
   @ApiProperty({ example: '01012345678', description: 'Student mobile number (optional)', required: false })

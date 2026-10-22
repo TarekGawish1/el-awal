@@ -46,6 +46,16 @@ describe('RegisterStudentDto (server-side validation)', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('rejects full name containing numbers or digits', async () => {
+    await expect(
+      pipe.transform({ ...valid, fullName: 'محمود 123' }, { type: 'body', metatype: RegisterStudentDto }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      pipe.transform({ ...valid, fullName: '01012345678' }, { type: 'body', metatype: RegisterStudentDto }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('rejects an invalid student phone when provided', async () => {
     await expect(
       pipe.transform({ ...valid, studentPhone: '12345' }, { type: 'body', metatype: RegisterStudentDto }),

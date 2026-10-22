@@ -1,6 +1,7 @@
 import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
+import { IsPersonName } from '../../../common/decorators/is-person-name.decorator';
 
 export class RegisterByGroupDto {
   @ApiProperty({ example: 'clx1a2b3c4d5e6f7g8h9', description: 'Group registration invite token' })
@@ -14,6 +15,7 @@ export class RegisterByGroupDto {
   @IsNotEmpty({ message: 'اسم الطالب مطلوب' })
   @MinLength(3, { message: 'اسم الطالب يجب أن يكون 3 أحرف على الأقل' })
   @MaxLength(200, { message: 'اسم الطالب يجب ألا يتجاوز 200 حرف' })
+  @IsPersonName({ message: 'اسم الطالب يجب أن يتكون من حروف فقط ولا يحتوي على أرقام أو رموز' })
   fullName: string;
 
   @ApiProperty({ example: '01012345678', description: 'Student mobile number (optional)', required: false })
@@ -21,10 +23,12 @@ export class RegisterByGroupDto {
   @IsEgyptianPhone({ message: 'رقم هاتف الطالب يجب أن يكون رقم موبايل مصري صحيح' })
   phone?: string;
 
-  @ApiProperty({ example: 'محمد أحمد علي', maxLength: 200 })
+  @ApiProperty({ example: 'محمد أحمد علي', minLength: 3, maxLength: 200 })
   @IsString()
   @IsNotEmpty({ message: 'اسم ولي الأمر مطلوب' })
+  @MinLength(3, { message: 'اسم ولي الأمر يجب أن يكون 3 أحرف على الأقل' })
   @MaxLength(200, { message: 'اسم ولي الأمر يجب ألا يتجاوز 200 حرف' })
+  @IsPersonName({ message: 'اسم ولي الأمر يجب أن يتكون من حروف فقط ولا يحتوي على أرقام أو رموز' })
   parentName: string;
 
   @ApiProperty({ example: '01098765432', description: 'Parent/guardian mobile number' })

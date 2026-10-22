@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
+import { IsPersonName } from '../../../common/decorators/is-person-name.decorator';
 
 export class CreateStudentDto {
   @ApiPropertyOptional({ example: '018d39f4-6a8b-7000-8000-000000000000', description: 'Client-generated UUIDv7 for offline idempotency' })
@@ -20,6 +21,7 @@ export class CreateStudentDto {
   @IsString()
   @IsNotEmpty({ message: 'Full name is required' })
   @MinLength(3, { message: 'Full name must be at least 3 characters' })
+  @IsPersonName({ message: 'الاسم يجب أن يتكون من حروف فقط ولا يحتوي على أرقام أو رموز' })
   fullName: string;
 
   @ApiPropertyOptional({ example: '+201012345678' })
@@ -62,6 +64,7 @@ export class CreateStudentDto {
   @ApiPropertyOptional({ example: 'أحمد علي إبراهيم' })
   @IsOptional()
   @IsString()
+  @IsPersonName({ message: 'اسم ولي الأمر يجب أن يتكون من حروف فقط ولا يحتوي على أرقام أو رموز' })
   parentName?: string;
 
   @ApiPropertyOptional({ example: '+201098765432' })

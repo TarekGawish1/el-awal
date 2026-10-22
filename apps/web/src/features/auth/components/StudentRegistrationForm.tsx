@@ -25,6 +25,10 @@ import { StepIndicator } from './registration/StepIndicator';
 import { RegistrationModeStep } from './registration/RegistrationModeStep';
 import { RegistrationReviewStep } from './registration/RegistrationReviewStep';
 import { CredentialsScreen } from './registration/CredentialsScreen';
+import {
+  sanitizeNameInput,
+  validatePersonName,
+} from '@/lib/validation/name-validator';
 
 type Step = 'mode' | 'info' | 'review';
 
@@ -61,8 +65,14 @@ export function StudentRegistrationForm() {
   const validateInfoStep = (): boolean => {
     const errors: FieldErrors = {};
 
-    if (fullName.trim().length < 3) {
+    const nameCheck = validatePersonName(fullName, {
+      fieldName: 'الاسم بالكامل',
+      minLength: 3,
+    });
+    if (!fullName.trim() || fullName.trim().length < 3) {
       errors.fullName = 'يرجى إدخال الاسم بالكامل (3 أحرف على الأقل)';
+    } else if (!nameCheck.isValid) {
+      errors.fullName = nameCheck.errorMessage;
     }
 
     const sPhone = normalizePhone(studentPhone);
@@ -188,7 +198,8 @@ export function StudentRegistrationForm() {
         placeholder="مثال: محمود أحمد علي"
         value={fullName}
         onChange={(e) => {
-          setFullName(e.target.value);
+          const sanitized = sanitizeNameInput(e.target.value);
+          setFullName(sanitized);
           if (fieldErrors.fullName) setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
         }}
         error={fieldErrors.fullName}
