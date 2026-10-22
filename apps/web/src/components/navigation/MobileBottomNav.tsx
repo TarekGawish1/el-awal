@@ -33,6 +33,64 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
   const pathname = usePathname();
   const isOnline = useOnlineStatus();
 
+  // Parent Portal has a dedicated clean, flat bottom bar (No Notch / No Fake Action Button)
+  if (userRole === 'PARENT') {
+    const isDashboardActive = pathname === '/parent/dashboard';
+
+    return (
+      <nav
+        aria-label="شريط التنقل السفلي للهواتف"
+        dir="rtl"
+        className="lg:hidden pb-[env(safe-area-inset-bottom,0px)] h-[calc(4rem+env(safe-area-inset-bottom,0px))] fixed bottom-0 inset-x-0 z-40 select-none bg-white border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]"
+      >
+        <div className="w-full h-16 max-w-sm mx-auto flex items-center justify-around px-6">
+          <Link
+            href="/parent/dashboard"
+            onClick={(e) => {
+              if (pathname === '/parent/dashboard') {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+            className={`flex flex-col items-center justify-center py-1.5 px-6 rounded-2xl transition-all duration-150 active:scale-95 ${
+              isDashboardActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+            }`}
+            aria-label="أبنائي"
+          >
+            <div
+              className={`p-1.5 rounded-xl transition-all duration-200 ${
+                isDashboardActive ? 'bg-blue-50 text-blue-600' : 'text-slate-500'
+              }`}
+            >
+              <LayoutDashboard className={`w-5 h-5 ${isDashboardActive ? 'stroke-[2.4]' : 'stroke-[1.8]'}`} />
+            </div>
+            <span
+              className={`text-[11px] mt-0.5 tracking-tight ${
+                isDashboardActive ? 'font-bold text-blue-600' : 'font-medium text-slate-500'
+              }`}
+            >
+              أبنائي
+            </span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            className="flex flex-col items-center justify-center py-1.5 px-6 rounded-2xl text-slate-500 hover:text-slate-800 transition-all duration-150 active:scale-95 cursor-pointer"
+            aria-label="المزيد من القوائم"
+          >
+            <div className="p-1.5 rounded-xl text-slate-500 hover:bg-slate-50 transition-colors">
+              <Menu className="w-5 h-5 stroke-[1.8]" />
+            </div>
+            <span className="text-[11px] mt-0.5 tracking-tight font-medium text-slate-500">
+              المزيد
+            </span>
+          </button>
+        </div>
+      </nav>
+    );
+  }
+
   // Role-specific bottom navigation tabs with highlighted center action (Scoop / Notch FAB)
   const teacherTabs: NavTabItem[] = [
     { label: 'الرئيسية', href: '/teacher/dashboard', icon: LayoutDashboard, onlineOnly: false },
@@ -48,20 +106,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
     { label: 'التقييمات', href: '/student/assessments', icon: FileText, onlineOnly: true },
   ];
 
-  const parentTabs: NavTabItem[] = [
-    { label: 'الرئيسية', href: '/parent/dashboard', icon: LayoutDashboard, onlineOnly: false },
-    { label: 'الماليات', href: '/parent/dashboard#finance', icon: DollarSign, onlineOnly: false },
-    { label: 'الحضور', href: '/parent/dashboard#attendance', icon: Calendar, isHighlighted: true, onlineOnly: false },
-    { label: 'الواجبات', href: '/parent/dashboard#assignments', icon: FileText, onlineOnly: false },
-  ];
-
-  const baseTabs: NavTabItem[] =
-    userRole === 'STUDENT'
-      ? studentTabs
-      : userRole === 'PARENT'
-        ? parentTabs
-        : teacherTabs;
-
+  const baseTabs: NavTabItem[] = userRole === 'STUDENT' ? studentTabs : teacherTabs;
   const tabs = isOnline ? baseTabs : baseTabs.filter((t) => !t.onlineOnly);
 
   // Divide tabs into: Right side tabs, Center highlighted FAB tab, and Left side tabs
@@ -74,113 +119,22 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
   const rightTabs = nonHighlightedTabs.slice(0, 2);
   const leftTabs = nonHighlightedTabs.slice(2);
 
-  // Active hash tracking for Parent Dashboard sections
-  const [currentHash, setCurrentHash] = React.useState<string>('');
-
-  React.useEffect(() => {
-    if (userRole !== 'PARENT') return;
-
-    const handleHash = () => {
-      setCurrentHash(typeof window !== 'undefined' ? window.location.hash || '' : '');
-    };
-    handleHash();
-
-    window.addEventListener('hashchange', handleHash);
-    window.addEventListener('popstate', handleHash);
-
-    // Track visible section while scrolling
-    const sectionIds = ['child-overview', 'child-finance', 'child-assignments', 'child-attendance'];
-    let observer: IntersectionObserver | null = null;
-
-    if (typeof IntersectionObserver !== 'undefined') {
-      observer = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (entry.isIntersecting) {
-              const id = entry.target.id;
-              const mappedHash =
-                id === 'child-finance'
-                  ? '#finance'
-                  : id === 'child-attendance'
-                  ? '#attendance'
-                  : id === 'child-assignments'
-                  ? '#assignments'
-                  : '';
-              setCurrentHash(mappedHash);
-              break;
-            }
-          }
-        },
-        { rootMargin: '-20% 0px -60% 0px' }
-      );
-
-      sectionIds.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) observer?.observe(el);
-      });
-    }
-
-    return () => {
-      window.removeEventListener('hashchange', handleHash);
-      window.removeEventListener('popstate', handleHash);
-      observer?.disconnect();
-    };
-  }, [userRole, pathname]);
-
   const isHighlightedActive =
-    userRole === 'PARENT'
-      ? currentHash === '#attendance'
-      : (pathname === highlightedTab.href ||
-          (highlightedTab.href !== '/teacher/dashboard' &&
-            highlightedTab.href !== '/student/dashboard' &&
-            Boolean(pathname?.startsWith(highlightedTab.href))));
+    pathname === highlightedTab.href ||
+    (highlightedTab.href !== '/teacher/dashboard' &&
+      highlightedTab.href !== '/student/dashboard' &&
+      Boolean(pathname?.startsWith(highlightedTab.href)));
 
   const HighlightedIcon = highlightedTab.icon;
 
   const handleNavClick = (e: React.MouseEvent, href: string) => {
-    if (href.includes('#')) {
-      const hash = href.split('#')[1];
-      const targetId =
-        hash === 'finance'
-          ? 'child-finance'
-          : hash === 'attendance'
-          ? 'child-attendance'
-          : hash === 'assignments'
-          ? 'child-assignments'
-          : hash;
-
-      if (pathname === '/parent/dashboard') {
-        e.preventDefault();
-        const targetEl = document.getElementById(targetId);
-        if (targetEl) {
-          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        window.history.pushState(null, '', href);
-        setCurrentHash('#' + hash);
-        return;
-      }
-      return;
-    }
-
     if (pathname === href) {
       e.preventDefault();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      if (userRole === 'PARENT') {
-        window.history.pushState(null, '', href);
-        setCurrentHash('');
-      }
     }
   };
 
   const checkIsActive = (tab: NavTabItem) => {
-    if (userRole === 'PARENT') {
-      if (tab.href.includes('#')) {
-        const hash = '#' + tab.href.split('#')[1];
-        return currentHash === hash;
-      }
-      return (!currentHash || currentHash === '#overview') && pathname === '/parent/dashboard';
-    }
-
     return (
       pathname === tab.href ||
       (tab.href !== '/teacher/dashboard' &&
@@ -273,11 +227,11 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
         </div>
 
         {/* Center Floating Action Button */}
-        <div className="w-[110px] shrink-0 flex items-center justify-center relative -top-6">
+        <div className="w-[110px] shrink-0 flex items-center justify-center relative -top-6 pointer-events-auto">
           <Link
             href={highlightedTab.href}
             onClick={(e) => handleNavClick(e, highlightedTab.href)}
-            className="relative group flex items-center justify-center focus:outline-none"
+            className="relative group flex items-center justify-center focus:outline-none pointer-events-auto cursor-pointer"
             aria-label={highlightedTab.label}
           >
             <div
