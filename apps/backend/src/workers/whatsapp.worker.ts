@@ -50,15 +50,19 @@ export class WhatsAppWorker implements OnModuleInit, OnModuleDestroy {
   /** Max messages allowed per calendar day */
   private readonly DAILY_LIMIT: number;
   /** Active window start hour (Cairo local, 24h) */
-  private readonly ACTIVE_HOUR_START = 8;
+  private readonly ACTIVE_HOUR_START: number;
   /** Active window end hour (Cairo local, 24h) */
-  private readonly ACTIVE_HOUR_END = 21;
+  private readonly ACTIVE_HOUR_END = 22;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsAppService,
     private readonly config: ConfigService,
   ) {
+    this.ACTIVE_HOUR_START = parseInt(
+      this.config.get<string>('WHATSAPP_ACTIVE_HOURS_START', '7'),
+      10,
+    );
     this.HOURLY_LIMIT = parseInt(
       this.config.get<string>('WHATSAPP_HOURLY_LIMIT', '25'),
       10,

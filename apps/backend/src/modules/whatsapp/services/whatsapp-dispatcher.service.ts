@@ -33,7 +33,7 @@ export interface ActiveHoursConfig {
 }
 
 const DEFAULT_ACTIVE_HOURS: ActiveHoursConfig = {
-  startHour: 9,
+  startHour: 7,
   endHour: 22,
   timezone: 'Africa/Cairo',
 };
