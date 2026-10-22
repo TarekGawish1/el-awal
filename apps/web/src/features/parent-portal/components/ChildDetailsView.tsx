@@ -78,22 +78,46 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
   const pendingAssignmentsCount = pendingAssignments.length;
   const currentHomework = pendingAssignments[0] || assignments[0];
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.location.hash) return;
+    const hash = window.location.hash.replace('#', '');
+    const targetId =
+      hash === 'finance'
+        ? 'child-finance'
+        : hash === 'attendance'
+        ? 'child-attendance'
+        : hash === 'assignments'
+        ? 'child-assignments'
+        : hash;
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) {
+      const timer = setTimeout(() => {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [studentId, overview]);
+
   return (
     <div className="space-y-6">
-      <ChildAcademicHeader
-        studentName={studentName}
-        studentId={studentId}
-        studentCode={student?.studentCode}
-        academicStage={student.academicStage}
-        gradeLevel={student.gradeLevel}
-      />
+      <div id="child-overview" className="scroll-mt-6">
+        <ChildAcademicHeader
+          studentName={studentName}
+          studentId={studentId}
+          studentCode={student?.studentCode}
+          academicStage={student.academicStage}
+          gradeLevel={student.gradeLevel}
+        />
+      </div>
 
-      <ChildFinancialOverview
-        primaryGroup={primaryGroup}
-        paymentHistory={paymentHistory}
-        totalPaid={totalPaid}
-        totalUnpaid={totalUnpaid}
-      />
+      <div id="child-finance" className="scroll-mt-6">
+        <ChildFinancialOverview
+          primaryGroup={primaryGroup}
+          paymentHistory={paymentHistory}
+          totalPaid={totalPaid}
+          totalUnpaid={totalUnpaid}
+        />
+      </div>
 
       <ChildUpcomingOverview
         nextSessionStr={nextSessionStr}
@@ -104,20 +128,24 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
         currentHomework={currentHomework}
       />
 
-      <ChildAssignmentsSection
-        assignments={assignments}
-        pendingAssignmentsCount={pendingAssignmentsCount}
-        primaryGroup={primaryGroup}
-      />
+      <div id="child-assignments" className="scroll-mt-6">
+        <ChildAssignmentsSection
+          assignments={assignments}
+          pendingAssignmentsCount={pendingAssignmentsCount}
+          primaryGroup={primaryGroup}
+        />
+      </div>
 
-      <ChildAttendanceHistoryTable
-        attendanceHistory={attendanceHistory}
-        totalAttended={totalAttended}
-        totalAssignedHw={totalAssignedHw}
-        hwCompleted={hwCompleted}
-        hwMissing={hwMissing}
-        hwIncomplete={hwIncomplete}
-      />
+      <div id="child-attendance" className="scroll-mt-6">
+        <ChildAttendanceHistoryTable
+          attendanceHistory={attendanceHistory}
+          totalAttended={totalAttended}
+          totalAssignedHw={totalAssignedHw}
+          hwCompleted={hwCompleted}
+          hwMissing={hwMissing}
+          hwIncomplete={hwIncomplete}
+        />
+      </div>
 
       {/* Groups */}
       <div className="space-y-2">

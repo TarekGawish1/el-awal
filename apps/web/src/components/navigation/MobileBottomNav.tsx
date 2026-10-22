@@ -11,7 +11,7 @@ import {
   Menu,
   BookOpen,
   FileText,
-  Plus,
+  DollarSign,
 } from 'lucide-react';
 
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
@@ -49,8 +49,10 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
   ];
 
   const parentTabs: NavTabItem[] = [
-    { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard, onlineOnly: false },
-    { label: 'الرئيسية', href: '/parent/dashboard', icon: LayoutDashboard, isHighlighted: true, onlineOnly: false },
+    { label: 'الرئيسية', href: '/parent/dashboard', icon: LayoutDashboard, onlineOnly: false },
+    { label: 'الماليات', href: '/parent/dashboard#finance', icon: DollarSign, onlineOnly: false },
+    { label: 'الحضور', href: '/parent/dashboard#attendance', icon: Calendar, isHighlighted: true, onlineOnly: false },
+    { label: 'الواجبات', href: '/parent/dashboard#assignments', icon: FileText, onlineOnly: false },
   ];
 
   const baseTabs: NavTabItem[] =
@@ -72,13 +74,120 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
   const rightTabs = nonHighlightedTabs.slice(0, 2);
   const leftTabs = nonHighlightedTabs.slice(2);
 
+  // Active hash tracking for Parent Dashboard sections
+  const [currentHash, setCurrentHash] = React.useState<string>('');
+
+  React.useEffect(() => {
+    if (userRole !== 'PARENT') return;
+
+    const handleHash = () => {
+      setCurrentHash(typeof window !== 'undefined' ? window.location.hash || '' : '');
+    };
+    handleHash();
+
+    window.addEventListener('hashchange', handleHash);
+    window.addEventListener('popstate', handleHash);
+
+    // Track visible section while scrolling
+    const sectionIds = ['child-overview', 'child-finance', 'child-assignments', 'child-attendance'];
+    let observer: IntersectionObserver | null = null;
+
+    if (typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              const id = entry.target.id;
+              const mappedHash =
+                id === 'child-finance'
+                  ? '#finance'
+                  : id === 'child-attendance'
+                  ? '#attendance'
+                  : id === 'child-assignments'
+                  ? '#assignments'
+                  : '';
+              setCurrentHash(mappedHash);
+              break;
+            }
+          }
+        },
+        { rootMargin: '-20% 0px -60% 0px' }
+      );
+
+      sectionIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) observer?.observe(el);
+      });
+    }
+
+    return () => {
+      window.removeEventListener('hashchange', handleHash);
+      window.removeEventListener('popstate', handleHash);
+      observer?.disconnect();
+    };
+  }, [userRole, pathname]);
+
   const isHighlightedActive =
-    pathname === highlightedTab.href ||
-    (highlightedTab.href !== '/teacher/dashboard' &&
-      highlightedTab.href !== '/student/dashboard' &&
-      Boolean(pathname?.startsWith(highlightedTab.href)));
+    userRole === 'PARENT'
+      ? currentHash === '#attendance'
+      : (pathname === highlightedTab.href ||
+          (highlightedTab.href !== '/teacher/dashboard' &&
+            highlightedTab.href !== '/student/dashboard' &&
+            Boolean(pathname?.startsWith(highlightedTab.href))));
 
   const HighlightedIcon = highlightedTab.icon;
+
+  const handleNavClick = (e: React.MouseEvent, href: string) => {
+    if (href.includes('#')) {
+      const hash = href.split('#')[1];
+      const targetId =
+        hash === 'finance'
+          ? 'child-finance'
+          : hash === 'attendance'
+          ? 'child-attendance'
+          : hash === 'assignments'
+          ? 'child-assignments'
+          : hash;
+
+      if (pathname === '/parent/dashboard') {
+        e.preventDefault();
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        window.history.pushState(null, '', href);
+        setCurrentHash('#' + hash);
+        return;
+      }
+      return;
+    }
+
+    if (pathname === href) {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (userRole === 'PARENT') {
+        window.history.pushState(null, '', href);
+        setCurrentHash('');
+      }
+    }
+  };
+
+  const checkIsActive = (tab: NavTabItem) => {
+    if (userRole === 'PARENT') {
+      if (tab.href.includes('#')) {
+        const hash = '#' + tab.href.split('#')[1];
+        return currentHash === hash;
+      }
+      return (!currentHash || currentHash === '#overview') && pathname === '/parent/dashboard';
+    }
+
+    return (
+      pathname === tab.href ||
+      (tab.href !== '/teacher/dashboard' &&
+        tab.href !== '/student/dashboard' &&
+        Boolean(pathname?.startsWith(tab.href)))
+    );
+  };
 
   return (
     <nav
@@ -87,37 +196,33 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
       className="lg:hidden pb-[env(safe-area-inset-bottom,0px)] h-[calc(4rem+env(safe-area-inset-bottom,0px))] fixed bottom-0 inset-x-0 z-40 select-none pointer-events-none"
     >
       {/* Scooped / Notched Curved Shell Background */}
-      <div
-        className="absolute inset-0 pointer-events-none drop-shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between"
-        style={{ overflow: 'visible' }}
-      >
+      <div className="absolute inset-0 pointer-events-none drop-shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between">
         {/* Top 64px (h-16) Bar containing the smooth Scoop Notch */}
-        <div className="h-16 w-full flex items-stretch" style={{ overflow: 'visible' }}>
+        <div className="h-16 w-full flex items-stretch">
           {/* Right Wing (RTL) */}
           <div className="flex-1 bg-white border-t border-slate-200/90 rounded-tr-2xl" />
 
-          {/* Center Scoop Notch — smooth Bézier circular cradle with upward crests matching Vaya */}
-          <div className="relative w-[104px] h-16 shrink-0 -mx-[0.5px]" style={{ overflow: 'visible' }}>
+          {/* Center Scoop Notch — Clean, smooth Bézier cradle that dips down seamlessly */}
+          <div className="relative w-[110px] h-16 shrink-0 -mx-[1px] overflow-hidden">
             <svg
-              viewBox="0 0 104 64"
+              viewBox="0 0 110 64"
               className="w-full h-full"
-              style={{ overflow: 'visible' }}
+              fill="none"
               preserveAspectRatio="none"
               xmlns="http://www.w3.org/2000/svg"
             >
               {/* Notch solid fill seamless with wings */}
               <path
-                d="M -1 0 C 10 0, 14 -7, 23 -7 C 31 -7, 33 40, 52 40 C 71 40, 73 -7, 81 -7 C 90 -7, 94 0, 105 0 L 105 64 L -1 64 Z"
+                d="M 0 0 C 16 0, 22 6, 28 14 C 35 22, 44 36, 55 36 C 66 36, 75 22, 82 14 C 88 6, 94 0, 110 0 L 110 64 L 0 64 Z"
                 fill="white"
               />
               {/* Notch top border stroke aligned with wing border-t */}
               <path
-                d="M -1 0 C 10 0, 14 -7, 23 -7 C 31 -7, 33 40, 52 40 C 71 40, 73 -7, 81 -7 C 90 -7, 94 0, 105 0"
+                d="M 0 0.6 C 16 0.6, 22 6, 28 14 C 35 22, 44 36, 55 36 C 66 36, 75 22, 82 14 C 88 6, 94 0.6, 110 0.6"
                 stroke="#E2E8F0"
                 strokeWidth="1.2"
                 fill="none"
                 strokeLinecap="round"
-                strokeLinejoin="round"
               />
             </svg>
           </div>
@@ -132,20 +237,17 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
 
       {/* Navigation Tabs and Floating Action Button Container */}
       <div className="relative z-10 w-full h-16 max-w-lg mx-auto flex items-center justify-between px-2 pointer-events-auto">
-        {/* Right Tabs (e.g. الرئيسية, المجموعات) */}
-        <div className="flex-1 flex items-center justify-around pr-2 pl-1">
+        {/* Right Tabs */}
+        <div className="flex-1 flex items-center justify-around pr-1 pl-1">
           {rightTabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive =
-              pathname === tab.href ||
-              (tab.href !== '/teacher/dashboard' &&
-                tab.href !== '/student/dashboard' &&
-                Boolean(pathname?.startsWith(tab.href)));
+            const isActive = checkIsActive(tab);
 
             return (
               <Link
-                key={tab.href}
+                key={tab.label + tab.href}
                 href={tab.href}
+                onClick={(e) => handleNavClick(e, tab.href)}
                 className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-150 active:scale-95 ${
                   isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                 }`}
@@ -171,17 +273,18 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
         </div>
 
         {/* Center Floating Action Button */}
-        <div className="w-[104px] shrink-0 flex items-center justify-center relative -top-5">
+        <div className="w-[110px] shrink-0 flex items-center justify-center relative -top-6">
           <Link
             href={highlightedTab.href}
+            onClick={(e) => handleNavClick(e, highlightedTab.href)}
             className="relative group flex items-center justify-center focus:outline-none"
             aria-label={highlightedTab.label}
           >
             <div
               className={`w-[54px] h-[54px] rounded-full flex items-center justify-center border-[3.5px] border-white transition-all duration-200 active:scale-90 ${
                 isHighlightedActive
-                  ? 'bg-blue-600 text-white shadow-[0_10px_26px_rgba(37,99,235,0.48)] scale-105'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_8px_22px_rgba(37,99,235,0.42)]'
+                  ? 'bg-blue-600 text-white shadow-[0_8px_24px_rgba(37,99,235,0.45)] scale-105'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[0_6px_20px_rgba(37,99,235,0.38)]'
               }`}
             >
               <HighlightedIcon className="w-6 h-6 stroke-[2.2]" />
@@ -190,20 +293,17 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
           </Link>
         </div>
 
-        {/* Left Tabs (e.g. الجدول / التقييمات + المزيد) */}
-        <div className="flex-1 flex items-center justify-around pl-2 pr-1">
+        {/* Left Tabs */}
+        <div className="flex-1 flex items-center justify-around pl-1 pr-1">
           {leftTabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive =
-              pathname === tab.href ||
-              (tab.href !== '/teacher/dashboard' &&
-                tab.href !== '/student/dashboard' &&
-                Boolean(pathname?.startsWith(tab.href)));
+            const isActive = checkIsActive(tab);
 
             return (
               <Link
-                key={tab.href}
+                key={tab.label + tab.href}
                 href={tab.href}
+                onClick={(e) => handleNavClick(e, tab.href)}
                 className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all duration-150 active:scale-95 ${
                   isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                 }`}

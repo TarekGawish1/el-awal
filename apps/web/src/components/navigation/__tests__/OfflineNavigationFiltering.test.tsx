@@ -114,6 +114,18 @@ describe('Offline Navigation Filtering & Route Guards', () => {
       expect(screen.getByText('الجدول')).toBeDefined();
       expect(screen.getByText('المزيد')).toBeDefined();
     });
+
+    it('renders parent portal bottom navigation tabs properly with functional section links', () => {
+      vi.spyOn(useOnlineStatusModule, 'useOnlineStatus').mockReturnValue(true);
+
+      render(<MobileBottomNav userRole="PARENT" onOpenMobileMenu={vi.fn()} />);
+
+      expect(screen.getByText('الرئيسية')).toBeDefined();
+      expect(screen.getByText('الماليات')).toBeDefined();
+      expect(screen.getByLabelText('الحضور')).toBeDefined();
+      expect(screen.getByText('الواجبات')).toBeDefined();
+      expect(screen.getByText('المزيد')).toBeDefined();
+    });
   });
 
   describe('FeatureRequiresOnlineCard', () => {
