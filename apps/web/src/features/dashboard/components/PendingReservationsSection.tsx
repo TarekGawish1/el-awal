@@ -19,7 +19,7 @@ import { Select } from '@/components/ui/Select';
 import { StudentDetailsModal } from '@/features/students/components/StudentDetailsModal';
 import { PaymentConfirmationModal } from './PaymentConfirmationModal';
 
-export function PendingReservationsSection() {
+export function PendingReservationsSection({ hideIfEmpty = false }: { hideIfEmpty?: boolean } = {}) {
   const { data: reservations, isLoading } = usePendingReservations();
   const acceptMutation = useAcceptReservation();
   const rejectMutation = useRejectReservation();
@@ -61,7 +61,20 @@ export function PendingReservationsSection() {
   }
 
   if (!reservations || reservations.length === 0) {
-    return null;
+    if (hideIfEmpty) return null;
+    return (
+      <Card className="shadow-sm border-dashed border-neutral-200 bg-white">
+        <CardContent className="p-12 text-center flex flex-col items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center text-amber-500 mb-4 shadow-sm">
+            <Clock className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-neutral-800 mb-1">لا توجد طلبات انضمام قيد الانتظار حالياً</h3>
+          <p className="text-sm text-neutral-500 max-w-md">
+            عند قيام أي طالب بطلب الانضمام إلى إحدى مجموعاتك الدراسية عبر رابط التسجيل، ستظهر بيانات الحجز هنا فوراً لمراجعتها وتأكيدها.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const handleScan = (text: string) => {

@@ -24,8 +24,11 @@ export function useRealtimeReservations(enabled = true) {
     if (!socket) return;
 
     const handler = () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.groups.pendingReservations() });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher', 'dashboard'] });
     };
 
     socket.on('reservations:changed', handler);

@@ -29,7 +29,7 @@ export class TeacherDashboardInitService {
     const academicPeriod = await this.profileService.getAcademicPeriod(teacherId);
     const effectiveTeacherId = await this.profileService.resolveEffectiveTeacherId(teacherId);
 
-    const [rawGroups, pendingEnrollments] = await Promise.all([
+    const [rawGroups, pendingEnrollments, pendingGroupEnrollments] = await Promise.all([
       this.prisma.academicGroup.findMany({
         where: { teacherId: effectiveTeacherId, isActive: true },
         select: {
@@ -63,6 +63,28 @@ export class TeacherDashboardInitService {
         orderBy: { enrolledAt: 'desc' },
         take: 20,
       }),
+      this.prisma.groupEnrollment.findMany({
+        where: {
+          group: {
+            OR: [
+              { teacherId: effectiveTeacherId },
+              { teacher: { id: effectiveTeacherId } },
+              { teacher: { user: { id: effectiveTeacherId } } },
+            ],
+          },
+          status: GroupEnrollmentStatus.PENDING,
+        },
+        include: {
+          group: { select: { id: true, name: true, maxCapacity: true, gradeLevel: true } },
+          student: {
+            include: {
+              user: { select: { id: true, fullName: true, phone: true, email: true } },
+            },
+          },
+        },
+        orderBy: { enrolledAt: 'desc' },
+        take: 20,
+      }),
     ]);
 
     const groups = rawGroups.map((g) => ({
@@ -75,7 +97,44 @@ export class TeacherDashboardInitService {
         : 'SECONDARY',
     }));
 
-    const pendingReservations = pendingEnrollments.map((e) => ({
+    const mappedGroupReservations = pendingGroupEnrollments.map((e) => ({
+      id: e.id,
+      enrollmentId: e.id,
+      groupId: e.groupId,
+      courseId: null,
+      courseName: null,
+      coursePrice: 0,
+      studentId: e.studentId,
+      studentName: e.student?.user?.fullName || 'طالب',
+      studentCode: e.student?.studentCode || '',
+      studentPhone: e.student?.user?.phone || '',
+      senderPhone: e.student?.user?.phone || '',
+      transferAmount: 0,
+      receiptImageUrl: null,
+      paymentMethod: 'CASH',
+      date: e.enrolledAt ? new Date(e.enrolledAt).toISOString().split('T')[0] : '',
+      enrolledAt: e.enrolledAt ? new Date(e.enrolledAt).toISOString() : '',
+      status: e.status,
+      student: {
+        id: e.studentId,
+        studentCode: e.student?.studentCode,
+        qrCodeToken: e.student?.qrCodeToken || e.student?.studentCode,
+        gradeLevel: e.student?.gradeLevel,
+        user: {
+          fullName: e.student?.user?.fullName,
+          phone: e.student?.user?.phone,
+        },
+      },
+      group: {
+        id: e.group.id,
+        name: e.group.name,
+        gradeLevel: e.group.gradeLevel,
+        maxCapacity: e.group.maxCapacity,
+      },
+    }));
+
+    const mappedCourseReservations = pendingEnrollments.map((e) => ({
+      id: e.id,
       enrollmentId: e.id,
       courseId: e.courseId,
       courseName: e.course.title,
@@ -105,6 +164,8 @@ export class TeacherDashboardInitService {
         name: e.course.title,
       },
     }));
+
+    const pendingReservations = [...mappedGroupReservations, ...mappedCourseReservations];
 
     const result = {
       ...overview,

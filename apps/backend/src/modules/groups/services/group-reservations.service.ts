@@ -35,6 +35,12 @@ export class GroupReservationsService {
     let teacherId = undefined;
     if (user.role === UserRole.TEACHER) {
       teacherId = user.teacherProfileId || user.id;
+    } else if (user.role === UserRole.SECRETARIAT) {
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: user.id, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      teacherId = link?.teacherId || undefined;
     }
 
     return this.prisma.groupEnrollment.findMany({
@@ -46,6 +52,11 @@ export class GroupReservationsService {
               { teacherId: teacherId },
               { teacher: { id: teacherId } },
               { teacher: { user: { id: teacherId } } },
+              ...(user.id !== teacherId ? [
+                { teacherId: user.id },
+                { teacher: { id: user.id } },
+                { teacher: { user: { id: user.id } } },
+              ] : []),
             ],
           },
         } : {}),

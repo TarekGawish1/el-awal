@@ -334,9 +334,12 @@ export function useAcceptReservation() {
   return useMutation({
     mutationFn: ({ enrollmentId, paymentStatus }: { enrollmentId: string, paymentStatus?: 'PAID' | 'LATER' }) => import('../api/groups.api').then(m => m.acceptReservation(enrollmentId, { paymentStatus })),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.groups.pendingReservations() });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher', 'dashboard'] });
     },
   });
 }
@@ -346,9 +349,12 @@ export function useRejectReservation() {
   return useMutation({
     mutationFn: (enrollmentId: string) => import('../api/groups.api').then(m => m.rejectReservation(enrollmentId)),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.groups.pendingReservations() });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher', 'dashboard'] });
     },
   });
 }
@@ -358,9 +364,11 @@ export function useChangeReservationGroup() {
   return useMutation({
     mutationFn: ({ enrollmentId, groupId }: { enrollmentId: string, groupId: string }) => import('../api/groups.api').then(m => m.changeReservationGroup(enrollmentId, groupId)),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.groups.pendingReservations() });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
       toast.success('تم تغيير المجموعة بنجاح');
     },
     onError: (err: any) => {

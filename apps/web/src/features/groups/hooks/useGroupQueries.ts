@@ -4,6 +4,7 @@ import {
   fetchGroup,
   fetchGroupStudents,
   searchStudents,
+  fetchPendingReservations,
 } from '../api/groups.api';
 import { Group, GroupEnrollment, Student } from '../types/groups.types';
 import { offlineDb, getGroupDetailsOffline } from '@/lib/offline/db';
@@ -242,35 +243,36 @@ export function useSearchStudents(query: string, options?: { enabled?: boolean }
 }
 
 export function usePendingReservations(enabled = true) {
-  return useQuery<any, Error, any[]>({
-    queryKey: QUERY_KEYS.courses.teacherSubscriptions(),
-    queryFn: () => coursesApi.getTeacherSubscriptions(),
-    select: (data: any) => {
-      if (Array.isArray(data)) return data;
-      const requests = data?.pendingRequests ?? [];
-      return requests.map((r: any) => ({
+  return useQuery<any[]>({
+    queryKey: QUERY_KEYS.groups.pendingReservations(),
+    queryFn: async (): Promise<any[]> => {
+      const data = await fetchPendingReservations();
+      if (!Array.isArray(data)) return [];
+      return data.map((r: any) => ({
         ...r,
-        id: r.enrollmentId || r.id,
-        enrollmentId: r.enrollmentId || r.id,
+        id: r.id || r.enrollmentId,
+        enrollmentId: r.id || r.enrollmentId,
+        studentId: r.studentId || r.student?.id,
         student: {
-          id: r.studentId,
-          studentCode: r.studentCode,
-          qrCodeToken: r.studentCode,
-          user: {
-            fullName: r.studentName || r.student?.user?.fullName,
-            phone: r.studentPhone || r.senderPhone || r.student?.user?.phone,
-          },
           ...r.student,
+          id: r.student?.id || r.studentId,
+          studentCode: r.student?.studentCode || r.studentCode,
+          qrCodeToken: r.student?.qrCodeToken || r.student?.studentCode,
+          user: {
+            fullName: r.student?.user?.fullName || r.studentName || 'غير معروف',
+            phone: r.student?.user?.phone || r.studentPhone || r.senderPhone || '',
+            ...r.student?.user,
+          },
         },
         group: {
-          name: r.courseName || r.group?.name || 'طلب انضمام',
           ...r.group,
+          name: r.group?.name || r.courseName || 'المجموعة الدراسية',
         },
       }));
     },
     enabled: enabled && (typeof navigator !== 'undefined' ? navigator.onLine : true),
     networkMode: 'online',
-    staleTime: 60 * 1000, // 1 minute cache sharing across layout and dashboard
-    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
   });
 }

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CourseEnrollmentStatus, UserRole } from '@prisma/client';
+import { CourseEnrollmentStatus, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
@@ -87,12 +87,34 @@ export class UsersService {
       }
 
       if (teacherProfileId) {
-        pendingReservationsPromise = this.prisma.courseEnrollment.count({
+        const groupCountPromise = this.prisma.groupEnrollment.count({
+          where: {
+            status: GroupEnrollmentStatus.PENDING,
+            group: {
+              OR: [
+                { teacherId: teacherProfileId },
+                { teacher: { id: teacherProfileId } },
+                { teacher: { user: { id: teacherProfileId } } },
+                ...(user.id !== teacherProfileId ? [
+                  { teacherId: user.id },
+                  { teacher: { id: user.id } },
+                  { teacher: { user: { id: user.id } } },
+                ] : []),
+              ],
+            },
+          },
+        });
+
+        const courseCountPromise = this.prisma.courseEnrollment.count({
           where: {
             status: CourseEnrollmentStatus.PENDING,
             course: { teacherId: teacherProfileId },
           },
         });
+
+        pendingReservationsPromise = Promise.all([groupCountPromise, courseCountPromise]).then(
+          ([groupCount, courseCount]) => groupCount + courseCount,
+        );
       }
     }
 

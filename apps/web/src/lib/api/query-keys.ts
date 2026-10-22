@@ -35,8 +35,8 @@ export const QUERY_KEYS = {
     students: (id: string) => ['groups', id, 'students'] as const,
     pendingReservations: (filters?: any) =>
       filters !== undefined
-        ? (['courses', 'teacher-subscriptions', filters] as const)
-        : (['courses', 'teacher-subscriptions'] as const),
+        ? (['groups', 'reservations', 'pending', filters] as const)
+        : (['groups', 'reservations', 'pending'] as const),
   },
   academicPeriods: {
     all: ['academic-periods'] as const,
