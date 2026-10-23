@@ -115,9 +115,11 @@ export function useCreateGroup() {
         queryClient.setQueryData(['groups', data.id], data);
       }
       queryClient.invalidateQueries({ queryKey: ['groups'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['finance'] });
     },
   });
 }
+
 
 export function useUpdateGroup() {
   const queryClient = useQueryClient();
@@ -180,6 +182,7 @@ export function useUpdateGroup() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       queryClient.invalidateQueries({ queryKey: ['groups', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['finance'] });
     },
   });
 }
