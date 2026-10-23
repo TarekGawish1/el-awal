@@ -212,9 +212,36 @@ export function CoursesSection() {
           </AnimatePresence>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        {isLoading && courses.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" aria-busy="true" aria-label="جاري تحميل الكورسات">
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                className="bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col animate-pulse"
+              >
+                {/* Thumbnail Skeleton */}
+                <div className="h-48 w-full bg-slate-200/80 relative p-6 flex items-start justify-start">
+                  <div className="h-6 w-20 bg-slate-300/80 rounded-full" />
+                </div>
+                {/* Content Skeleton */}
+                <div className="p-6 sm:p-7 flex-1 flex flex-col">
+                  {/* Grade & Teacher */}
+                  <div className="h-4 bg-slate-200/80 rounded-md w-1/3 mb-3" />
+                  {/* Title */}
+                  <div className="h-7 bg-slate-200 rounded-lg w-3/4 mb-3" />
+                  {/* Description lines */}
+                  <div className="space-y-2 mb-6 flex-1">
+                    <div className="h-4 bg-slate-200/60 rounded-md w-full" />
+                    <div className="h-4 bg-slate-200/60 rounded-md w-4/5" />
+                  </div>
+                  {/* Price & Action Button */}
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
+                    <div className="h-7 bg-slate-200 rounded-lg w-20" />
+                    <div className="h-10 bg-slate-200/90 rounded-xl w-28" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : courses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">

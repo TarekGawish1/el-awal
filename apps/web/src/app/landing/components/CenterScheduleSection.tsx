@@ -160,10 +160,30 @@ export function CenterScheduleSection() {
 
           {/* Schedule List */}
           <div className="p-6 sm:p-8 min-h-[250px]">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
-                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                <p>جاري تحميل المواعيد...</p>
+            {isLoading && currentSchedules.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6" aria-busy="true" aria-label="جاري تحميل المواعيد">
+                {[1, 2, 3, 4].map((index) => (
+                  <div
+                    key={index}
+                    className="bg-slate-50/80 border border-slate-100 rounded-2xl p-6 animate-pulse"
+                  >
+                    <div className="flex items-start gap-4">
+                      {/* Icon Skeleton */}
+                      <div className="w-12 h-12 bg-slate-200/80 rounded-xl shrink-0" />
+                      <div className="flex-1 space-y-3">
+                        {/* Title / Location Skeleton */}
+                        <div className="h-6 bg-slate-200/80 rounded-lg w-3/5" />
+                        {/* Days badges Skeleton */}
+                        <div className="flex gap-2">
+                          <div className="h-6 bg-slate-200/60 rounded-lg w-16" />
+                          <div className="h-6 bg-slate-200/60 rounded-lg w-20" />
+                        </div>
+                        {/* Time Row Skeleton */}
+                        <div className="h-4 bg-slate-200/50 rounded-md w-2/5" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : currentSchedules.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400 py-10">
