@@ -223,6 +223,7 @@ export const API_ENDPOINTS = {
   },
   SITE_SETTINGS: {
     PUBLIC: "/site-settings/public",
+    LANDING_DATA: "/site-settings/public/landing-data",
     LIST: "/site-settings",
   },
   CERTIFICATES: {

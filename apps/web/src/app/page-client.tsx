@@ -3,6 +3,7 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { useLandingInteractions } from './landing/useLandingInteractions';
+import { useLandingBundle } from '@/hooks/usePublicContent';
 import { HeroSection } from './landing/components/HeroSection';
 import { FooterSection } from './landing/components/FooterSection';
 
@@ -38,6 +39,8 @@ const ContactUsSection = dynamic(
 
 export default function RootPage() {
   const { isMounted, isRedirecting, redirectText } = useLandingInteractions();
+  // Preload and aggregate all public landing data in a single request
+  useLandingBundle();
 
   // If authenticated user is being redirected to their role dashboard
   if (isMounted && isRedirecting) {

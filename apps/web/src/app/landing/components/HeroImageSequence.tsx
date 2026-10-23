@@ -3,37 +3,17 @@
 import React, { useEffect, useRef } from 'react';
 
 const HERO_FRAME_COUNT = 22;
-const HERO_FRAME_DURATION_MS = 150;
+const HERO_FRAME_DURATION_MS = 110; // ~9-10 fps for smooth, organic floating math animation
 
 let cachedHeroFrames: HTMLImageElement[] | null = null;
 let cachedFrame0: HTMLImageElement | null = null;
 let heroFramesLoadPromise: Promise<HTMLImageElement[]> | null = null;
-
-function checkPrefersReducedMotion(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-  } catch {
-    return false;
-  }
-}
-
-function checkSaveDataEnabled(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  try {
-    return !!(navigator as any).connection?.saveData;
-  } catch {
-    return false;
-  }
-}
 
 function loadSingleHeroFrame(index: number): Promise<HTMLImageElement | null> {
   return new Promise<HTMLImageElement | null>((resolve) => {
     if (typeof window === 'undefined') return resolve(null);
     const image = new Image();
     image.decoding = 'async';
-    // Decorative frames must never compete with LCP or critical page assets
-    (image as any).fetchPriority = 'low';
     image.onload = () => resolve(image);
     image.onerror = () => resolve(null);
     image.src = `/hero-animation/frame_${String(index).padStart(6, '0')}.webp`;
@@ -53,19 +33,14 @@ function loadInitialStaticFrame(): Promise<HTMLImageElement | null> {
 }
 
 function loadRemainingHeroFrames(frame0: HTMLImageElement | null): Promise<HTMLImageElement[]> {
-  if (cachedHeroFrames) return Promise.resolve(cachedHeroFrames);
+  if (cachedHeroFrames && cachedHeroFrames.length > 1) return Promise.resolve(cachedHeroFrames);
   if (heroFramesLoadPromise) return heroFramesLoadPromise;
 
-  const CONCURRENCY = 3;
   heroFramesLoadPromise = (async () => {
     const remainingIndices = Array.from({ length: HERO_FRAME_COUNT - 1 }, (_, i) => i + 1);
-    const loadedRemaining: (HTMLImageElement | null)[] = [];
-
-    for (let start = 0; start < remainingIndices.length; start += CONCURRENCY) {
-      const batch = remainingIndices.slice(start, start + CONCURRENCY);
-      const batchResults = await Promise.all(batch.map((idx) => loadSingleHeroFrame(idx)));
-      loadedRemaining.push(...batchResults);
-    }
+    const loadedRemaining = await Promise.all(
+      remainingIndices.map((idx) => loadSingleHeroFrame(idx))
+    );
 
     const validRemaining = loadedRemaining.filter((f): f is HTMLImageElement => f !== null);
     const allFrames = frame0 ? [frame0, ...validRemaining] : validRemaining;
@@ -84,21 +59,10 @@ export function HeroImageSequence() {
     let animationFrameId: number | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let intersectionObserver: IntersectionObserver | null = null;
-    let idleCallbackId: number | null = null;
-    let timeoutId: NodeJS.Timeout | null = null;
     let currentFrameIndex = 0;
     let lastFrameTime = 0;
     let frames: HTMLImageElement[] = cachedHeroFrames || [];
     let isVisible = true;
-
-    // Check user accessibility & connection preferences
-    const reducedMotion = checkPrefersReducedMotion();
-    const saveData = checkSaveDataEnabled();
-
-    // If user requested Data Saver, do not download any decorative animation frames
-    if (saveData) {
-      return;
-    }
 
     const drawFrame = (targetImage?: HTMLImageElement) => {
       const canvas = canvasRef.current;
@@ -141,47 +105,30 @@ export function HeroImageSequence() {
       animationFrameId = window.requestAnimationFrame(animate);
     };
 
-    // If all frames were already loaded and cached on a previous page visit:
+    // If frames were already cached from a previous mount:
     if (frames.length > 1) {
       drawFrame();
-      if (!reducedMotion) {
-        lastFrameTime = performance.now();
-        animationFrameId = window.requestAnimationFrame(animate);
-      }
-      if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => drawFrame());
-        resizeObserver.observe(canvasRef.current);
-      }
-      return () => {
-        isActive = false;
-        resizeObserver?.disconnect();
-        if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
-      };
-    }
-
-    // Step 1: Provide static visual fallback with frame 0
-    let staticFrame: HTMLImageElement | null = null;
-
-    loadInitialStaticFrame().then((frame) => {
-      if (!isActive || !frame) return;
-      staticFrame = frame;
-      frames = [frame];
-      drawFrame(frame);
+      lastFrameTime = performance.now();
+      animationFrameId = window.requestAnimationFrame(animate);
 
       if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
         resizeObserver = new ResizeObserver(() => drawFrame());
         resizeObserver.observe(canvasRef.current);
       }
+    } else {
+      // Step 1: Immediately load and draw frame 0
+      loadInitialStaticFrame().then((frame) => {
+        if (!isActive || !frame) return;
+        frames = [frame];
+        drawFrame(frame);
 
-      // If user prefers reduced motion, we stop here (static visual displayed, 0 animation frames fetched)
-      if (reducedMotion) {
-        return;
-      }
+        if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(() => drawFrame());
+          resizeObserver.observe(canvasRef.current);
+        }
 
-      // Step 2: Defer frames 1..21 until after page is fully loaded and idle
-      const startDeferredSequence = () => {
-        if (!isActive || !isVisible) return;
-        loadRemainingHeroFrames(staticFrame).then((allFrames) => {
+        // Step 2: Immediately load remaining frames in parallel and start animating
+        loadRemainingHeroFrames(frame).then((allFrames) => {
           if (!isActive || allFrames.length <= 1) return;
           frames = allFrames;
           lastFrameTime = performance.now();
@@ -189,35 +136,15 @@ export function HeroImageSequence() {
             animationFrameId = window.requestAnimationFrame(animate);
           }
         });
-      };
+      });
+    }
 
-      const scheduleIdle = () => {
-        if (!isActive) return;
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          idleCallbackId = (window as any).requestIdleCallback(startDeferredSequence, { timeout: 5000 });
-        } else {
-          timeoutId = setTimeout(startDeferredSequence, 2500);
-        }
-      };
-
-      // Add a deliberate 2.5s post-load deferral window so initial hydration and fonts are 100% idle
-      if (typeof document !== 'undefined' && document.readyState === 'complete') {
-        timeoutId = setTimeout(scheduleIdle, 2500);
-      } else if (typeof window !== 'undefined') {
-        const onLoad = () => {
-          window.removeEventListener('load', onLoad);
-          timeoutId = setTimeout(scheduleIdle, 2500);
-        };
-        window.addEventListener('load', onLoad, { once: true });
-      }
-    });
-
-    // Pause animation when the hero canvas scrolls out of the viewport
+    // Pause animation when the hero canvas scrolls out of viewport for battery efficiency
     if (typeof IntersectionObserver !== 'undefined' && canvasRef.current) {
       intersectionObserver = new IntersectionObserver(
         ([entry]) => {
           isVisible = entry.isIntersecting;
-          if (isVisible && frames.length > 1 && !reducedMotion && animationFrameId === null) {
+          if (isVisible && frames.length > 1 && animationFrameId === null) {
             lastFrameTime = performance.now();
             animationFrameId = window.requestAnimationFrame(animate);
           } else if (!isVisible && animationFrameId !== null) {
@@ -234,10 +161,6 @@ export function HeroImageSequence() {
       isActive = false;
       resizeObserver?.disconnect();
       intersectionObserver?.disconnect();
-      if (timeoutId !== null) clearTimeout(timeoutId);
-      if (idleCallbackId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
-        (window as any).cancelIdleCallback(idleCallbackId);
-      }
       if (animationFrameId !== null) {
         window.cancelAnimationFrame(animationFrameId);
       }

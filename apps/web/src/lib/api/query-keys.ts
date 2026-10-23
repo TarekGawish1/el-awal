@@ -44,6 +44,7 @@ export const QUERY_KEYS = {
     teacherPeriod: () => ['teacher', 'academic-period'] as const,
   },
   public: {
+    landingBundle: () => ['public', 'landing-bundle'] as const,
     centers: () => ['public', 'centers'] as const,
     testimonials: () => ['public', 'testimonials'] as const,
     certificates: () => ['public', 'certificates'] as const,
