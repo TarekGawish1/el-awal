@@ -9,9 +9,9 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v12';
-const RUNTIME_CACHE = 'el-awal-runtime-v12';
-const RSC_CACHE = 'el-awal-rsc-v12';
+const CACHE_NAME = 'el-awal-core-v13';
+const RUNTIME_CACHE = 'el-awal-runtime-v13';
+const RSC_CACHE = 'el-awal-rsc-v13';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
 const MAX_RUNTIME_ITEMS = 300;
@@ -66,6 +66,7 @@ const PRECACHE_URLS = [
   '/icons/apple-touch-icon.png',
   '/favicon.ico',
   '/favicon.svg',
+  '/wasm/zxing_reader.wasm',
 ];
 
 // 1. Install Event: Pre-cache core shell and offline fallback only
@@ -394,6 +395,8 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/images/') ||
     url.pathname.startsWith('/favicon') ||
+    url.pathname.startsWith('/wasm/') ||
+    url.pathname.endsWith('.wasm') ||
     url.pathname.includes('manifest') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.png') ||
@@ -452,6 +455,10 @@ self.addEventListener('fetch', (event) => {
           if (url.pathname.endsWith('.svg') || url.pathname.endsWith('.png')) {
             const cachedIcon = (await caches.match('/favicon.svg')) || (await caches.match('/icons/icon.svg')) || (await caches.match('/icon.svg'));
             if (cachedIcon) return cachedIcon;
+          }
+          if (url.pathname.endsWith('.wasm') || url.pathname.startsWith('/wasm/')) {
+            const cachedWasm = (await caches.match('/wasm/zxing_reader.wasm')) || (await coreCache.match('/wasm/zxing_reader.wasm'));
+            if (cachedWasm) return cachedWasm;
           }
           // For static assets requested offline that aren't cached yet, return 503 so Webpack / browser handles cleanly
           return new Response('Offline asset unavailable', {
@@ -601,6 +608,20 @@ self.addEventListener('message', (event) => {
           } catch (err) {
             console.debug('[SW] Warm offline shell skip:', path, err);
           }
+        }
+
+        // Also precache ZXing WASM module during offline shell warming
+        try {
+          const wasmUrl = '/wasm/zxing_reader.wasm';
+          const alreadyCachedWasm = (await coreCache.match(wasmUrl)) || (await runtimeCache.match(wasmUrl));
+          if (!alreadyCachedWasm) {
+            const wasmRes = await fetch(wasmUrl);
+            if (wasmRes && wasmRes.status === 200) {
+              await coreCache.put(wasmUrl, wasmRes);
+            }
+          }
+        } catch (wasmErr) {
+          console.debug('[SW] Warm WASM skip:', wasmErr);
         }
       })(),
     );

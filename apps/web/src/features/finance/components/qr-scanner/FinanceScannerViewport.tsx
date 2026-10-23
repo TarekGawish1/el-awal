@@ -1,14 +1,9 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import { RefreshCcw, Image as ImageIcon } from 'lucide-react';
-import { CameraPermissionOverlay } from '@/components/camera';
-
-const Scanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
-  { ssr: false }
-);
+import { CameraPermissionOverlay, SafeScannerBoundary } from '@/components/camera';
 
 interface FinanceScannerViewportProps {
   scannerContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -28,6 +23,7 @@ interface FinanceScannerViewportProps {
   onRequestPermission: () => void;
   onOpenGuide: () => void;
   onRetry: () => void;
+  onSwitchToManual?: () => void;
 }
 
 export function FinanceScannerViewport({
@@ -48,6 +44,7 @@ export function FinanceScannerViewport({
   onRequestPermission,
   onOpenGuide,
   onRetry,
+  onSwitchToManual,
 }: FinanceScannerViewportProps) {
   return (
     <div
@@ -64,27 +61,29 @@ export function FinanceScannerViewport({
           : 'ring-primary-50'
       }`}
     >
-      <Scanner
-        key={cameraKey}
-        onScan={onScan}
-        onError={onError}
-        paused={locked || isPending}
-        scanDelay={400}
-        startTimeoutMs={30000}
-        formats={['qr_code']}
-        constraints={{
-          facingMode: { ideal: facingMode },
-        }}
-        styles={{
-          container: { width: '100%', height: '100%', position: 'relative' },
-          video: {
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-          },
-        }}
-      />
+      <SafeScannerBoundary onRetry={onRetry} onPickImage={onPickImage} onSwitchToManual={onSwitchToManual}>
+        <Scanner
+          key={cameraKey}
+          onScan={onScan}
+          onError={onError}
+          paused={locked || isPending}
+          scanDelay={400}
+          startTimeoutMs={30000}
+          formats={['qr_code']}
+          constraints={{
+            facingMode: { ideal: facingMode },
+          }}
+          styles={{
+            container: { width: '100%', height: '100%', position: 'relative' },
+            video: {
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+            },
+          }}
+        />
+      </SafeScannerBoundary>
 
       {/* Top Viewfinder Controls */}
       <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">

@@ -68,6 +68,10 @@ export function FinanceQrScannerModal({
             groupId={groupId} 
             periodYear={periodYear} 
             periodMonth={periodMonth}
+            onSwitchToManual={onSwitchToManual ? () => {
+              onClose();
+              onSwitchToManual();
+            } : undefined}
           />
         </div>
       </div>

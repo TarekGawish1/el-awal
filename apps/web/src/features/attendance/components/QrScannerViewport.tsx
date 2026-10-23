@@ -1,15 +1,10 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import { RefreshCcw, AlertTriangle, CheckCircle2, XCircle, Users, Camera, HelpCircle } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
-import { CameraPermissionOverlay } from '@/components/camera';
-
-const Scanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
-  { ssr: false }
-);
+import { CameraPermissionOverlay, SafeScannerBoundary } from '@/components/camera';
 
 interface QrScannerViewportProps {
   scannerContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -75,29 +70,31 @@ export function QrScannerViewport({
             : 'ring-primary-50'
         }`}
       >
-        <Scanner
-          key={cameraKey}
-          onScan={onScan}
-          onError={onError}
-          paused={locked || isPending || hasCrossGroupPrompt}
-          scanDelay={400}
-          startTimeoutMs={30000}
-          formats={['qr_code']}
-          constraints={{
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          }}
-          styles={{
-            container: { width: '100%', height: '100%', position: 'relative' },
-            video: {
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-            },
-          }}
-        />
+        <SafeScannerBoundary onRetry={onRetryCamera}>
+          <Scanner
+            key={cameraKey}
+            onScan={onScan}
+            onError={onError}
+            paused={locked || isPending || hasCrossGroupPrompt}
+            scanDelay={400}
+            startTimeoutMs={30000}
+            formats={['qr_code']}
+            constraints={{
+              facingMode: { ideal: facingMode },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            }}
+            styles={{
+              container: { width: '100%', height: '100%', position: 'relative' },
+              video: {
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+              },
+            }}
+          />
+        </SafeScannerBoundary>
 
         <button
           type="button"

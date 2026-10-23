@@ -15,10 +15,7 @@ import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import { FinanceSettingsTab } from './FinanceSettingsTab';
 import { FinanceOverviewTab } from './FinanceOverviewTab';
 
-const StudentHistoryModal = dynamic(
-  () => import('./StudentHistoryModal').then((mod) => mod.StudentHistoryModal),
-  { ssr: false }
-);
+import { StudentHistoryModal } from './StudentHistoryModal';
 
 
 import {

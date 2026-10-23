@@ -13,6 +13,7 @@ interface FinanceQrScannerProps {
   periodYear: number;
   periodMonth: number;
   onPaymentSuccess?: (studentName: string, amount: number) => void;
+  onSwitchToManual?: () => void;
 }
 
 export function FinanceQrScanner({
@@ -20,6 +21,7 @@ export function FinanceQrScanner({
   periodYear,
   periodMonth,
   onPaymentSuccess,
+  onSwitchToManual,
 }: FinanceQrScannerProps) {
   const {
     paymentType,
@@ -107,6 +109,7 @@ export function FinanceQrScanner({
           setCameraError(null);
           setCameraKey((prev) => prev + 1);
         }}
+        onSwitchToManual={onSwitchToManual}
       />
 
       {/* Live Scan Results & Clean Action Area */}

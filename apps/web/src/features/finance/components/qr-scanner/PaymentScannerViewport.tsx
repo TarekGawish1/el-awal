@@ -1,14 +1,9 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import { RefreshCcw, Sparkles } from 'lucide-react';
-import { CameraPermissionOverlay } from '@/components/camera';
-
-const Scanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
-  { ssr: false }
-);
+import { CameraPermissionOverlay, SafeScannerBoundary } from '@/components/camera';
 
 interface PaymentScannerViewportProps {
   scannerContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -55,27 +50,34 @@ export function PaymentScannerViewport({
           paymentType === 'BOOKLET' ? 'ring-purple-100' : 'ring-primary-100'
         }`}
       >
-        <Scanner
-          key={cameraKey}
-          onScan={onScan}
-          onError={onError}
-          formats={['qr_code']}
-          startTimeoutMs={30000}
-          constraints={{
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+        <SafeScannerBoundary
+          onRetry={() => {
+            setCameraError(null);
+            setCameraKey((prev) => prev + 1);
           }}
-          styles={{
-            container: { width: '100%', height: '100%', position: 'relative' },
-            video: {
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-            },
-          }}
-        />
+        >
+          <Scanner
+            key={cameraKey}
+            onScan={onScan}
+            onError={onError}
+            formats={['qr_code']}
+            startTimeoutMs={30000}
+            constraints={{
+              facingMode: { ideal: facingMode },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            }}
+            styles={{
+              container: { width: '100%', height: '100%', position: 'relative' },
+              video: {
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+              },
+            }}
+          />
+        </SafeScannerBoundary>
 
         <button
           onClick={() => {

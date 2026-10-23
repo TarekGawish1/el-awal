@@ -1,12 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import dynamic from 'next/dynamic';
-
-const Scanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
-  { ssr: false }
-);
+import { Scanner } from '@yudiel/react-qr-scanner';
+import { SafeScannerBoundary } from '@/components/camera';
 import { X, QrCode, CheckCircle2, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { useEnrollByQrToken } from '../hooks/useCourses';
 import toast from 'react-hot-toast';
@@ -103,20 +99,22 @@ export function CourseQrEnrollModal({
 
           {/* Scanner Viewport */}
           <div className="relative aspect-square w-full max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-primary-500 bg-black shadow-inner">
-            <Scanner
-              onScan={handleScan}
-              startTimeoutMs={30000}
-              formats={['qr_code']}
-              constraints={{
-                facingMode: { ideal: 'environment' },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              }}
-              styles={{
-                container: { width: '100%', height: '100%', position: 'relative' },
-                video: { width: '100%', height: '100%', objectFit: 'cover' },
-              }}
-            />
+            <SafeScannerBoundary>
+              <Scanner
+                onScan={handleScan}
+                startTimeoutMs={30000}
+                formats={['qr_code']}
+                constraints={{
+                  facingMode: { ideal: 'environment' },
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                }}
+                styles={{
+                  container: { width: '100%', height: '100%', position: 'relative' },
+                  video: { width: '100%', height: '100%', objectFit: 'cover' },
+                }}
+              />
+            </SafeScannerBoundary>
 
             {enrollMutation.isPending && (
               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-2">

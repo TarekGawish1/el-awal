@@ -1,14 +1,10 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import { RefreshCcw, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
-
-const Scanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
-  { ssr: false }
-);
+import { SafeScannerBoundary } from '@/components/camera';
 
 interface HomeworkScannerViewportProps {
   cameraKey: number;
@@ -39,36 +35,38 @@ export function HomeworkScannerViewport({
           : 'ring-emerald-100'
       }`}
     >
-      <Scanner
-        key={cameraKey}
-        onScan={onScan}
-        onError={(err: any) => {
-          const msg = err?.message || '';
-          if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
-            initQrDetector();
-          } else if (msg.includes('timed out') || msg.includes('timeout')) {
-            console.warn('Camera stream startup delay - waiting for camera warmup');
-          }
-        }}
-        paused={locked}
-        scanDelay={350}
-        startTimeoutMs={30000}
-        formats={['qr_code']}
-        constraints={{
-          facingMode: { ideal: facingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        }}
-        styles={{
-          container: { width: '100%', height: '100%', position: 'relative' },
-          video: {
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-          },
-        }}
-      />
+      <SafeScannerBoundary>
+        <Scanner
+          key={cameraKey}
+          onScan={onScan}
+          onError={(err: any) => {
+            const msg = err?.message || '';
+            if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
+              initQrDetector();
+            } else if (msg.includes('timed out') || msg.includes('timeout')) {
+              console.warn('Camera stream startup delay - waiting for camera warmup');
+            }
+          }}
+          paused={locked}
+          scanDelay={350}
+          startTimeoutMs={30000}
+          formats={['qr_code']}
+          constraints={{
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          }}
+          styles={{
+            container: { width: '100%', height: '100%', position: 'relative' },
+            video: {
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+            },
+          }}
+        />
+      </SafeScannerBoundary>
 
       {/* Camera Switch & Reload Button */}
       <button

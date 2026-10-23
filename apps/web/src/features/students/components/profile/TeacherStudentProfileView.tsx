@@ -14,15 +14,8 @@ import { StudentProfileHeader } from './StudentProfileHeader';
 import { StudentLedgerCard } from './StudentLedgerCard';
 import { StudentRelationsCards } from './StudentRelationsCards';
 
-const StudentHistoryModal = dynamic(
-  () => import('@/features/finance/components/StudentHistoryModal').then((mod) => mod.StudentHistoryModal),
-  { ssr: false }
-);
-
-const CancelPaymentModal = dynamic(
-  () => import('@/features/finance/components/CancelPaymentModal').then((mod) => mod.CancelPaymentModal),
-  { ssr: false }
-);
+import { StudentHistoryModal } from '@/features/finance/components/StudentHistoryModal';
+import { CancelPaymentModal } from '@/features/finance/components/CancelPaymentModal';
 
 interface TeacherStudentProfileViewProps {
   studentId: string;

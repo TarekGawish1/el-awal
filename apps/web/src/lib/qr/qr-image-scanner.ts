@@ -1,8 +1,10 @@
 'use client';
 
+import { BarcodeDetector as PonyfillBarcodeDetector } from 'barcode-detector/ponyfill';
+
 /**
  * Scans a QR code from a File or Blob image.
- * Uses native browser BarcodeDetector if available, falling back to barcode-detector ponyfill.
+ * Uses native browser BarcodeDetector if available, falling back to the bundled barcode-detector ponyfill.
  */
 export async function scanQrFromImageFile(file: File | Blob): Promise<string> {
   if (!file) {
@@ -10,20 +12,10 @@ export async function scanQrFromImageFile(file: File | Blob): Promise<string> {
   }
 
   try {
-    let DetectorClass: any =
+    const DetectorClass: any =
       typeof window !== 'undefined' && (window as any).BarcodeDetector
         ? (window as any).BarcodeDetector
-        : null;
-
-    if (!DetectorClass) {
-      try {
-        // @ts-ignore
-        const ponyfill: any = await import('barcode-detector/ponyfill');
-        DetectorClass = ponyfill?.BarcodeDetector || ponyfill?.default?.BarcodeDetector;
-      } catch (errPony) {
-        console.warn('BarcodeDetector ponyfill load failed:', errPony);
-      }
-    }
+        : PonyfillBarcodeDetector;
 
     if (!DetectorClass) {
       throw new Error('خاصية مسح الرمز من الصور غير مدعومة في هذا المتصفح. يرجى مسح الرمز عبر الكاميرا المباشرة.');
@@ -42,7 +34,7 @@ export async function scanQrFromImageFile(file: File | Blob): Promise<string> {
           URL.revokeObjectURL(url);
           resolve(img);
         };
-        img.onerror = (err) => {
+        img.onerror = () => {
           URL.revokeObjectURL(url);
           reject(new Error('فشل تحميل الصورة المحددة.'));
         };
