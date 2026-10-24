@@ -113,6 +113,49 @@ describe('AuthVerificationService', () => {
       expect(mockPrismaService.authVerificationToken.create).not.toHaveBeenCalled();
     });
 
+    it('should return identical 200 OK response when WhatsApp number is not registered (no leak via 400)', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockWhatsAppService.sendTrackedProtectedMessage.mockResolvedValueOnce({ outcome: 'not_registered' });
+
+      const result = await service.requestLoginOtp('01098765432');
+
+      expect(result).toEqual({
+        success: true,
+        message: 'تم إرسال رمز التحقق إلى رقم الواتساب الخاص بك بنجاح',
+        cooldownSeconds: 60,
+      });
+      expect(mockWhatsAppService.sendTrackedProtectedMessage).toHaveBeenCalled();
+    });
+
+    it('should return identical 200 OK response when WhatsApp gateway is disconnected (no leak via 503)', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockWhatsAppService.sendTrackedProtectedMessage.mockResolvedValueOnce({
+        outcome: 'not_connected',
+        failureReason: 'Socket closed',
+      });
+
+      const result = await service.requestLoginOtp('01098765432');
+
+      expect(result).toEqual({
+        success: true,
+        message: 'تم إرسال رمز التحقق إلى رقم الواتساب الخاص بك بنجاح',
+        cooldownSeconds: 60,
+      });
+    });
+
+    it('should return identical 200 OK response when WhatsApp gateway encounters internal error or throws', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockWhatsAppService.sendTrackedProtectedMessage.mockRejectedValueOnce(new Error('Gateway network crash'));
+
+      const result = await service.requestLoginOtp('01098765432');
+
+      expect(result).toEqual({
+        success: true,
+        message: 'تم إرسال رمز التحقق إلى رقم الواتساب الخاص بك بنجاح',
+        cooldownSeconds: 60,
+      });
+    });
+
     it('should normalize response for non-existing plausible student code (SEC-16)', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null);
       mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
@@ -251,6 +294,32 @@ describe('AuthVerificationService', () => {
           }),
         }),
       );
+    });
+
+    it('should return identical 200 OK response for password reset when WhatsApp is not registered', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockWhatsAppService.sendTrackedProtectedMessage.mockResolvedValueOnce({ outcome: 'not_registered' });
+
+      const result = await service.requestPasswordReset('01098765432');
+
+      expect(result).toEqual({
+        success: true,
+        message: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى رقم الواتساب الخاص بك',
+        cooldownSeconds: 60,
+      });
+    });
+
+    it('should return identical 200 OK response for password reset when WhatsApp is disconnected or errors', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockWhatsAppService.sendTrackedProtectedMessage.mockResolvedValueOnce({ outcome: 'not_connected' });
+
+      const result = await service.requestPasswordReset('01098765432');
+
+      expect(result).toEqual({
+        success: true,
+        message: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى رقم الواتساب الخاص بك',
+        cooldownSeconds: 60,
+      });
     });
 
     it('should confirm password reset, update user passwordHash and revoke refresh sessions', async () => {

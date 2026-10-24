@@ -109,25 +109,6 @@ export class AuthVerificationService implements OnModuleInit {
       expiresInMinutes: 5,
     });
 
-    // Anti-ban WhatsApp dispatch
-    const sendResult = await this.whatsappService.sendTrackedProtectedMessage(normalizedPhone, messageText);
-
-    if (sendResult.outcome === 'not_registered') {
-      throw new BadRequestException('رقم الهاتف غير مسجل على تطبيق واتساب');
-    }
-
-    if (sendResult.outcome === 'not_connected') {
-      const isDev = process.env.NODE_ENV !== 'production';
-      if (isDev) {
-        this.logger.warn(`⚠️ [DEV WhatsApp Sim] OTP for ${normalizedPhone} (${user.fullName}): [ ${code} ]`);
-      } else {
-        throw new ServiceUnavailableException('بوابة إرسال رسائل الواتساب غير متصلة حالياً، يرجى المحاولة بعد قليل أو الدخول بكلمة المرور');
-      }
-    } else if (sendResult.outcome === 'error') {
-      this.logger.error(`Failed to dispatch OTP message to ${normalizedPhone}: ${sendResult.failureReason}`);
-      throw new ServiceUnavailableException('تعذر إرسال رمز التحقق عبر واتساب حالياً. يرجى المحاولة لاحقاً');
-    }
-
     // Invalidate prior unused OTPs for this phone and identifier
     await this.prisma.authVerificationToken.updateMany({
       where: {
@@ -149,6 +130,10 @@ export class AuthVerificationService implements OnModuleInit {
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       },
     });
+
+    // Asynchronous background dispatch - decouples HTTP response from WhatsApp gateway state
+    // and eliminates timing / delivery failure side-channels (SEC-16)
+    void this.dispatchOtpInBackground(normalizedPhone, messageText, user.fullName, code);
 
     return {
       success: true,
@@ -285,25 +270,6 @@ export class AuthVerificationService implements OnModuleInit {
       expiresInMinutes: 15,
     });
 
-    // Anti-ban WhatsApp dispatch
-    const sendResult = await this.whatsappService.sendTrackedProtectedMessage(normalizedPhone, messageText);
-
-    if (sendResult.outcome === 'not_registered') {
-      throw new BadRequestException('رقم الهاتف غير مسجل على تطبيق واتساب');
-    }
-
-    if (sendResult.outcome === 'not_connected') {
-      const isDev = process.env.NODE_ENV !== 'production';
-      if (isDev) {
-        this.logger.warn(`⚠️ [DEV WhatsApp Sim] Password Reset Link for ${normalizedPhone}: [ ${resetUrl} ]`);
-      } else {
-        throw new ServiceUnavailableException('بوابة إرسال رسائل الواتساب غير متصلة حالياً، يرجى المحاولة بعد قليل');
-      }
-    } else if (sendResult.outcome === 'error') {
-      this.logger.error(`Failed to dispatch reset link to ${normalizedPhone}: ${sendResult.failureReason}`);
-      throw new ServiceUnavailableException('تعذر إرسال رابط الاستعادة عبر واتساب حالياً. يرجى المحاولة لاحقاً');
-    }
-
     // Invalidate prior unused reset tokens
     await this.prisma.authVerificationToken.updateMany({
       where: {
@@ -325,6 +291,10 @@ export class AuthVerificationService implements OnModuleInit {
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
       },
     });
+
+    // Asynchronous background dispatch - decouples HTTP response from WhatsApp gateway state
+    // and eliminates timing / delivery failure side-channels (SEC-16)
+    void this.dispatchResetInBackground(normalizedPhone, messageText, user.fullName, resetUrl);
 
     return {
       success: true,
@@ -409,5 +379,67 @@ export class AuthVerificationService implements OnModuleInit {
       success: true,
       message: 'تم تعيين كلمة المرور الجديدة بنجاح. يمكنك الآن تسجيل الدخول بها.',
     };
+  }
+
+  /**
+   * Dispatches WhatsApp OTP message in the background, handling errors internally
+   * without affecting HTTP response or leaking gateway state (SEC-16).
+   */
+  async dispatchOtpInBackground(
+    phone: string,
+    message: string,
+    userName: string,
+    code: string,
+  ): Promise<void> {
+    try {
+      const sendResult = await this.whatsappService.sendTrackedProtectedMessage(phone, message);
+      if (sendResult.outcome === 'not_registered') {
+        this.logger.warn(`[AuthVerification] Recipient ${phone} (${userName}) is not registered on WhatsApp`);
+      } else if (sendResult.outcome === 'not_connected') {
+        const isDev = process.env.NODE_ENV !== 'production';
+        if (isDev) {
+          this.logger.warn(`⚠️ [DEV WhatsApp Sim] OTP for ${phone} (${userName}): [ ${code} ]`);
+        } else {
+          this.logger.warn(`[AuthVerification] WhatsApp gateway not connected for OTP delivery to ${phone}`);
+        }
+      } else if (sendResult.outcome === 'error') {
+        this.logger.error(`[AuthVerification] Failed to dispatch OTP to ${phone}: ${sendResult.failureReason}`);
+      } else {
+        this.logger.log(`[AuthVerification] OTP dispatched successfully to ${phone}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`[AuthVerification] Unexpected exception during OTP dispatch to ${phone}: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Dispatches WhatsApp password reset message in the background, handling errors internally
+   * without affecting HTTP response or leaking gateway state (SEC-16).
+   */
+  async dispatchResetInBackground(
+    phone: string,
+    message: string,
+    userName: string,
+    resetUrl: string,
+  ): Promise<void> {
+    try {
+      const sendResult = await this.whatsappService.sendTrackedProtectedMessage(phone, message);
+      if (sendResult.outcome === 'not_registered') {
+        this.logger.warn(`[AuthVerification] Recipient ${phone} (${userName}) is not registered on WhatsApp for password reset`);
+      } else if (sendResult.outcome === 'not_connected') {
+        const isDev = process.env.NODE_ENV !== 'production';
+        if (isDev) {
+          this.logger.warn(`⚠️ [DEV WhatsApp Sim] Password Reset Link for ${phone}: [ ${resetUrl} ]`);
+        } else {
+          this.logger.warn(`[AuthVerification] WhatsApp gateway not connected for password reset delivery to ${phone}`);
+        }
+      } else if (sendResult.outcome === 'error') {
+        this.logger.error(`[AuthVerification] Failed to dispatch password reset to ${phone}: ${sendResult.failureReason}`);
+      } else {
+        this.logger.log(`[AuthVerification] Password reset link dispatched successfully to ${phone}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`[AuthVerification] Unexpected exception during password reset dispatch to ${phone}: ${err?.message}`);
+    }
   }
 }
