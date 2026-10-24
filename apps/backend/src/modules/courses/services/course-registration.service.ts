@@ -14,6 +14,7 @@ import {
 import { CourseEnrollmentStatus, CourseAccessStatus, UserRole } from '@prisma/client';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
@@ -52,7 +53,7 @@ export class CourseRegistrationService {
     const studentPhone = normalizeEgyptianPhone(dto.phone);
     const parentPhone = normalizeEgyptianPhone(dto.parentPhone);
 
-    const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!';
+    const generatedPassword = generateSecurePassword(10);
     const passwordHash = await bcrypt.hash(generatedPassword, 10);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -82,6 +83,8 @@ export class CourseRegistrationService {
                 academicStage:
                   dto.academicStage || course.academicStage || 'SECONDARY',
                 emergencyPhone: parentPhone,
+                tempAccessPin: generatedPassword,
+                pinExpiresAt: getTemporaryPinExpiration(48),
               },
             },
           },

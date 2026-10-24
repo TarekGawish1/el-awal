@@ -8,6 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CoursesService } from '../../courses/services/courses.service';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { UnifiedSyncBatchDto } from '../dto/sync-batch.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { SyncAttendanceService } from './sync-attendance.service';
@@ -215,7 +216,8 @@ export class SyncStudentsService {
               if (s.type === 'UPDATE_STUDENT') {
                 throw new NotFoundException(`Student [${s.clientTempId}] not found for update`);
               }
-              const passwordHash = await bcrypt.hash(s.password || 'Password123!', 10);
+              const studentPassword = s.password?.trim() || generateSecurePassword(8);
+              const passwordHash = await bcrypt.hash(studentPassword, 10);
               const userRecord = await tx.user.create({
                 data: {
                   id: studentIdForDb,
@@ -240,6 +242,8 @@ export class SyncStudentsService {
                   academicStage: s.academicStage,
                   academicStatus: 'ACTIVE',
                   emergencyPhone: s.parentPhone,
+                  tempAccessPin: s.password?.trim() ? null : studentPassword,
+                  pinExpiresAt: s.password?.trim() ? null : getTemporaryPinExpiration(48),
                 },
               });
 
@@ -253,7 +257,8 @@ export class SyncStudentsService {
                 });
 
                 if (!parentUser) {
-                  const parentPasswordHash = await bcrypt.hash('Parent123!', 10);
+                  const parentTempPassword = generateSecurePassword(8);
+                  const parentPasswordHash = await bcrypt.hash(parentTempPassword, 10);
                   parentUser = await tx.user.create({
                     data: {
                       fullName: s.parentName || `ولي أمر ${studentFullName}`,

@@ -8,7 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
@@ -90,8 +90,17 @@ export class AuthVerificationService implements OnModuleInit {
 
     await this.phoneResolver.checkAndRecordRateLimit(normalizedPhone, 'OTP');
 
-    // 6-digit numeric OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    if (!user) {
+      this.logger.log('[Anti-Enumeration] Login OTP requested for non-existing identifier');
+      return {
+        success: true,
+        message: 'تم إرسال رمز التحقق إلى رقم الواتساب الخاص بك بنجاح',
+        cooldownSeconds: 60,
+      };
+    }
+
+    // 6-digit numeric OTP generated via cryptographically secure randomInt (SEC-10)
+    const code = randomInt(100000, 1000000).toString();
     const tokenHash = this.hashToken(code);
 
     const messageText = formatLoginOtpMessage({
@@ -253,6 +262,15 @@ export class AuthVerificationService implements OnModuleInit {
       await this.phoneResolver.resolveTargetUserAndPhone(rawPhone, role);
 
     await this.phoneResolver.checkAndRecordRateLimit(normalizedPhone, 'RESET');
+
+    if (!user) {
+      this.logger.log('[Anti-Enumeration] Password reset requested for non-existing identifier');
+      return {
+        success: true,
+        message: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى رقم الواتساب الخاص بك',
+        cooldownSeconds: 60,
+      };
+    }
 
     // Cryptographically secure 32-byte hex token
     const rawToken = randomBytes(32).toString('hex');

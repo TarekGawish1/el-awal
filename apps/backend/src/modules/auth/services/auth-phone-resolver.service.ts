@@ -238,6 +238,8 @@ export class AuthPhoneResolverService {
           student?.user?.phone;
         if (candidate && isEgyptianPhone(candidate)) {
           normalizedPhone = normalizeEgyptianPhone(candidate);
+        } else if (this.isPlausibleStudentCode(trimmed)) {
+          normalizedPhone = trimmed.toUpperCase();
         } else {
           throw new BadRequestException(
             'يرجى إدخال رقم هاتف محمول مصري صحيح (مثال: 01012345678) أو كود طالب مسجل به رقم هاتف',
@@ -246,10 +248,11 @@ export class AuthPhoneResolverService {
       }
     }
 
-    if (!user) {
-      throw new NotFoundException('البيانات المدخلة غير مسجلة لدينا في أي حساب نشط');
-    }
-
     return { normalizedPhone, user, trimmed };
+  }
+
+  private isPlausibleStudentCode(code: string): boolean {
+    const clean = (code || '').trim().toUpperCase();
+    return clean.startsWith('STU') && clean.length >= 6 && clean.length <= 30;
   }
 }

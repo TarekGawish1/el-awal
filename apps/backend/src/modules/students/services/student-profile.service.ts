@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { generateSecurePassword } from '../../../common/utils/password.util';
 import { UpdateStudentDto } from '../dto/update-student.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import {
@@ -116,7 +117,8 @@ export class StudentProfileService {
             });
           }
         } else if (dto.parentPhone) {
-          const parentPasswordHash = await bcrypt.hash('Parent123!', 10);
+          const parentTempPassword = generateSecurePassword(8);
+          const parentPasswordHash = await bcrypt.hash(parentTempPassword, 10);
           const parentUser = await tx.user.create({
             data: {
               fullName:
