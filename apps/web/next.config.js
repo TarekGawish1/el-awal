@@ -179,7 +179,7 @@ const nextConfig = {
         ],
       },
       {
-        source: '/about-us/:path*',
+        source: '/about-us-v2/:path*',
         headers: [
           {
             key: 'Cache-Control',
