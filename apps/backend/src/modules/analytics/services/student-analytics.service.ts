@@ -68,7 +68,7 @@ export class StudentAnalyticsService {
       ];
     }
 
-    // Aggregate sessions for students or parents
+    // Aggregate sessions for students or parents (order chronologically to cluster distinct visits)
     const sessions = await this.prisma.userSession.findMany({
       where,
       select: {
@@ -79,7 +79,7 @@ export class StudentAnalyticsService {
         city: true,
         country: true,
       },
-      orderBy: { lastActiveAt: "desc" },
+      orderBy: { startedAt: "asc" },
     });
 
     const studentMap = new Map<
@@ -87,17 +87,21 @@ export class StudentAnalyticsService {
       {
         totalDuration: number;
         sessionsCount: number;
+        lastClusterEndTime: number;
         lastActive: Date;
         city: string;
         country: string;
       }
     >();
 
+    const SESSION_INACTIVITY_GAP_MS = 30 * 60 * 1000;
+
     for (const s of sessions) {
       if (!studentMap.has(s.userId)) {
         studentMap.set(s.userId, {
           totalDuration: 0,
           sessionsCount: 0,
+          lastClusterEndTime: 0,
           lastActive: s.lastActiveAt || s.startedAt,
           city: s.city || "غير محدد",
           country: s.country || "مصر",
@@ -105,9 +109,20 @@ export class StudentAnalyticsService {
       }
       const agg = studentMap.get(s.userId)!;
       agg.totalDuration += s.durationSeconds;
-      agg.sessionsCount += 1;
+
+      const startTime = s.startedAt.getTime();
+      const endTime = (s.lastActiveAt || s.startedAt).getTime();
+
+      // If gap since last activity exceeds 30 minutes, this starts a new genuine visit/session
+      if (startTime - agg.lastClusterEndTime > SESSION_INACTIVITY_GAP_MS) {
+        agg.sessionsCount += 1;
+      }
+      agg.lastClusterEndTime = Math.max(agg.lastClusterEndTime, endTime);
+
       if (s.lastActiveAt && s.lastActiveAt > agg.lastActive) {
         agg.lastActive = s.lastActiveAt;
+        if (s.city) agg.city = s.city;
+        if (s.country) agg.country = s.country;
       }
     }
 

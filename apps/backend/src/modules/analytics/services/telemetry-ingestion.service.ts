@@ -234,6 +234,26 @@ export class TelemetryIngestionService implements OnModuleInit, OnModuleDestroy 
     const effectiveTenantId =
       dto.tenantId || (await this.resolveUserTenantId(userId));
 
+    // Reuse existing active session if user was active within the standard 30-minute window
+    if (typeof this.prisma.userSession.findFirst === "function") {
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const recentSession = await this.prisma.userSession.findFirst({
+        where: {
+          userId,
+          lastActiveAt: { gte: thirtyMinutesAgo },
+        },
+        orderBy: { lastActiveAt: "desc" },
+      });
+
+      if (recentSession) {
+        return {
+          sessionId: recentSession.id,
+          country: recentSession.country || geo.country,
+          city: recentSession.city || geo.city,
+        };
+      }
+    }
+
     const session = await this.prisma.userSession.create({
       data: {
         userId,

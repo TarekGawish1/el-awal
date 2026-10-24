@@ -23,6 +23,14 @@ export function useActivityTracker() {
 
     // 1. Start User Session on mount with geo hint and device visitorId
     const initSession = async () => {
+      // Check if session ID already exists in this browser tab's sessionStorage
+      const existingSessionId = typeof window !== 'undefined' ? sessionStorage.getItem('elawal_session_id') : null;
+      if (existingSessionId) {
+        sessionIdRef.current = existingSessionId;
+        lastPingTimeRef.current = Date.now();
+        return;
+      }
+
       let geoHint = getCachedGeoHint();
       if (!geoHint) {
         geoHint = await getClientGeoHint();
@@ -40,6 +48,9 @@ export function useActivityTracker() {
         if (isMounted && res?.sessionId) {
           sessionIdRef.current = res.sessionId;
           lastPingTimeRef.current = Date.now();
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('elawal_session_id', res.sessionId);
+          }
         }
       } catch {
         // Telemetry failure is intentionally silent
@@ -100,5 +111,5 @@ export function useActivityTracker() {
       window.removeEventListener('beforeunload', handleUnload);
       handleUnload();
     };
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user?.id]);
 }
