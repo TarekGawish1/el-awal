@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React, { useTransition, useRef } from 'react';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { toast } from 'react-hot-toast';
-import { submitContactMessage } from '@/app/actions';
+import React, { useTransition, useRef } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { toast } from "react-hot-toast";
+import { submitContactMessage } from "@/app/actions";
 
 function ContactForm() {
   const [isPending, startTransition] = React.useTransition();
@@ -88,7 +88,10 @@ function ContactForm() {
       </button>
       <p className="text-[11px] text-slate-500 leading-relaxed text-center pt-1">
         بإرسال رسالتك، فإنك تؤكد موافقتك على{" "}
-        <Link href="/privacy" className="text-indigo-600 hover:underline font-bold">
+        <Link
+          href="/privacy"
+          className="text-indigo-600 hover:underline font-bold"
+        >
           سياسة الخصوصية
         </Link>{" "}
         واستخدام بياناتك للرد على استفسارك والتواصل معك.
@@ -233,4 +236,4 @@ export function ContactUsSection() {
       </div>
     </section>
   );
-}
+}
