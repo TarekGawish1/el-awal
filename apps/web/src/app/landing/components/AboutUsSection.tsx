@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 
 const ABOUT_IMAGE_COUNT = 32;
 const ABOUT_IMAGE_DURATION_MS = 3500;
-const ABOUT_IMAGE_BASE_URL = "/about-us";
+const ABOUT_IMAGE_BASE_URL = "/about-us-v2";
 
 // In-memory cache of loaded frames across component re-renders
 const loadedImageCache = new Map<number, HTMLImageElement>();
