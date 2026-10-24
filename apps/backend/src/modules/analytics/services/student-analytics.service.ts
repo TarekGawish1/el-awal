@@ -29,11 +29,44 @@ export class StudentAnalyticsService {
 
     const where: any = {
       startedAt: { gte: startDate, lte: endDate },
-      ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
       user: {
         role: targetRole,
       },
     };
+
+    if (effectiveTenantId) {
+      where.OR = [
+        { tenantId: effectiveTenantId },
+        {
+          user: {
+            role: targetRole,
+            ...(targetRole === UserRole.STUDENT
+              ? {
+                  studentProfile: {
+                    OR: [
+                      { groupEnrollments: { some: { group: { teacherId: effectiveTenantId } } } },
+                      { courseEnrollments: { some: { course: { teacherId: effectiveTenantId } } } },
+                    ],
+                  },
+                }
+              : {
+                  parentProfile: {
+                    studentLinks: {
+                      some: {
+                        student: {
+                          OR: [
+                            { groupEnrollments: { some: { group: { teacherId: effectiveTenantId } } } },
+                            { courseEnrollments: { some: { course: { teacherId: effectiveTenantId } } } },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                }),
+          },
+        },
+      ];
+    }
 
     // Aggregate sessions for students or parents
     const sessions = await this.prisma.userSession.findMany({

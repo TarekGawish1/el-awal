@@ -21,6 +21,7 @@ export class TelemetryIngestionService implements OnModuleInit, OnModuleDestroy 
   private readonly BUFFER_CAP = 1000;
 
   private readonly userRoleCache = new Map<string, { role: UserRole; expiresAt: number }>();
+  private readonly userTenantCache = new Map<string, { tenantId: string | null; expiresAt: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -175,6 +176,11 @@ export class TelemetryIngestionService implements OnModuleInit, OnModuleDestroy 
         });
       }
 
+      let effectiveTenantId = params.tenantId || null;
+      if (!effectiveTenantId && params.userId) {
+        effectiveTenantId = await this.resolveUserTenantId(params.userId);
+      }
+
       if (this.pageViewBuffer.length < this.BUFFER_CAP) {
         this.pageViewBuffer.push({
           path: (params.path || "/").slice(0, 500),
@@ -182,7 +188,7 @@ export class TelemetryIngestionService implements OnModuleInit, OnModuleDestroy 
           userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
           visitorHash,
           isLandingPage: isLanding,
-          tenantId: params.tenantId || null,
+          tenantId: effectiveTenantId,
           userId: params.userId || null,
           metadata: {
             ...(params.metadata || {}),
@@ -225,10 +231,13 @@ export class TelemetryIngestionService implements OnModuleInit, OnModuleDestroy 
       country: dto.country,
     });
 
+    const effectiveTenantId =
+      dto.tenantId || (await this.resolveUserTenantId(userId));
+
     const session = await this.prisma.userSession.create({
       data: {
         userId,
-        tenantId: dto.tenantId || null,
+        tenantId: effectiveTenantId,
         startedAt: new Date(),
         lastActiveAt: new Date(),
         durationSeconds: 0,
@@ -292,6 +301,91 @@ export class TelemetryIngestionService implements OnModuleInit, OnModuleDestroy 
         `Failed to ping session ${dto.sessionId}: ${err?.message}`,
       );
       return { success: false, totalDurationSeconds: 0 };
+    }
+  }
+
+  public async resolveUserTenantId(userId: string): Promise<string | null> {
+    if (!userId) return null;
+    const now = Date.now();
+    const cached = this.userTenantCache.get(userId);
+    if (cached && cached.expiresAt > now) {
+      return cached.tenantId;
+    }
+
+    try {
+      if (typeof this.prisma.user?.findUnique !== 'function') return null;
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          role: true,
+          teacherProfile: { select: { id: true } },
+          studentProfile: {
+            select: {
+              groupEnrollments: {
+                where: { status: 'ACTIVE' },
+                take: 1,
+                select: { group: { select: { teacherId: true } } },
+              },
+              courseEnrollments: {
+                where: { status: 'ACTIVE' },
+                take: 1,
+                select: { course: { select: { teacherId: true } } },
+              },
+            },
+          },
+          parentProfile: {
+            select: {
+              studentLinks: {
+                take: 1,
+                select: {
+                  student: {
+                    select: {
+                      groupEnrollments: {
+                        where: { status: 'ACTIVE' },
+                        take: 1,
+                        select: { group: { select: { teacherId: true } } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      let resolvedTenantId: string | null = null;
+      if (user?.role === UserRole.TEACHER) {
+        resolvedTenantId = user.teacherProfile?.id || userId;
+      } else if (user?.role === UserRole.STUDENT) {
+        resolvedTenantId =
+          user.studentProfile?.groupEnrollments?.[0]?.group?.teacherId ||
+          user.studentProfile?.courseEnrollments?.[0]?.course?.teacherId ||
+          null;
+      } else if (user?.role === UserRole.PARENT) {
+        resolvedTenantId =
+          user.parentProfile?.studentLinks?.[0]?.student?.groupEnrollments?.[0]?.group?.teacherId ||
+          null;
+      }
+
+      if (!resolvedTenantId && typeof this.prisma.teacherProfile?.findFirst === 'function') {
+        const defaultTeacher = await this.prisma.teacherProfile.findFirst({
+          select: { id: true },
+        });
+        if (defaultTeacher) {
+          resolvedTenantId = defaultTeacher.id;
+        }
+      }
+
+      this.userTenantCache.set(userId, {
+        tenantId: resolvedTenantId,
+        expiresAt: now + 30 * 60 * 1000,
+      });
+
+      return resolvedTenantId;
+    } catch {
+      return null;
     }
   }
 

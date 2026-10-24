@@ -3,7 +3,11 @@ import { PrismaService } from "../../../core/database/prisma.service";
 import { GeoLocationService } from "./geo-location.service";
 import { VisitorListQueryDto } from "../dto/analytics.dto";
 import { VisitorListResponse } from "../types/analytics.types";
-import { resolveDateRange, getExcludedTeacherHashes } from "../helpers/analytics-date.helper";
+import {
+  resolveDateRange,
+  getExcludedTeacherHashes,
+  buildTenantTelemetryCondition,
+} from "../helpers/analytics-date.helper";
 import {
   formatDurationArabic,
   calculateTotalActiveDuration,
@@ -39,20 +43,21 @@ export class VisitorAnalyticsService {
 
     let scopeCondition: any = {};
     const effectiveTenantId = query.tenantId || userTenantId;
+    const tenantCondition = buildTenantTelemetryCondition(effectiveTenantId);
 
     if (scope === "landing") {
       scopeCondition = { isLandingPage: true };
     } else if (scope === "system") {
       scopeCondition = {
         isLandingPage: false,
-        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+        ...tenantCondition,
       };
     } else {
       if (effectiveTenantId) {
         scopeCondition = {
           OR: [
             { isLandingPage: true },
-            { tenantId: effectiveTenantId, isLandingPage: false },
+            { isLandingPage: false, ...tenantCondition },
           ],
         };
       }

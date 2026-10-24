@@ -3,7 +3,11 @@ import { PrismaService } from "../../../core/database/prisma.service";
 import { GeoLocationService } from "./geo-location.service";
 import { GeoRankingQueryDto } from "../dto/analytics.dto";
 import { GeoRankingItem } from "../types/analytics.types";
-import { resolveDateRange, getExcludedTeacherHashes } from "../helpers/analytics-date.helper";
+import {
+  resolveDateRange,
+  getExcludedTeacherHashes,
+  buildTenantTelemetryCondition,
+} from "../helpers/analytics-date.helper";
 import { UserRole } from "@prisma/client";
 
 @Injectable()
@@ -88,16 +92,17 @@ export class GeoAnalyticsService {
 
     // 2. User Sessions & Platform Views (if scope is platform or all)
     if (scope === "platform" || scope === "all") {
+      const tenantCondition = buildTenantTelemetryCondition(effectiveTenantId);
       const sessionWhere: any = {
         startedAt: { gte: startDate, lte: endDate },
         user: { role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
-        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+        ...tenantCondition,
       };
 
       const pvWhere: any = {
         createdAt: { gte: startDate, lte: endDate },
         isLandingPage: false,
-        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+        ...tenantCondition,
         ...teacherExclusion,
       };
 

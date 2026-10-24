@@ -13,7 +13,11 @@ import {
   AnalyticsOverviewResponse,
   AnalyticsStatsResponse,
 } from "../types/analytics.types";
-import { resolveDateRange, getExcludedTeacherHashes } from "../helpers/analytics-date.helper";
+import {
+  resolveDateRange,
+  getExcludedTeacherHashes,
+  buildTenantTelemetryCondition,
+} from "../helpers/analytics-date.helper";
 import { buildTimeSeries, buildEnhancedDeviceBreakdown } from "../helpers/analytics-breakdown.helper";
 import { formatDurationArabic, calculateTotalActiveDuration } from "../helpers/visitor-analytics.helper";
 import { UserRole } from "@prisma/client";
@@ -125,20 +129,21 @@ export class DashboardOverviewService {
 
     let scopeCondition: any = {};
     const effectiveTenantId = query.tenantId || userTenantId;
+    const tenantCondition = buildTenantTelemetryCondition(effectiveTenantId);
 
     if (scope === "landing") {
       scopeCondition = { isLandingPage: true };
     } else if (scope === "system") {
       scopeCondition = {
         isLandingPage: false,
-        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+        ...tenantCondition,
       };
     } else {
       if (effectiveTenantId) {
         scopeCondition = {
           OR: [
             { isLandingPage: true },
-            { tenantId: effectiveTenantId, isLandingPage: false },
+            { isLandingPage: false, ...tenantCondition },
           ],
         };
       }
@@ -179,7 +184,7 @@ export class DashboardOverviewService {
     const systemWhere = {
       ...baseDateCondition,
       isLandingPage: false,
-      ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      ...tenantCondition,
       ...teacherExclusion,
     };
 
@@ -262,7 +267,7 @@ export class DashboardOverviewService {
       sessionUsers = await this.prisma.userSession.findMany({
         where: {
           startedAt: { gte: startDate, lte: endDate },
-          ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+          ...tenantCondition,
           user: {
             role: { in: [UserRole.STUDENT, UserRole.PARENT] },
           },

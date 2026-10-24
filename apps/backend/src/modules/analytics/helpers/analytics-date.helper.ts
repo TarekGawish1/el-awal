@@ -134,3 +134,46 @@ export async function getExcludedTeacherHashes(prisma: PrismaService): Promise<s
 
   return teacherPageViews.map((pv) => pv.visitorHash);
 }
+
+/**
+ * Builds Prisma where condition to match telemetry records belonging to a teacher tenant.
+ * Matches records explicitly tagged with tenantId, OR records belonging to enrolled students/parents.
+ */
+export function buildTenantTelemetryCondition(effectiveTenantId?: string): any {
+  if (!effectiveTenantId) return {};
+
+  return {
+    OR: [
+      { tenantId: effectiveTenantId },
+      {
+        user: {
+          OR: [
+            {
+              studentProfile: {
+                OR: [
+                  { groupEnrollments: { some: { group: { teacherId: effectiveTenantId } } } },
+                  { courseEnrollments: { some: { course: { teacherId: effectiveTenantId } } } },
+                ],
+              },
+            },
+            {
+              parentProfile: {
+                studentLinks: {
+                  some: {
+                    student: {
+                      OR: [
+                        { groupEnrollments: { some: { group: { teacherId: effectiveTenantId } } } },
+                        { courseEnrollments: { some: { course: { teacherId: effectiveTenantId } } } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
+
