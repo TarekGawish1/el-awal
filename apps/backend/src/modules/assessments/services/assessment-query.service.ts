@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
@@ -186,8 +186,18 @@ export class AssessmentQueryService {
             { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
           ];
         }
-      } else if (user.role === UserRole.TEACHER) {
-        const teacherId = user.teacherProfileId || user.id;
+      } else if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT) {
+        let teacherId = user.teacherProfileId || user.id;
+        if (user.role === UserRole.SECRETARIAT) {
+          const link = await this.prisma.teacherAssistant.findFirst({
+            where: { assistantId: user.id, status: 'ACTIVE' },
+            select: { teacherId: true },
+          });
+          if (!link) {
+            throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
+          }
+          teacherId = link.teacherId;
+        }
         where.teacherId = teacherId;
       }
 

@@ -6,8 +6,13 @@ describe('Assessment alerts', () => {
   it('dispatches a homework notification to every active group member', async () => {
     const dispatchToUsers = jest.fn().mockResolvedValue([]);
     const prisma: any = {
+      teacherAssistant: {
+        findFirst: jest.fn().mockResolvedValue({ teacherId: 'teacher-1' }),
+      },
       academicGroup: {
-        findUnique: jest.fn().mockResolvedValue({ name: 'مجموعة النحو' }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ teacherId: 'teacher-1', name: 'مجموعة النحو' }),
       },
       groupEnrollment: {
         findMany: jest.fn().mockResolvedValue([

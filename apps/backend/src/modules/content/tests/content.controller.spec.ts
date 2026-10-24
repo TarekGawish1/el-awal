@@ -5,7 +5,7 @@ import { UserRole } from '@prisma/client';
 import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
-describe('ContentController Student Upload and Folder Restriction', () => {
+describe('ContentController Student Upload and Deletion Ownership (SEC-03)', () => {
   let controller: ContentController;
   let contentService: Partial<ContentService>;
 
@@ -17,12 +17,27 @@ describe('ContentController Student Upload and Folder Restriction', () => {
     studentProfileId: 'stu-profile-1',
   };
 
+  const mockStudentBUser: AuthenticatedUser = {
+    id: 'user-stu-2',
+    email: 'student2@example.com',
+    fullName: 'Student User 2',
+    role: UserRole.STUDENT,
+    studentProfileId: 'stu-profile-2',
+  };
+
   const mockTeacherUser: AuthenticatedUser = {
     id: 'user-teach-1',
     email: 'teacher@example.com',
     fullName: 'Teacher User',
     role: UserRole.TEACHER,
     teacherProfileId: 'teach-profile-1',
+  };
+
+  const mockSecretariatUser: AuthenticatedUser = {
+    id: 'user-sec-1',
+    email: 'secretariat@example.com',
+    fullName: 'Secretariat User',
+    role: UserRole.SECRETARIAT,
   };
 
   const mockFile = {
@@ -46,6 +61,18 @@ describe('ContentController Student Upload and Folder Restriction', () => {
         uploadUrl: 'https://r2.el-awal.online/upload',
         fileKey: 'payment-receipts/key.png',
         publicUrl: 'https://r2.el-awal.online/payment-receipts/key.png',
+      }),
+      verifyStudentFileOwnership: jest.fn().mockImplementation(async (studentId, key, url) => {
+        const target = key || url || '';
+        // Mock ownership rule: files with 'student-1' or 'stu-profile-1' belong to mockStudentUser
+        if (target.includes('stu-profile-1') || target.includes('my-receipt.png') || target.includes('my-submission.pdf')) {
+          return studentId === 'stu-profile-1';
+        }
+        // Files belonging to Student B
+        if (target.includes('stu-profile-2') || target.includes('student-b-file.pdf')) {
+          return studentId === 'stu-profile-2';
+        }
+        return false;
       }),
     };
 
@@ -81,20 +108,101 @@ describe('ContentController Student Upload and Folder Restriction', () => {
     });
   });
 
-  describe('deleteUploadedFile (/content/file)', () => {
-    it('allows a student to delete their own uploaded file in payment-receipts', async () => {
+  describe('deleteUploadedFile (/content/file) — SEC-03 Requirements', () => {
+    it('1. allows Student A to delete their own verified file', async () => {
       const res = await controller.deleteUploadedFile(
         mockStudentUser,
-        'payment-receipts/receipt.png',
+        'payment-receipts/my-receipt.png',
       );
-      expect(contentService.deleteFileFromStorage).toHaveBeenCalled();
+      expect(contentService.verifyStudentFileOwnership).toHaveBeenCalledWith(
+        'stu-profile-1',
+        'payment-receipts/my-receipt.png',
+        undefined,
+      );
+      expect(contentService.deleteFileFromStorage).toHaveBeenCalledWith({
+        fileKey: 'payment-receipts/my-receipt.png',
+        fileUrl: undefined,
+      });
       expect(res.success).toBe(true);
     });
 
-    it('denies a student deleting files outside allowed student folders', async () => {
+    it('2. denies Student A requesting Student B file with 403 Forbidden', async () => {
       await expect(
-        controller.deleteUploadedFile(mockStudentUser, 'courses/lesson-video.mp4'),
+        controller.deleteUploadedFile(
+          mockStudentUser,
+          'homework-submissions/student-b-file.pdf',
+        ),
       ).rejects.toThrow(ForbiddenException);
+
+      // Verify that storage deletion was NEVER invoked
+      expect(contentService.deleteFileFromStorage).not.toHaveBeenCalled();
+    });
+
+    it('3. rejects nonexistent or unresolvable storage key for student with 403 Forbidden', async () => {
+      await expect(
+        controller.deleteUploadedFile(
+          mockStudentUser,
+          'homework-submissions/nonexistent-file.pdf',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(contentService.deleteFileFromStorage).not.toHaveBeenCalled();
+    });
+
+    it('4. rejects malformed storage key with path traversal (..) with 400 BadRequest', async () => {
+      await expect(
+        controller.deleteUploadedFile(
+          mockStudentUser,
+          'homework-submissions/../../etc/passwd',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(contentService.deleteFileFromStorage).not.toHaveBeenCalled();
+    });
+
+    it('5. rejects empty key and url with 400 BadRequest', async () => {
+      await expect(
+        controller.deleteUploadedFile(mockStudentUser, undefined, undefined),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(contentService.deleteFileFromStorage).not.toHaveBeenCalled();
+    });
+
+    it('6. denies student deleting files outside allowed student folders even if attempted', async () => {
+      await expect(
+        controller.deleteUploadedFile(
+          mockStudentUser,
+          'courses/teacher-lecture-video.mp4',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(contentService.deleteFileFromStorage).not.toHaveBeenCalled();
+    });
+
+    it('7. allows TEACHER to delete files without student ownership check', async () => {
+      const res = await controller.deleteUploadedFile(
+        mockTeacherUser,
+        'courses/lecture-materials.pdf',
+      );
+      expect(contentService.verifyStudentFileOwnership).not.toHaveBeenCalled();
+      expect(contentService.deleteFileFromStorage).toHaveBeenCalledWith({
+        fileKey: 'courses/lecture-materials.pdf',
+        fileUrl: undefined,
+      });
+      expect(res.success).toBe(true);
+    });
+
+    it('8. allows SECRETARIAT to delete files without student ownership check', async () => {
+      const res = await controller.deleteUploadedFile(
+        mockSecretariatUser,
+        'assessments/exam-questions.pdf',
+      );
+      expect(contentService.verifyStudentFileOwnership).not.toHaveBeenCalled();
+      expect(contentService.deleteFileFromStorage).toHaveBeenCalledWith({
+        fileKey: 'assessments/exam-questions.pdf',
+        fileUrl: undefined,
+      });
+      expect(res.success).toBe(true);
     });
   });
 

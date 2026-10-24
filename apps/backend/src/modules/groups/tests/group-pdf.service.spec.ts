@@ -15,6 +15,9 @@ describe('GroupPdfService', () => {
     groupEnrollment: {
       findMany: jest.fn(),
     },
+    teacherAssistant: {
+      findFirst: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -120,15 +123,39 @@ describe('GroupPdfService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('should allow secretariat to generate PDF even if not owner', async () => {
+    it('should allow authorized secretariat linked to group owner teacher to generate PDF', async () => {
       mockPrismaService.academicGroup.findUnique.mockResolvedValue(mockGroup);
       mockPrismaService.groupEnrollment.findMany.mockResolvedValue(mockEnrollments);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue({
+        teacherId: 'teacher-1',
+        status: 'ACTIVE',
+      });
 
       const buffer = await service.generateGroupQRCodesPdf('grp-1', 'secretariat-user', 'SECRETARIAT');
       expect(buffer).toBeInstanceOf(Buffer);
       expect(buffer.length).toBeGreaterThan(0);
-      // Valid PDF magic header %PDF-
       expect(buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+    });
+
+    it('should throw ForbiddenException if secretariat assistant belongs to another teacher', async () => {
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue(mockGroup);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue({
+        teacherId: 'other-teacher-99',
+        status: 'ACTIVE',
+      });
+
+      await expect(
+        service.generateGroupQRCodesPdf('grp-1', 'assistant-other-teacher', 'SECRETARIAT'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ForbiddenException if secretariat assistant has no active teacher link', async () => {
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue(mockGroup);
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.generateGroupQRCodesPdf('grp-1', 'unlinked-assistant', 'SECRETARIAT'),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should query active students ordered alphabetically by student.user.fullName', async () => {

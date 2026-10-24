@@ -85,25 +85,25 @@ export class AssessmentCrudService {
         ? AssessmentType.HOMEWORK
         : logicalType;
 
-    if (!isSecretariat) {
-      if (dto.groupId) {
-        const group = await this.prisma.academicGroup.findUnique({
-          where: { id: dto.groupId },
-        });
-        if (!group) throw new NotFoundException(`Group [${dto.groupId}] not found`);
-        if (group.teacherId !== teacherId) {
-          throw new ForbiddenException('You do not own this academic group');
-        }
-      }
+    const effectiveTeacherId = await this.resolveEffectiveTeacherId(teacherId, isSecretariat);
 
-      if (dto.courseId) {
-        const course = await this.prisma.course.findUnique({
-          where: { id: dto.courseId },
-        });
-        if (!course) throw new NotFoundException(`Course [${dto.courseId}] not found`);
-        if (course.teacherId !== teacherId) {
-          throw new ForbiddenException('You do not own this course');
-        }
+    if (dto.groupId) {
+      const group = await this.prisma.academicGroup.findUnique({
+        where: { id: dto.groupId },
+      });
+      if (!group) throw new NotFoundException(`Group [${dto.groupId}] not found`);
+      if (group.teacherId !== effectiveTeacherId) {
+        throw new ForbiddenException('You do not own this academic group');
+      }
+    }
+
+    if (dto.courseId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: dto.courseId },
+      });
+      if (!course) throw new NotFoundException(`Course [${dto.courseId}] not found`);
+      if (course.teacherId !== effectiveTeacherId) {
+        throw new ForbiddenException('You do not own this course');
       }
     }
 
@@ -214,7 +214,7 @@ export class AssessmentCrudService {
             : (dto.allowMultipleAttempts ?? false),
           isOptional: dto.isOptional ?? false,
           requirePassingScore: dto.requirePassingScore ?? false,
-          teacherId,
+          teacherId: effectiveTeacherId,
           targetGroups: dto.targetGroupIds?.length ? {
             connect: dto.targetGroupIds.map(id => ({ id }))
           } : undefined,
@@ -291,9 +291,12 @@ export class AssessmentCrudService {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
     }
 
-    if (!isSecretariat && assessment.teacherId !== teacherId) {
-      throw new ForbiddenException('You do not have permission to update this assessment');
-    }
+    await this.assertAssessmentAccess(
+      assessment.teacherId,
+      teacherId,
+      isSecretariat,
+      'You do not have permission to update this assessment',
+    );
 
     if (
       assessment._count.submissions > 0 &&
@@ -335,9 +338,12 @@ export class AssessmentCrudService {
       throw new NotFoundException('التقييم المطلوب غير موجود');
     }
 
-    if (!isSecretariat && assessment.teacherId !== teacherId) {
-      throw new ForbiddenException('غير مصرح لك بحذف هذا التقييم');
-    }
+    await this.assertAssessmentAccess(
+      assessment.teacherId,
+      teacherId,
+      isSecretariat,
+      'غير مصرح لك بحذف هذا التقييم',
+    );
 
     await deleteAssessmentCascade({
       prisma: this.prisma,
@@ -357,5 +363,37 @@ export class AssessmentCrudService {
       assessmentId,
       message: 'تم حذف الاختبار/الواجب بنجاح',
     };
+  }
+
+  private async resolveEffectiveTeacherId(
+    teacherId: string,
+    isSecretariat: boolean,
+  ): Promise<string> {
+    if (!isSecretariat) {
+      return teacherId;
+    }
+    const link = await this.prisma.teacherAssistant.findFirst({
+      where: { assistantId: teacherId, status: 'ACTIVE' },
+      select: { teacherId: true },
+    });
+    if (!link) {
+      throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
+    }
+    return link.teacherId;
+  }
+
+  private async assertAssessmentAccess(
+    assessmentTeacherId: string,
+    callerTeacherId: string,
+    isSecretariat: boolean,
+    forbiddenMessage: string,
+  ): Promise<void> {
+    const effectiveTeacherId = await this.resolveEffectiveTeacherId(
+      callerTeacherId,
+      isSecretariat,
+    );
+    if (assessmentTeacherId !== effectiveTeacherId) {
+      throw new ForbiddenException(forbiddenMessage);
+    }
   }
 }

@@ -10,10 +10,6 @@ export async function assertStudentAccess(
   allowStudent = true,
   allowParent = true,
 ) {
-  if (user.role === UserRole.SECRETARIAT) {
-    return;
-  }
-
   if (user.role === UserRole.STUDENT) {
     if (!allowStudent) {
       throw new ForbiddenException('Operation not permitted for student role');
@@ -44,8 +40,18 @@ export async function assertStudentAccess(
     return;
   }
 
-  if (user.role === UserRole.TEACHER) {
-    const teacherId = user.teacherProfileId || user.id;
+  if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT) {
+    let teacherId = user.teacherProfileId || user.id;
+    if (user.role === UserRole.SECRETARIAT) {
+      const link = await prisma.teacherAssistant.findFirst({
+        where: { assistantId: user.id, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      if (!link) {
+        throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
+      }
+      teacherId = link.teacherId;
+    }
 
     const enrolledInTeacherGroup = await prisma.groupEnrollment.findFirst({
       where: {

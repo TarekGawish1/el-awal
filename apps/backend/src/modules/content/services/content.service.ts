@@ -59,6 +59,78 @@ export class ContentService {
   }
 
   /**
+   * Verifies that a storage object (by fileKey or fileUrl) is authoritatively owned
+   * by the requesting student in PostgreSQL records or isolated student storage prefix.
+   */
+  async verifyStudentFileOwnership(
+    studentId: string,
+    fileKey?: string,
+    fileUrl?: string,
+  ): Promise<boolean> {
+    const key = fileKey?.trim();
+    const url = fileUrl?.trim();
+    const target = key || url || '';
+    if (!target) return false;
+
+    // Reject path traversal and control characters
+    if (target.includes('..') || target.includes('\0')) {
+      return false;
+    }
+
+    // Check isolated student upload staging folder
+    if (
+      target.startsWith(`uploads/students/${studentId}/`) ||
+      target.startsWith(`students/${studentId}/`)
+    ) {
+      return true;
+    }
+
+    const searchTargets = [key, url].filter(Boolean) as string[];
+
+    // 1. Check assessment submissions
+    const submission = await this.prisma.assessmentSubmission.findFirst({
+      where: {
+        OR: [
+          ...searchTargets.map((t) => ({ fileKey: t })),
+          ...searchTargets.map((t) => ({ attachmentUrl: t })),
+        ],
+      },
+      select: { studentId: true },
+    });
+    if (submission) {
+      return submission.studentId === studentId;
+    }
+
+    // 2. Check student essay answers
+    const answer = await this.prisma.studentAnswer.findFirst({
+      where: {
+        OR: searchTargets.map((t) => ({ selectedAnswer: t })),
+      },
+      select: {
+        submission: {
+          select: { studentId: true },
+        },
+      },
+    });
+    if (answer?.submission) {
+      return answer.submission.studentId === studentId;
+    }
+
+    // 3. Check course enrollment payment receipts
+    const enrollment = await this.prisma.courseEnrollment.findFirst({
+      where: {
+        OR: searchTargets.map((t) => ({ receiptImageUrl: t })),
+      },
+      select: { studentId: true },
+    });
+    if (enrollment) {
+      return enrollment.studentId === studentId;
+    }
+
+    return false;
+  }
+
+  /**
    * Registers educational asset metadata in the library attached to a teacher, gradeLevel, group, session, or lesson.
    */
   async createContent(teacherId: string, dto: CreateContentDto) {

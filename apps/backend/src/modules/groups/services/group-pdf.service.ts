@@ -127,9 +127,20 @@ export class GroupPdfService {
       throw new NotFoundException('المجموعة الدراسية غير موجودة.');
     }
 
-    // Access control: only owner teacher or secretariat/admin can generate PDF
-    if (userRole !== 'SECRETARIAT' && userRole !== 'SUPER_ADMIN' && group.teacherId !== teacherId) {
-      throw new ForbiddenException('غير مصرح لك بالوصول لبيانات هذه المجموعة.');
+    // Access control: only owner teacher, authorized secretariat for this teacher, or admin can generate PDF
+    if (userRole === 'SECRETARIAT') {
+      const assistantLink = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: teacherId, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      if (!assistantLink || assistantLink.teacherId !== group.teacherId) {
+        throw new ForbiddenException('غير مصرح لك بالوصول لبيانات هذه المجموعة.');
+      }
+    } else if (userRole !== 'SUPER_ADMIN') {
+      const isOwner = group.teacherId === teacherId;
+      if (!isOwner) {
+        throw new ForbiddenException('غير مصرح لك بالوصول لبيانات هذه المجموعة.');
+      }
     }
 
     const enrollments = await this.prisma.groupEnrollment.findMany({

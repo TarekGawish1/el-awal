@@ -52,11 +52,12 @@ export class AssessmentGradingService {
       throw new NotFoundException(`Submission [${submissionId}] not found`);
     }
 
-    if (!isSecretariat && submission.assessment.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        'You do not have permission to grade this assessment submission',
-      );
-    }
+    await this.assertAssessmentAccess(
+      submission.assessment.teacherId,
+      teacherId,
+      isSecretariat,
+      'You do not have permission to grade this assessment submission',
+    );
 
     const questionMap = new Map(
       submission.assessment.questions.map((q) => [q.id, q]),
@@ -199,11 +200,12 @@ export class AssessmentGradingService {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
     }
 
-    if (!isSecretariat && assessment.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        'You do not have permission to view these submissions',
-      );
-    }
+    await this.assertAssessmentAccess(
+      assessment.teacherId,
+      teacherId,
+      isSecretariat,
+      'You do not have permission to view these submissions',
+    );
 
     const submissions = await this.prisma.assessmentSubmission.findMany({
       where: { assessmentId },
@@ -285,11 +287,12 @@ export class AssessmentGradingService {
       throw new NotFoundException(`Submission [${submissionId}] not found`);
     }
 
-    if (!isSecretariat && submission.assessment.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        'You do not have permission to view this submission',
-      );
-    }
+    await this.assertAssessmentAccess(
+      submission.assessment.teacherId,
+      teacherId,
+      isSecretariat,
+      'You do not have permission to view this submission',
+    );
 
     return formatSubmissionDetailResponse(submission);
   }
@@ -318,11 +321,12 @@ export class AssessmentGradingService {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
     }
 
-    if (!isSecretariat && assessment.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        'You do not have permission to re-evaluate this assessment',
-      );
-    }
+    await this.assertAssessmentAccess(
+      assessment.teacherId,
+      teacherId,
+      isSecretariat,
+      'You do not have permission to re-evaluate this assessment',
+    );
 
     let updatedSubmissionsCount = 0;
 
@@ -342,5 +346,37 @@ export class AssessmentGradingService {
       reEvaluatedCount: updatedSubmissionsCount,
       message: `تمت إعادة تقييم ${updatedSubmissionsCount} تسليم بنجاح`,
     };
+  }
+
+  private async resolveEffectiveTeacherId(
+    teacherId: string,
+    isSecretariat: boolean,
+  ): Promise<string> {
+    if (!isSecretariat) {
+      return teacherId;
+    }
+    const link = await this.prisma.teacherAssistant.findFirst({
+      where: { assistantId: teacherId, status: 'ACTIVE' },
+      select: { teacherId: true },
+    });
+    if (!link) {
+      throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
+    }
+    return link.teacherId;
+  }
+
+  private async assertAssessmentAccess(
+    assessmentTeacherId: string,
+    callerTeacherId: string,
+    isSecretariat: boolean,
+    forbiddenMessage: string,
+  ): Promise<void> {
+    const effectiveTeacherId = await this.resolveEffectiveTeacherId(
+      callerTeacherId,
+      isSecretariat,
+    );
+    if (assessmentTeacherId !== effectiveTeacherId) {
+      throw new ForbiddenException(forbiddenMessage);
+    }
   }
 }

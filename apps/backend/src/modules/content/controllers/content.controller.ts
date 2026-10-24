@@ -79,19 +79,36 @@ export class ContentController {
   ) {
     const key = fileKey || queryFileKey;
     const url = fileUrl || queryFileUrl;
+
+    if (!key && !url) {
+      throw new BadRequestException('معرف الملف أو الرابط مطلوب');
+    }
+
+    const target = (key || url || '').trim();
+    if (target.includes('..') || target.includes('\0')) {
+      throw new BadRequestException('معرف الملف غير صالح');
+    }
+
     if (user.role === UserRole.STUDENT) {
       const allowedStudentPrefixes = [
         'homework-submissions',
         'essay-answers',
         'assessment-submissions',
         'payment-receipts',
+        'students',
       ];
-      const target = key || url || '';
-      const isAllowed = allowedStudentPrefixes.some((prefix) => target.includes(prefix));
-      if (!isAllowed) {
+      const isAllowedPrefix = allowedStudentPrefixes.some((prefix) => target.includes(prefix));
+      if (!isAllowedPrefix) {
+        throw new ForbiddenException('غير مصرح للطالب بحذف هذا الملف');
+      }
+
+      const studentId = user.studentProfileId || user.id;
+      const isOwner = await this.contentService.verifyStudentFileOwnership(studentId, key, url);
+      if (!isOwner) {
         throw new ForbiddenException('غير مصرح للطالب بحذف هذا الملف');
       }
     }
+
     return this.contentService.deleteFileFromStorage({ fileKey: key, fileUrl: url });
   }
 

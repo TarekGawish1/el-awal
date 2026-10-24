@@ -70,6 +70,9 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
     parentStudentLink: {
       findUnique: jest.fn(),
     },
+    teacherAssistant: {
+      findFirst: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -145,7 +148,9 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
       expect(mockNotificationsService.sendNotification).toHaveBeenCalled();
     });
 
-    it('allows secretariat to reset student password', async () => {
+    it('allows secretariat to reset student password when linked to student teacher', async () => {
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue({ teacherId: 'teacher-prof-1' });
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue({ id: 'enr-1' });
       mockPrismaService.studentProfile.findUnique.mockResolvedValue(mockStudentProfile);
       mockPrismaService.$transaction.mockResolvedValue([{}, {}]);
 
@@ -157,6 +162,20 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
 
       expect(result.success).toBe(true);
       expect(result.newPassword).toBe('654321');
+    });
+
+    it('rejects secretariat password reset when assistant is not linked to student teacher', async () => {
+      mockPrismaService.teacherAssistant.findFirst.mockResolvedValue({ teacherId: 'teacher-prof-other' });
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue(mockStudentProfile);
+
+      await expect(
+        service.resetStudentPassword(
+          'student-prof-1',
+          { newPassword: '654321', sendWhatsApp: false },
+          mockSecretariat,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
