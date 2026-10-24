@@ -6,63 +6,53 @@ import { motion } from 'framer-motion';
 const ABOUT_IMAGE_COUNT = 32;
 const ABOUT_IMAGE_DURATION_MS = 3500;
 const ABOUT_IMAGE_BASE_URL = "/about-us";
-let cachedAboutImages: HTMLImageElement[] | null = null;
-let aboutImagesLoadPromise: Promise<HTMLImageElement[]> | null = null;
+
+// In-memory cache of loaded frames across component re-renders
+const loadedImageCache = new Map<number, HTMLImageElement>();
+const inFlightRequests = new Map<number, Promise<HTMLImageElement | null>>();
 
 function loadSingleAboutImage(index: number): Promise<HTMLImageElement | null> {
-  return new Promise<HTMLImageElement | null>((resolve) => {
+  if (loadedImageCache.has(index)) {
+    return Promise.resolve(loadedImageCache.get(index)!);
+  }
+  if (inFlightRequests.has(index)) {
+    return inFlightRequests.get(index)!;
+  }
+
+  const promise = new Promise<HTMLImageElement | null>((resolve) => {
     const image = new Image();
     image.decoding = "async";
-    // Hint: only the first image is critical, the rest are background slideshow frames
-    if (index > 2) (image as any).fetchPriority = "low";
+    if (index > 0) (image as any).fetchPriority = "low";
     image.onload = () => {
+      loadedImageCache.set(index, image);
+      inFlightRequests.delete(index);
       resolve(image);
     };
     image.onerror = () => {
+      inFlightRequests.delete(index);
       resolve(null);
     };
     image.src = `${ABOUT_IMAGE_BASE_URL}/${index + 1}.webp`;
   });
+
+  inFlightRequests.set(index, promise);
+  return promise;
 }
 
-function loadAboutImagesOnce(): Promise<HTMLImageElement[]> {
-  if (cachedAboutImages) return Promise.resolve(cachedAboutImages);
-  if (aboutImagesLoadPromise) return aboutImagesLoadPromise;
-
-  // Load only the first 3 images upfront so the section paints fast,
-  // then stream the rest in the background one-by-one.
-  const loadRestInBackground = (first: (HTMLImageElement | null)[]) => {
-    const rest = Array.from({ length: ABOUT_IMAGE_COUNT - 3 }, (_, i) => i + 3);
-    let chain = Promise.resolve();
-    rest.forEach((index) => {
-      chain = chain
-        .then(() => loadSingleAboutImage(index))
-        .then((img) => {
-          if (img && cachedAboutImages) cachedAboutImages.push(img);
-        });
-    });
-    return chain;
-  };
-
-  aboutImagesLoadPromise = Promise.all(
-    [0, 1, 2].map(loadSingleAboutImage),
-  ).then((first) => {
-    cachedAboutImages = first.filter(
-      (image): image is HTMLImageElement => image !== null,
-    );
-    // Don't block the caller on the rest — load them lazily
-    if (typeof window !== "undefined") {
-      const kickOff = () => loadRestInBackground(first);
-      if ("requestIdleCallback" in (window as any)) {
-        (window as any).requestIdleCallback(kickOff, { timeout: 8000 });
-      } else {
-        setTimeout(kickOff, 3000);
-      }
+function checkIsStaticOnly(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return true;
     }
-    return cachedAboutImages;
-  });
-
-  return aboutImagesLoadPromise;
+  } catch {}
+  try {
+    const nav = navigator as any;
+    if (nav?.connection?.saveData === true) {
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
 function AboutBackgroundSequence() {
@@ -71,16 +61,20 @@ function AboutBackgroundSequence() {
 
   useEffect(() => {
     let isActive = true;
-    let intervalId: number | null = null;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
     let resizeObserver: ResizeObserver | null = null;
-    let images: HTMLImageElement[] = [];
+    let intersectionObserver: IntersectionObserver | null = null;
+    let isVisible = false;
+    let isBooted = false;
+    let isStaticOnly = checkIsStaticOnly();
     let currentImageIndex = 0;
+    let currentImage: HTMLImageElement | null = loadedImageCache.get(0) || null;
 
     // Use a soft cover layer to fill the section, then show the complete frame
     // on top so tall phone layouts do not make the subject look zoomed in.
     const drawCurrentImage = () => {
       const canvas = canvasRef.current;
-      const image = images[currentImageIndex];
+      const image = currentImage;
       if (!canvas || !image) return;
 
       const context = canvas.getContext("2d");
@@ -130,50 +124,176 @@ function AboutBackgroundSequence() {
       );
     };
 
-    // Only start loading the local slideshow when the About section is near
-    // the viewport — it's far below the fold and must not load on first paint.
-    let observer: IntersectionObserver | null = null;
-    const boot = () => {
-      loadAboutImagesOnce().then((loadedImages) => {
-        if (!isActive) return;
-        images = loadedImages;
-        if (images.length === 0) return;
-        setHasImages(true);
+    const clearSlideshowTimer = () => {
+      if (timerId !== null) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+    };
 
+    // Forward preloader: ensure next frame is requested progressive/JIT
+    const prepareNextFrame = (nextIndex: number) => {
+      if (isStaticOnly) return;
+      loadSingleAboutImage(nextIndex);
+    };
+
+    const scheduleNextSlide = () => {
+      clearSlideshowTimer();
+      if (!isActive || !isVisible || isStaticOnly) return;
+
+      const nextIndex = (currentImageIndex + 1) % ABOUT_IMAGE_COUNT;
+      // Preload next frame right away so it has 3500ms to download
+      prepareNextFrame(nextIndex);
+
+      timerId = setTimeout(() => {
+        if (!isActive || !isVisible || isStaticOnly) return;
+        advanceToNextSlide(nextIndex);
+      }, ABOUT_IMAGE_DURATION_MS);
+    };
+
+    const advanceToNextSlide = (targetIndex: number) => {
+      const cached = loadedImageCache.get(targetIndex);
+      if (cached) {
+        currentImageIndex = targetIndex;
+        currentImage = cached;
         drawCurrentImage();
-        if (canvasRef.current && typeof ResizeObserver !== "undefined") {
-          resizeObserver = new ResizeObserver(drawCurrentImage);
-          resizeObserver.observe(canvasRef.current);
-        }
-        intervalId = window.setInterval(() => {
-          if (images.length === 0) return;
-          currentImageIndex = (currentImageIndex + 1) % images.length;
+        scheduleNextSlide();
+      } else {
+        // Late frame: await in-flight load while keeping current frame visible on canvas
+        loadSingleAboutImage(targetIndex).then((loaded) => {
+          if (!isActive || !isVisible || isStaticOnly) return;
+          if (loaded) {
+            currentImageIndex = targetIndex;
+            currentImage = loaded;
+            drawCurrentImage();
+          } else {
+            // If failed to load, skip to subsequent index
+            currentImageIndex = (targetIndex + 1) % ABOUT_IMAGE_COUNT;
+          }
+          scheduleNextSlide();
+        });
+      }
+    };
+
+    const boot = () => {
+      if (isBooted) return;
+      isBooted = true;
+
+      // Load initial frame 0 (1.webp)
+      loadSingleAboutImage(0).then((firstImg) => {
+        if (!isActive) return;
+        if (firstImg) {
+          currentImage = firstImg;
+          setHasImages(true);
           drawCurrentImage();
-        }, ABOUT_IMAGE_DURATION_MS);
+
+          if (canvasRef.current && typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(drawCurrentImage);
+            resizeObserver.observe(canvasRef.current);
+          }
+
+          if (isVisible && !isStaticOnly) {
+            scheduleNextSlide();
+          }
+        }
       });
     };
 
+    // Handle visibility changes from IntersectionObserver
+    const handleVisibilityChange = (intersecting: boolean) => {
+      isVisible = intersecting;
+      if (intersecting) {
+        if (!isBooted) {
+          boot();
+        } else {
+          // If already booted, redraw current image in case size changed while offscreen
+          drawCurrentImage();
+          if (!isStaticOnly) {
+            scheduleNextSlide();
+          }
+        }
+      } else {
+        // Left the viewport: pause slideshow and clear timer
+        clearSlideshowTimer();
+      }
+    };
+
+    // Setup IntersectionObserver with 200px rootMargin
     const canvasEl = canvasRef.current;
     if (canvasEl && typeof IntersectionObserver !== "undefined") {
-      observer = new IntersectionObserver(
+      intersectionObserver = new IntersectionObserver(
         (entries) => {
-          if (entries.some((e) => e.isIntersecting)) {
-            boot();
-            observer?.disconnect();
-          }
+          const intersecting = entries.some((e) => e.isIntersecting);
+          handleVisibilityChange(intersecting);
         },
-        { rootMargin: "800px" },
+        { rootMargin: "200px" },
       );
-      observer.observe(canvasEl);
+      intersectionObserver.observe(canvasEl);
     } else {
+      isVisible = true;
       boot();
+    }
+
+    // Dynamic preference listener: prefers-reduced-motion
+    let motionMediaQuery: MediaQueryList | null = null;
+    const handleMotionChange = () => {
+      const newStatic = checkIsStaticOnly();
+      if (newStatic === isStaticOnly) return;
+      isStaticOnly = newStatic;
+      if (isStaticOnly) {
+        clearSlideshowTimer();
+      } else if (isVisible && isBooted) {
+        scheduleNextSlide();
+      }
+    };
+
+    if (typeof window !== "undefined" && window.matchMedia) {
+      try {
+        motionMediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+        if (motionMediaQuery.addEventListener) {
+          motionMediaQuery.addEventListener("change", handleMotionChange);
+        } else if ((motionMediaQuery as any).addListener) {
+          (motionMediaQuery as any).addListener(handleMotionChange);
+        }
+      } catch {}
+    }
+
+    // Dynamic preference listener: navigator.connection.saveData
+    const nav = typeof navigator !== "undefined" ? (navigator as any) : null;
+    const handleConnectionChange = () => {
+      const newStatic = checkIsStaticOnly();
+      if (newStatic === isStaticOnly) return;
+      isStaticOnly = newStatic;
+      if (isStaticOnly) {
+        clearSlideshowTimer();
+      } else if (isVisible && isBooted) {
+        scheduleNextSlide();
+      }
+    };
+
+    if (nav?.connection?.addEventListener) {
+      try {
+        nav.connection.addEventListener("change", handleConnectionChange);
+      } catch {}
     }
 
     return () => {
       isActive = false;
+      clearSlideshowTimer();
+      intersectionObserver?.disconnect();
       resizeObserver?.disconnect();
-      observer?.disconnect();
-      if (intervalId !== null) window.clearInterval(intervalId);
+      if (motionMediaQuery) {
+        if (motionMediaQuery.removeEventListener) {
+          motionMediaQuery.removeEventListener("change", handleMotionChange);
+        } else if ((motionMediaQuery as any).removeListener) {
+          (motionMediaQuery as any).removeListener(handleMotionChange);
+        }
+      }
+      if (nav?.connection?.removeEventListener) {
+        try {
+          nav.connection.removeEventListener("change", handleConnectionChange);
+        } catch {}
+      }
     };
   }, []);
 
