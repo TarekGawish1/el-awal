@@ -7,8 +7,43 @@ on:
   workflow_dispatch:
 
 jobs:
+  quality_gate:
+    name: Backend Quality & Security Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun Environment
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install Monorepo Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: bun run prisma:generate
+
+      - name: Backend TypeScript Check
+        run: cd apps/backend && bun x tsc --noEmit
+
+      - name: Backend Test Suite
+        run: cd apps/backend && bun run test
+
+      - name: Dependency Security Audit
+        run: |
+          # SEC-16/SEC-21: Audit workspace dependencies for critical vulnerabilities
+          bun audit --audit-level=critical
+
   deploy:
     name: Deploy Backend Subtree to Heroku
+    needs: [quality_gate]
+    if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

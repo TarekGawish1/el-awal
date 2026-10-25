@@ -9,9 +9,9 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v13';
-const RUNTIME_CACHE = 'el-awal-runtime-v13';
-const RSC_CACHE = 'el-awal-rsc-v13';
+const CACHE_NAME = 'el-awal-core-v14';
+const RUNTIME_CACHE = 'el-awal-runtime-v14';
+const RSC_CACHE = 'el-awal-rsc-v14';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
 const MAX_RUNTIME_ITEMS = 300;
@@ -40,14 +40,62 @@ async function trimCache(cacheName, maxItems) {
 }
 
 /**
- * Validates if response is safe and within size bounds to cache
+ * Validates if response is safe and within size bounds to cache.
+ * Strictly prevents private/authenticated API responses, no-store directives,
+ * Authorization headers, and oversized payloads from entering CacheStorage (SEC-17).
  */
-function isCachableResponse(response) {
-  if (!response || response.status !== 200) return false;
-  const len = response.headers.get('content-length');
-  if (len && parseInt(len, 10) > MAX_CACHABLE_SIZE_BYTES) {
-    return false;
+function isCachableResponse(requestOrResponse, maybeResponse) {
+  const req = maybeResponse ? requestOrResponse : null;
+  const res = maybeResponse ? maybeResponse : requestOrResponse;
+
+  if (!res || res.status !== 200) return false;
+  if (res.type === 'opaque' || res.type === 'error') return false;
+
+  // Never cache API routes in CacheStorage
+  if (req) {
+    try {
+      const u = new URL(req.url || '', self.location.origin);
+      if (u.pathname.startsWith('/api/') || u.pathname.includes('/api/v1/')) {
+        return false;
+      }
+    } catch {}
+
+    // Never cache requests with Authorization header
+    if (req.headers && typeof req.headers.get === 'function') {
+      if (req.headers.get('Authorization') || req.headers.get('authorization')) {
+        return false;
+      }
+    }
   }
+
+  // Response header inspection: Respect Cache-Control directives
+  if (res.headers && typeof res.headers.get === 'function') {
+    const cacheControl = (res.headers.get('cache-control') || '').toLowerCase();
+    if (
+      cacheControl.includes('no-store') ||
+      cacheControl.includes('no-cache') ||
+      cacheControl.includes('private') ||
+      cacheControl.includes('max-age=0')
+    ) {
+      return false;
+    }
+
+    const pragma = (res.headers.get('pragma') || '').toLowerCase();
+    if (pragma.includes('no-cache')) {
+      return false;
+    }
+
+    const vary = (res.headers.get('vary') || '').toLowerCase();
+    if (vary.includes('*') || vary.includes('authorization') || vary.includes('cookie')) {
+      return false;
+    }
+
+    const len = res.headers.get('content-length');
+    if (len && parseInt(len, 10) > MAX_CACHABLE_SIZE_BYTES) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -108,6 +156,21 @@ self.addEventListener('activate', (event) => {
           cachesToDelete.map((cacheToDelete) => caches.delete(cacheToDelete)),
         );
       })
+      .then(async () => {
+        // Upgrade & migration safety: Scan and purge any lingering /api/ entries
+        for (const name of [RUNTIME_CACHE, RSC_CACHE]) {
+          try {
+            const c = await caches.open(name);
+            const keys = await c.keys();
+            for (const req of keys) {
+              const u = new URL(req.url);
+              if (u.pathname.startsWith('/api/') || u.pathname.includes('/api/v1/')) {
+                await c.delete(req);
+              }
+            }
+          } catch {}
+        }
+      })
       .then(() => self.clients.claim()),
   );
 });
@@ -136,6 +199,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // =========================================================================
+  // SEC-17: Authenticated & Private API Isolation
+  // Under NO circumstances should /api/ responses be stored in CacheStorage.
+  // Intentional offline data is managed by IndexedDB (offlineDb/Dexie) and
+  // TanStack Query. The Service Worker passes /api/ directly to the network.
+  // When offline, it returns an explicit 503 JSON without caching or reading stale data.
+  // =========================================================================
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request).catch(() => {
+        return new Response(
+          JSON.stringify({
+            error: 'Network error or resource unavailable offline',
+            offline: true,
+          }),
+          {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'no-store, no-cache, private, must-revalidate',
+              'Pragma': 'no-cache',
+            },
+          },
+        );
+      }),
+    );
+    return;
+  }
+
   // Identify Next.js React Server Component (RSC) requests
   const isRscRequest =
     request.headers.get('RSC') === '1' ||
@@ -161,7 +254,7 @@ self.addEventListener('fetch', (event) => {
             if (networkResponse && networkResponse.status === 200) {
               const contentType = networkResponse.headers.get('content-type') || '';
               // Only cache actual RSC flight payloads, not unexpected HTML redirects
-              if (!contentType.includes('text/html') && isCachableResponse(networkResponse)) {
+              if (!contentType.includes('text/html') && isCachableResponse(request, networkResponse)) {
                 await rscCache.put(request, networkResponse.clone());
                 // Also cache by normalized pathname without query params
                 const normalizedReq = new Request(url.pathname, { headers: { RSC: '1' } });
@@ -263,7 +356,7 @@ self.addEventListener('fetch', (event) => {
           if (cachedApp) {
             // Background revalidate in parallel
             fetch(request).then((res) => {
-              if (isCachableResponse(res)) runtimeCache.put('/app', res);
+              if (isCachableResponse(request, res)) runtimeCache.put('/app', res);
             }).catch(() => {});
             return cachedApp;
           }
@@ -273,7 +366,7 @@ self.addEventListener('fetch', (event) => {
         if (navigator.onLine) {
           try {
             const networkResponse = await fetch(request);
-            if (isCachableResponse(networkResponse) && !networkResponse.redirected) {
+            if (isCachableResponse(request, networkResponse) && !networkResponse.redirected) {
               await runtimeCache.put(request, networkResponse.clone());
               const cleanUrl = url.origin + url.pathname;
               await runtimeCache.put(cleanUrl, networkResponse.clone());
@@ -440,7 +533,7 @@ self.addEventListener('fetch', (event) => {
 
         try {
           const networkResponse = await fetch(request);
-          if (isCachableResponse(networkResponse)) {
+          if (isCachableResponse(request, networkResponse)) {
             const runtimeCache = await caches.open(RUNTIME_CACHE);
             await runtimeCache.put(request, networkResponse.clone());
             trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
@@ -484,7 +577,7 @@ self.addEventListener('fetch', (event) => {
     (async () => {
       try {
         const response = await fetch(request);
-        if (isCachableResponse(response)) {
+        if (isCachableResponse(request, response)) {
           const runtimeCache = await caches.open(RUNTIME_CACHE);
           await runtimeCache.put(request, response.clone());
           trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
@@ -501,7 +594,10 @@ self.addEventListener('fetch', (event) => {
         return new Response(JSON.stringify({ error: 'Network error or resource unavailable offline' }), {
           status: 503,
           statusText: 'Service Unavailable',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, private',
+          },
         });
       }
     })(),
@@ -513,11 +609,28 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  if (event.data && event.data.type === 'CLEAR_CACHE') {
+  if (event.data && (event.data.type === 'CLEAR_CACHE' || event.data.type === 'CLEAR_USER_SESSION')) {
     event.waitUntil(
-      caches.keys().then((cacheNames) => {
-        return Promise.all(cacheNames.map((name) => caches.delete(name)));
-      })
+      (async () => {
+        // Delete dynamic/user-scoped caches (RUNTIME_CACHE, RSC_CACHE)
+        // to prevent cross-account data leaks when switching users on the same device.
+        await caches.delete(RUNTIME_CACHE);
+        await caches.delete(RSC_CACHE);
+
+        // If explicitly requested to wipe everything, also purge other caches except static shell
+        if (event.data.all) {
+          const allNames = await caches.keys();
+          await Promise.all(
+            allNames
+              .filter((name) => name !== CACHE_NAME)
+              .map((name) => caches.delete(name)),
+          );
+        }
+
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ success: true, timestamp: Date.now() });
+        }
+      })(),
     );
   }
   if (event.data && event.data.type === 'WARM_OFFLINE_SHELL') {

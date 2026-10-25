@@ -7,8 +7,46 @@ on:
   workflow_dispatch:
 
 jobs:
+  quality_gate:
+    name: Frontend Quality & Security Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun Environment
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install Monorepo Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Frontend TypeScript Check
+        run: cd apps/web && bun x tsc --noEmit
+
+      - name: Frontend Test Suite
+        run: cd apps/web && bun run test
+
+      - name: Frontend Production Build Validation
+        run: cd apps/web && bun run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NODE_ENV: production
+
+      - name: Dependency Security Audit
+        run: |
+          # SEC-16/SEC-21: Audit workspace dependencies for critical vulnerabilities
+          bun audit --audit-level=critical
+
   deploy:
     name: Deploy Frontend Subtree to Heroku
+    needs: [quality_gate]
+    if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

@@ -165,4 +165,34 @@ export function clearStoredTokens(): void {
   } catch (error) {
     console.error('Failed to clear authentication tokens from storage:', error);
   }
+
+  // SEC-17: Purge Service Worker runtime and RSC caches
+  purgeServiceWorkerUserCache().catch(() => {});
+}
+
+/**
+ * SEC-17: Purges Service Worker runtime and RSC caches to isolate user sessions
+ * and prevent cross-account cache exposure on shared devices.
+ */
+export async function purgeServiceWorkerUserCache(): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    // 1. Post message to active Service Worker controller
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_USER_SESSION' });
+    }
+
+    // 2. Direct browser cache purge as reliable fallback
+    if ('caches' in window) {
+      const names = await window.caches.keys();
+      await Promise.all(
+        names
+          .filter((name) => name.includes('runtime') || name.includes('rsc'))
+          .map((name) => window.caches.delete(name).catch(() => false)),
+      );
+    }
+  } catch (error) {
+    console.debug('Service Worker cache purge notice:', error);
+  }
 }

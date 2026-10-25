@@ -7,6 +7,7 @@ import { loginUser, logoutUser, fetchCurrentUser, verifyLoginOtp, requestLoginOt
 import { useAuthStore } from '../store/auth.store';
 import { LoginCredentials, AuthTokensResponse, AuthUser } from '../types/auth.types';
 import { getRoleLandingRoute, sanitizeRedirectUrl, hasMultipleRoles } from '../utils/role-routing';
+import { purgeServiceWorkerUserCache } from '../utils/auth-tokens';
 import { ApiError } from '@/lib/api/errors';
 import { offlineDb } from '@/lib/offline/db';
 import { QUERY_KEYS } from '@/lib/api/query-keys';
@@ -199,6 +200,7 @@ export function useAuth() {
     }
     clearSession();
     queryClient.clear();
+    await purgeServiceWorkerUserCache();
 
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
