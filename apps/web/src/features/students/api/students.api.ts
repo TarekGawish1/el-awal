@@ -10,7 +10,7 @@ import {
 } from '../types/students.types';
 
 export async function fetchStudents(query: StudentQuery): Promise<CursorPaginatedResponse<StudentListItem>> {
-  const safeLimit = query.limit ? Math.min(Number(query.limit), 100) : 20;
+  const safeLimit = query.limit ? Math.min(Number(query.limit), 500) : 20;
   return await apiClient<CursorPaginatedResponse<StudentListItem>>(API_ENDPOINTS.STUDENTS.LIST, {
     params: { ...query, limit: safeLimit } as unknown as Record<string, string>,
   });

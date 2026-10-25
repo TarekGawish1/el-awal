@@ -74,9 +74,7 @@ export function StudentList() {
 
       {activeTab === 'HISTORY' ? (
         <StudentJoiningTimeline
-          students={filteredStudents}
-          isLoading={isLoading}
-          isError={isError}
+          totalStudents={totalStudents}
           onSelectStudent={(id) => setSelectedStudentForModal(id)}
         />
       ) : (

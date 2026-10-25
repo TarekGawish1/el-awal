@@ -9,20 +9,38 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { JoiningStatsKpiCards, JoiningStats } from './timeline/JoiningStatsKpiCards';
 import { JoiningTimelineFilters, TimelineMethodFilter } from './timeline/JoiningTimelineFilters';
 import { JoiningTimelineItemCard } from './timeline/JoiningTimelineItemCard';
+import { useStudents } from '../hooks/use-students';
+import { fetchStudents } from '../api/students.api';
 
 interface StudentJoiningTimelineProps {
-  students: StudentListItem[];
-  isLoading: boolean;
-  isError: boolean;
+  students?: StudentListItem[];
+  isLoading?: boolean;
+  isError?: boolean;
+  totalStudents?: number;
   onSelectStudent: (studentId: string) => void;
 }
 
-export function StudentJoiningTimeline({
+interface StudentJoiningTimelinePresentationProps {
+  students: StudentListItem[];
+  isLoading: boolean;
+  isError: boolean;
+  totalStudents?: number;
+  onSelectStudent: (studentId: string) => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+}
+
+function StudentJoiningTimelinePresentation({
   students,
   isLoading,
   isError,
+  totalStudents,
   onSelectStudent,
-}: StudentJoiningTimelineProps) {
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
+}: StudentJoiningTimelinePresentationProps) {
   const [timelineSearch, setTimelineSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState<TimelineMethodFilter>('ALL');
 
@@ -50,8 +68,14 @@ export function StudentJoiningTimeline({
         manualCount++;
       }
     });
+
+    const finalTotal =
+      totalStudents !== undefined
+        ? Math.max(totalStudents, sortedStudents.length)
+        : sortedStudents.length;
+
     return {
-      total: sortedStudents.length,
+      total: finalTotal,
       groupLinkCount,
       approvedRequestCount,
       manualCount,
@@ -59,7 +83,7 @@ export function StudentJoiningTimeline({
         ? getJoiningRelativeTime(sortedStudents[0].createdAt)
         : null,
     };
-  }, [sortedStudents]);
+  }, [sortedStudents, totalStudents]);
 
   // Filtered timeline items
   const filteredTimeline = useMemo(() => {
@@ -124,7 +148,7 @@ export function StudentJoiningTimeline({
         onSearchChange={setTimelineSearch}
         methodFilter={methodFilter}
         onMethodFilterChange={setMethodFilter}
-        totalCount={sortedStudents.length}
+        totalCount={stats.total}
         groupLinkCount={stats.groupLinkCount}
         approvedRequestCount={stats.approvedRequestCount}
         manualCount={stats.manualCount}
@@ -144,7 +168,7 @@ export function StudentJoiningTimeline({
                   setTimelineSearch('');
                   setMethodFilter('ALL');
                 }}
-                className="mt-2 text-xs rounded-xl"
+                className="mt-2 text-xs rounded-xl cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5 ml-1" />
                 إعادة ضبط البحث
@@ -162,7 +186,98 @@ export function StudentJoiningTimeline({
             ))}
           </div>
         )}
+
+        {/* Load More Button for large student lists exceeding 500 */}
+        {hasMore && onLoadMore && (
+          <div className="pt-6 text-center border-t border-slate-100 mt-6">
+            <Button
+              variant="outline"
+              onClick={onLoadMore}
+              disabled={isLoadingMore}
+              className="px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold border-primary-200 text-primary-700 hover:bg-primary-50 shadow-xs cursor-pointer"
+            >
+              {isLoadingMore ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                  جاري تحميل المزيد...
+                </span>
+              ) : (
+                <span>عرض المزيد من سجل الانضمام</span>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function StudentJoiningTimelineWithQuery({
+  totalStudents,
+  onSelectStudent,
+}: StudentJoiningTimelineProps) {
+  // Query up to 500 students when no pre-fetched student list is passed
+  const {
+    data: queryData,
+    isLoading: isQueryLoading,
+    isError: isQueryError,
+  } = useStudents({ limit: 500 });
+
+  const [extraStudents, setExtraStudents] = useState<StudentListItem[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentNextCursor, setCurrentNextCursor] = useState<string | null | undefined>(undefined);
+
+  const initialNextCursor = queryData?.meta?.nextCursor ?? null;
+  const nextCursorToUse = currentNextCursor !== undefined ? currentNextCursor : initialNextCursor;
+  const hasMoreToUse = nextCursorToUse !== null;
+
+  const handleLoadMore = async () => {
+    if (!nextCursorToUse || isLoadingMore) return;
+    try {
+      setIsLoadingMore(true);
+      const res = await fetchStudents({ limit: 500, cursor: nextCursorToUse });
+      if (res?.data) {
+        setExtraStudents((prev) => [...prev, ...res.data]);
+        setCurrentNextCursor(res.meta?.nextCursor ?? null);
+      }
+    } catch (err) {
+      console.error('Failed to load more timeline students:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const effectiveStudents = useMemo(() => {
+    const base = queryData?.data ?? [];
+    return extraStudents.length > 0 ? [...base, ...extraStudents] : base;
+  }, [queryData?.data, extraStudents]);
+
+  return (
+    <StudentJoiningTimelinePresentation
+      students={effectiveStudents}
+      isLoading={isQueryLoading}
+      isError={isQueryError}
+      totalStudents={queryData?.meta?.total ?? totalStudents}
+      onSelectStudent={onSelectStudent}
+      hasMore={hasMoreToUse}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={handleLoadMore}
+    />
+  );
+}
+
+export function StudentJoiningTimeline(props: StudentJoiningTimelineProps) {
+  if (props.students !== undefined) {
+    return (
+      <StudentJoiningTimelinePresentation
+        students={props.students}
+        isLoading={Boolean(props.isLoading)}
+        isError={Boolean(props.isError)}
+        totalStudents={props.totalStudents}
+        onSelectStudent={props.onSelectStudent}
+      />
+    );
+  }
+
+  return <StudentJoiningTimelineWithQuery {...props} />;
 }
