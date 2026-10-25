@@ -9,6 +9,10 @@ export interface StudentListItem {
   attendanceMode?: 'CENTER' | 'ONLINE';
   createdAt: string;
   updatedAt: string;
+  createdById?: string | null;
+  createdByName?: string | null;
+  updatedById?: string | null;
+  updatedByName?: string | null;
   user: {
     id: string;
     fullName: string;
@@ -17,9 +21,17 @@ export interface StudentListItem {
     isActive: boolean;
   };
   groupEnrollments: Array<{
+    id?: string;
+    groupId?: string;
+    studentId?: string;
+    enrolledAt?: string;
+    status?: string;
     group: {
       id: string;
       name: string;
+      gradeLevel?: string;
+      academicYear?: string;
+      academicTerm?: string;
     };
   }>;
   parentLinks?: Array<{
@@ -48,8 +60,11 @@ export interface StudentDetail extends StudentListItem {
     };
   }>;
   groupEnrollments: {
+    id?: string;
+    groupId?: string;
+    enrolledAt?: string;
     status: 'ACTIVE' | 'PENDING' | 'TRANSFERRED' | 'DROPPED';
-    group: { id: string; name: string; gradeLevel: string };
+    group: { id: string; name: string; gradeLevel: string; academicYear?: string; academicTerm?: string };
   }[];
 }
 

@@ -264,6 +264,10 @@ export class StudentProfileService {
         emergencyPhone: true,
         createdAt: true,
         updatedAt: true,
+        createdById: true,
+        createdByName: true,
+        updatedById: true,
+        updatedByName: true,
         user: {
           select: {
             id: true,
@@ -290,9 +294,9 @@ export class StudentProfileService {
           },
         },
         groupEnrollments: {
-          where: { status: { in: [GroupEnrollmentStatus.ACTIVE, 'PENDING'] } },
+          orderBy: { enrolledAt: 'desc' },
           include: {
-            group: { select: { id: true, name: true, gradeLevel: true } },
+            group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
           },
         },
       },

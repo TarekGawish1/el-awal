@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Users, ExternalLink, UserMinus } from 'lucide-react';
+import { Users, ExternalLink, UserMinus, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { formatJoiningDateTime } from '../../utils/studentJoiningHelpers';
 
 interface StudentGroupsSectionProps {
   enrollments: any[];
@@ -62,9 +63,16 @@ export function StudentGroupsSection({
                     </span>
                     {getEnrollmentStatusBadge(status)}
                   </div>
-                  <span className="text-xs text-slate-500 block mb-2.5">
+                  <span className="text-xs text-slate-500 block mb-1">
                     {en.group?.gradeLevel || studentGradeLevel || '—'}
                   </span>
+                  {en.enrolledAt && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-2">
+                      <Clock className="w-3 h-3 text-primary-500 shrink-0" />
+                      <span>تاريخ الانضمام:</span>
+                      <strong className="text-slate-700 font-medium">{formatJoiningDateTime(en.enrolledAt)}</strong>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">

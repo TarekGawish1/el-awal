@@ -3,8 +3,14 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Phone } from 'lucide-react';
+import { Phone, Clock, Calendar, Link as LinkIcon, UserCheck } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
+import {
+  formatJoiningDate,
+  formatJoiningTime,
+  formatJoiningDateTime,
+  resolveJoiningMethod,
+} from '../../utils/studentJoiningHelpers';
 
 interface StudentRelationsCardsProps {
   student: any;
@@ -19,6 +25,8 @@ export function StudentRelationsCards({
   enrollments,
   parents,
 }: StudentRelationsCardsProps) {
+  const method = resolveJoiningMethod(student);
+
   return (
     <>
       {/* Identity Information Card */}
@@ -38,12 +46,30 @@ export function StudentRelationsCards({
               <dd className="text-base font-semibold text-slate-900">{student.gradeLevel || 'الصف الدراسي'}</dd>
             </div>
             <div className="space-y-1">
-              <dt className="text-sm font-medium text-slate-500">تاريخ التسجيل</dt>
-              <dd className="text-base font-semibold text-slate-900">{new Date(student.createdAt || Date.now()).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}</dd>
+              <dt className="text-sm font-medium text-slate-500">تاريخ ووقت الانضمام</dt>
+              <dd className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <span>{formatJoiningDateTime(student.createdAt)}</span>
+              </dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="text-sm font-medium text-slate-500">طريقة الانضمام للمنصة</dt>
+              <dd className="pt-1">
+                {method.isGroupLink ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                    <LinkIcon className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>انضمام عبر رابط المجموعة ({method.groupName || 'المجموعة'})</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold">
+                    <UserCheck className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{method.label}</span>
+                  </span>
+                )}
+              </dd>
             </div>
             <div className="space-y-1">
               <dt className="text-sm font-medium text-slate-500">رقم الهاتف</dt>
-              <dd className="text-base font-semibold text-slate-900" dir="ltr">{studentPhone || 'غير متوفر'}</dd>
+              <dd className="text-base font-semibold text-slate-900 font-mono" dir="ltr">{studentPhone || 'غير متوفر'}</dd>
             </div>
           </dl>
         </CardContent>
@@ -56,7 +82,7 @@ export function StudentRelationsCards({
             <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            المجموعات المسجلة
+            المجموعات المسجلة وتاريخ الالتحاق
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -77,6 +103,12 @@ export function StudentRelationsCards({
                     <div>
                       <p className="font-semibold text-slate-900">{enrollment.group?.name || 'المجموعة الدراسية'}</p>
                       <p className="text-sm text-slate-500">{enrollment.group?.gradeLevel || student.gradeLevel || ''}</p>
+                      {enrollment.enrolledAt && (
+                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-primary-500" />
+                          <span>التحق بالمجموعة: {formatJoiningDateTime(enrollment.enrolledAt)}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <Badge variant="outline" className="text-xs">نشط</Badge>

@@ -23,6 +23,11 @@ import { StudentGroupsSection } from './student-details/StudentGroupsSection';
 import { StudentStatusSection } from './student-details/StudentStatusSection';
 import { StudentGuardianSection } from './student-details/StudentGuardianSection';
 import { StudentDangerZone } from './student-details/StudentDangerZone';
+import { StudentJoiningHistorySection } from './student-details/StudentJoiningHistorySection';
+import {
+  formatJoiningDate,
+  formatJoiningTime,
+} from '../utils/studentJoiningHelpers';
 
 interface StudentDetailsModalProps {
   studentId: string | null;
@@ -257,10 +262,15 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                     <p className="text-sm font-bold text-slate-900">{student.gradeLevel || 'غير محدد'}</p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                    <p className="text-[11px] font-medium text-slate-500 mb-1">تاريخ التسجيل</p>
+                    <p className="text-[11px] font-medium text-slate-500 mb-1">تاريخ الانضمام</p>
                     <p className="text-sm font-bold text-slate-900">
-                      {new Date(student.createdAt || Date.now()).toLocaleDateString('ar-EG')}
+                      {formatJoiningDate(student.createdAt)}
                     </p>
+                    {formatJoiningTime(student.createdAt) && (
+                      <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                        {formatJoiningTime(student.createdAt)}
+                      </p>
+                    )}
                   </div>
                   <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
                     <p className="text-[11px] font-medium text-slate-500 mb-1">رقم الهاتف</p>
@@ -268,6 +278,9 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                   </div>
                 </div>
               </section>
+
+              {/* STUDENT JOINING & REGISTRATION HISTORY SECTION */}
+              <StudentJoiningHistorySection student={student} enrollments={enrollments} />
 
               {/* ATTENDANCE SECTION */}
               <StudentAttendanceHistorySection attendanceHistory={attendanceHistory} />

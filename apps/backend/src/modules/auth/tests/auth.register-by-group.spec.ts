@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../services/auth.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { NotificationsService } from '../../notifications/services/notifications.service';
-import { GroupEnrollmentStatus, UserRole } from '@prisma/client';
+import { GroupEnrollmentStatus, UserRole, NotificationChannel } from '@prisma/client';
 
 describe('AuthService — registerByGroup', () => {
   let service: AuthService;
@@ -20,6 +20,7 @@ describe('AuthService — registerByGroup', () => {
     isRegistrationOpen: true,
     registrationLinkExpiry: null,
     registrationToken: 'invite-token-1',
+    teacherId: 'teacher-user-1',
   };
 
   const validDto = {
@@ -67,6 +68,12 @@ describe('AuthService — registerByGroup', () => {
   const mockPrismaService = {
     academicGroup: {
       findUnique: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ fullName: 'أحمد غريب' }),
+    },
+    teacherAssistant: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     refreshTokenSession: {
       create: jest.fn().mockResolvedValue({ id: 'session-1' }),
@@ -132,6 +139,8 @@ describe('AuthService — registerByGroup', () => {
     expect(studentCreateCall.data.phone).toBe('+201012345678');
     expect(studentCreateCall.data.studentProfile.create.gradeLevel).toBe('الصف الثالث الثانوي');
     expect(studentCreateCall.data.studentProfile.create.studentCode).toMatch(/^STU\d+/);
+    expect(studentCreateCall.data.studentProfile.create.createdById).toBe('teacher-user-1');
+    expect(studentCreateCall.data.studentProfile.create.createdByName).toBe('رابط انضمام: مجموعة الثانوية العامة أ');
 
     // New parent created with the submitted parentName & parentPhone
     const parentCreateCall = tx.user.create.mock.calls[1][0];
@@ -151,6 +160,20 @@ describe('AuthService — registerByGroup', () => {
     expect(upsertCall.create.studentId).toBe('student-user-1');
     expect(upsertCall.create.status).toBe(GroupEnrollmentStatus.ACTIVE);
     expect(upsertCall.create.enrolledAt).toBeInstanceOf(Date);
+
+    // Push notification dispatched to the teacher
+    expect(mockNotificationsService.sendNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'teacher-user-1',
+        type: 'STUDENT_JOINED_GROUP_LINK',
+        channels: expect.arrayContaining([NotificationChannel.WEB_PUSH, NotificationChannel.IN_APP]),
+        data: expect.objectContaining({
+          groupId,
+          studentName: 'محمود أحمد علي',
+          joinMethod: 'GROUP_LINK',
+        }),
+      }),
+    );
 
     // Immediate sign-in tokens returned
     expect(result.accessToken).toBe('mocked-access-token');

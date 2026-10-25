@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { Prisma, GroupEnrollmentStatus, UserRole, NotificationChannel, NotificationType } from '@prisma/client';
+import { Prisma, GroupEnrollmentStatus, UserRole, NotificationChannel, NotificationType, AssistantStatus } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
@@ -179,6 +179,10 @@ export class AuthGroupRegistrationService {
                 emergencyPhone: parentPhone,
                 tempAccessPin: dto.password,
                 pinExpiresAt: getTemporaryPinExpiration(48),
+                createdById: group.teacherId,
+                createdByName: `رابط انضمام: ${group.name}`,
+                updatedById: group.teacherId,
+                updatedByName: `رابط انضمام: ${group.name}`,
               },
             },
           },
@@ -306,6 +310,53 @@ export class AuthGroupRegistrationService {
     }
 
     this.logger.log(`Group self-registration completed for [${fullName}] into group [${group.id}]`);
+
+    // Dispatch WebPush & In-App push notification to the group teacher (and assistants)
+    try {
+      const studentCode = studentUser.studentProfile?.studentCode || '';
+      const teacherNotification = {
+        recipientId: group.teacherId,
+        type: 'STUDENT_JOINED_GROUP_LINK',
+        notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+        title: 'انضمام طالب جديد للمجموعة 🎓',
+        body: `قام الطالب "${fullName}" بالانضمام إلى مجموعة "${group.name}" عبر رابط الانضمام المباشر.`,
+        channels: [NotificationChannel.WEB_PUSH, NotificationChannel.IN_APP],
+        referenceEntityId: studentUser.id,
+        data: {
+          studentId: studentUser.id,
+          studentName: fullName,
+          studentCode,
+          studentPhone: phone || parentPhone,
+          groupId: group.id,
+          groupName: group.name,
+          joinedAt: new Date().toISOString(),
+          joinMethod: 'GROUP_LINK',
+          url: '/teacher/students',
+        },
+      };
+
+      await this.notificationsService.sendNotification(teacherNotification);
+
+      // Also notify active assistants for this teacher
+      if (typeof this.prisma.teacherAssistant?.findMany === 'function') {
+        const assistants = await this.prisma.teacherAssistant.findMany({
+          where: { teacherId: group.teacherId, status: AssistantStatus.ACTIVE },
+          select: { assistantId: true },
+        });
+        for (const ast of assistants) {
+          await this.notificationsService
+            .sendNotification({
+              ...teacherNotification,
+              recipientId: ast.assistantId,
+            })
+            .catch((err) =>
+              this.logger.warn(`Failed to dispatch group join push notification to assistant [${ast.assistantId}]: ${err}`),
+            );
+        }
+      }
+    } catch (notifErr) {
+      this.logger.warn(`Failed to dispatch group join push notification to teacher: ${notifErr}`);
+    }
 
     // Automated Parent WhatsApp Delivery on Group Registration
     try {

@@ -1,11 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Pagination } from '@/components/ui/Pagination';
 import { useStudentListState } from '../hooks/useStudentListState';
 import { StudentListFilters } from './StudentListFilters';
 import { StudentListTable } from './StudentListTable';
+import { StudentJoiningTimeline } from './StudentJoiningTimeline';
+import { StudentListViewSwitcher, StudentListTab } from './StudentListViewSwitcher';
 
 const StudentDetailsModal = dynamic(
   () => import('./StudentDetailsModal').then((mod) => mod.StudentDetailsModal),
@@ -18,6 +20,8 @@ const StudentPasswordModal = dynamic(
 );
 
 export function StudentList() {
+  const [activeTab, setActiveTab] = useState<StudentListTab>('LIST');
+
   const {
     searchTerm,
     setSearchTerm,
@@ -61,8 +65,24 @@ export function StudentList() {
 
   return (
     <div className="space-y-6">
-      {/* Filters Toolbar */}
-      <StudentListFilters
+      {/* View Switcher: Table View vs Joining History Timeline */}
+      <StudentListViewSwitcher
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        totalStudents={totalStudents}
+      />
+
+      {activeTab === 'HISTORY' ? (
+        <StudentJoiningTimeline
+          students={filteredStudents}
+          isLoading={isLoading}
+          isError={isError}
+          onSelectStudent={(id) => setSelectedStudentForModal(id)}
+        />
+      ) : (
+        <>
+          {/* Filters Toolbar */}
+          <StudentListFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         setCurrentPage={setCurrentPage}
@@ -116,6 +136,8 @@ export function StudentList() {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* Quick View Student Modal */}
       {selectedStudentForModal && (

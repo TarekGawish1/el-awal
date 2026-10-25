@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { CreatorBadge } from '@/components/ui/CreatorBadge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { RotateCcw, Eye, ChevronLeft } from 'lucide-react';
+import { RotateCcw, Eye } from 'lucide-react';
 import { AcademicStatus, StudentListItem } from '../types/students.types';
+import { StudentJoiningCell } from './table/StudentJoiningCell';
+import { StudentMobileCard } from './table/StudentMobileCard';
 
 interface StudentListTableProps {
   isLoading: boolean;
@@ -41,6 +43,7 @@ export function StudentListTable({
               <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">كود الطالب</th>
               <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">المرحلة الدراسية</th>
               <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">المجموعة</th>
+              <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">تاريخ وطريقة الانضمام</th>
               <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">ولي الأمر</th>
               <th className="px-4 py-3 font-bold text-slate-700 text-start whitespace-nowrap">الحالة</th>
               <th className="px-4 py-3 font-bold text-slate-700 text-center whitespace-nowrap w-28">التفاصيل</th>
@@ -61,6 +64,7 @@ export function StudentListTable({
                     <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-24 rounded" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-28 rounded" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-24 rounded" /></td>
                     <td className="px-4 py-3 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
                     <td className="px-4 py-3 text-center"><Skeleton className="h-8 w-16 rounded-lg mx-auto" /></td>
@@ -69,13 +73,13 @@ export function StudentListTable({
               </>
             ) : isError ? (
               <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
+                <td colSpan={9} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
                   فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
                 </td>
               </tr>
             ) : filteredStudents.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-20 text-center text-slate-500">
+                <td colSpan={9} className="px-6 py-20 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center space-y-3">
                     <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-2">
                       <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -143,6 +147,12 @@ export function StudentListTable({
                         غير معين
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <StudentJoiningCell
+                      createdAt={student.createdAt}
+                      createdByName={(student as any).createdByName}
+                    />
                   </td>
                   <td className="px-4 py-2.5">
                     {student.parentLinks?.[0]?.parent.user ? (
@@ -216,64 +226,13 @@ export function StudentListTable({
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredStudents.map((student) => (
-              <div
+              <StudentMobileCard
                 key={student.id}
-                onClick={() => onSelectStudent(student.id)}
-                className="group p-4 space-y-3 hover:bg-primary-50/30 transition-colors cursor-pointer active:scale-[0.99]"
-                title="اضغط لعرض تفاصيل الطالب"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-sm text-slate-900 group-hover:text-primary-700 transition-colors truncate">
-                          {student.user.fullName}
-                        </h4>
-                        <Eye className="w-3.5 h-3.5 text-primary-500 shrink-0 opacity-75 group-hover:opacity-100" />
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[11px] font-mono text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">
-                          {student.studentCode}
-                        </span>
-                        <span className="text-[11px] text-slate-500 truncate">
-                          {student.gradeLevel || '—'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <Badge variant={getStatusColor(student.academicStatus)} className="text-[10px] font-bold">
-                      {getStatusText(student.academicStatus)}
-                    </Badge>
-                    <span className="text-[10px] text-primary-600 font-semibold inline-flex items-center gap-0.5">
-                      عرض التفاصيل
-                      <ChevronLeft className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 group-hover:bg-white group-hover:border-primary-100 transition-colors">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">المجموعة:</span>
-                    {student.groupEnrollments?.[0]?.group?.name ? (
-                      <span className="font-bold text-slate-700 truncate block">
-                        {student.groupEnrollments[0].group.name.split('(')[0].trim()}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
-                        غير معين
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">ولي الأمر:</span>
-                    <span className="font-mono text-slate-700 block text-[11px]" dir="ltr">
-                      {student.parentLinks?.[0]?.parent.user?.phone || '—'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                student={student}
+                onSelectStudent={onSelectStudent}
+                getStatusColor={getStatusColor}
+                getStatusText={getStatusText}
+              />
             ))}
           </div>
         )}
