@@ -580,7 +580,7 @@ describe('Phase 2D.2: Secure Stored Credentials Without Breaking WhatsApp Delive
         },
       };
 
-      const cleanupService = new CleanupJobsService(undefined, mockPrisma);
+      const cleanupService = new CleanupJobsService(undefined, mockPrisma as any);
 
       // Run 1: Redacts the message
       const run1 = await cleanupService.cleanupDeliveredCredentialMessages();
