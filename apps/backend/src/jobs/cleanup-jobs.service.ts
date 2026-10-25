@@ -78,8 +78,11 @@ export class CleanupJobsService {
     try {
       const result = await this.prisma.studentProfile.updateMany({
         where: {
-          pinExpiresAt: { lte: cutoffDate },
           tempAccessPin: { not: null },
+          OR: [
+            { pinExpiresAt: { lte: cutoffDate } },
+            { pinExpiresAt: null },
+          ],
         },
         data: {
           tempAccessPin: null,

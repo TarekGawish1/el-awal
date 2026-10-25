@@ -122,7 +122,17 @@ describe('Phase 2C: Secure Plaintext Credential Retention & Parent Auth Hardenin
         updateMany: vi.fn().mockImplementation(({ where, data }) => {
           let count = 0;
           if (studentDb.tempAccessPin && where.tempAccessPin?.not === null) {
-            if (!where.pinExpiresAt?.lte || studentDb.pinExpiresAt <= where.pinExpiresAt.lte) {
+            let matches = false;
+            if (where.OR) {
+              matches = where.OR.some((cond: any) => {
+                if (cond.pinExpiresAt === null && studentDb.pinExpiresAt === null) return true;
+                if (cond.pinExpiresAt?.lte && studentDb.pinExpiresAt && studentDb.pinExpiresAt <= cond.pinExpiresAt.lte) return true;
+                return false;
+              });
+            } else if (where.pinExpiresAt?.lte) {
+              matches = studentDb.pinExpiresAt && studentDb.pinExpiresAt <= where.pinExpiresAt.lte;
+            }
+            if (matches) {
               studentDb.tempAccessPin = data.tempAccessPin;
               studentDb.pinExpiresAt = data.pinExpiresAt;
               count = 1;

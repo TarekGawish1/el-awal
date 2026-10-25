@@ -287,9 +287,22 @@ export class GroupReservationsService {
           referenceEntityId: student.id,
         });
 
+        const prevPending = (student?.pendingCredentials as Record<string, any>) || {};
+        const isParentResetActive =
+          Boolean(prevPending.updatedAt) &&
+          new Date(prevPending.updatedAt).getTime() + 48 * 60 * 60 * 1000 > Date.now();
+
+        const remainingPending = isParentResetActive
+          ? {
+              parentPassword: prevPending.parentPassword,
+              parentPhone: prevPending.parentPhone,
+              updatedAt: prevPending.updatedAt,
+            }
+          : null;
+
         await this.prisma.studentProfile.update({
           where: { id: student.id },
-          data: { pendingCredentials: null },
+          data: { pendingCredentials: remainingPending },
         });
 
         this.logger.log(
@@ -331,6 +344,46 @@ export class GroupReservationsService {
     const deleted = await this.prisma.groupEnrollment.delete({
       where: { id: enrollmentId },
     });
+
+    // Safely clear onboarding pendingCredentials if student has no remaining pending reservations,
+    // while strictly preserving any active parent password reset envelope (isParentResetActive).
+    try {
+      const remainingPendingCount = await this.prisma.groupEnrollment.count({
+        where: {
+          studentId: enrollment.studentId,
+          status: 'PENDING' as GroupEnrollmentStatus,
+        },
+      });
+
+      if (remainingPendingCount === 0) {
+        const studentProfile = await this.prisma.studentProfile.findUnique({
+          where: { id: enrollment.studentId },
+          select: { pendingCredentials: true },
+        });
+
+        const prevPending = (studentProfile?.pendingCredentials as Record<string, any>) || {};
+        const isParentResetActive =
+          Boolean(prevPending.updatedAt) &&
+          new Date(prevPending.updatedAt).getTime() + 48 * 60 * 60 * 1000 > Date.now();
+
+        const remainingPending = isParentResetActive
+          ? {
+              parentPassword: prevPending.parentPassword,
+              parentPhone: prevPending.parentPhone,
+              updatedAt: prevPending.updatedAt,
+            }
+          : null;
+
+        await this.prisma.studentProfile.update({
+          where: { id: enrollment.studentId },
+          data: { pendingCredentials: remainingPending },
+        });
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to clear pendingCredentials on rejection for student [${enrollment.studentId}]: ${err.message}`,
+      );
+    }
 
     if (this.redisCache) {
       await this.redisCache.delPattern('groups:*');

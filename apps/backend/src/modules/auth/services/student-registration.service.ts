@@ -220,6 +220,7 @@ export class StudentRegistrationService {
               parentPassword: parentIsNew ? parentPassword : null,
               studentPhone: studentPhone || null,
               parentPhone,
+              createdAt: new Date().toISOString(),
             },
           },
         });

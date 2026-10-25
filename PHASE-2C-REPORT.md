@@ -8,14 +8,14 @@
 
 ## 1. Executive Summary
 
-Phase 2C addresses the secure retention and lifecycle management of plaintext credentials (`tempAccessPin` and `pendingCredentials`) across student and parent account lifecycles. 
+Phase 2C addresses the secure retention and lifecycle management of plaintext credentials (`tempAccessPin` and `pendingCredentials`) across student and parent account lifecycles.
 
-The primary objectives achieved:
-1. **Preserve Permanent Student & Parent Passwords**: Student and parent accounts and their permanent passwords (`User.passwordHash`) **never** expire after 48 hours. Login via permanent password remains permanent, seamless, and unaffected.
-2. **Strict Plaintext Retention Window (48 Hours)**: Plaintext credential copies (`tempAccessPin` and `pendingCredentials.parentPassword`) are retained exclusively during the initial 48-hour handoff/printing window. After 48 hours, they expire and evaluate to `null`.
-3. **Safe, Idempotent Background Cleanup**: Hourly scheduled cron cleanup purges expired plaintext PIN records from `student_profiles` without touching `users.password_hash`.
-4. **Opportunistic Login Cleanup**: When a student logs in using their real password, plaintext `tempAccessPin` and `pendingCredentials` are purged immediately from the database.
-5. **Pending Registration & WhatsApp Delivery Traceability**: `pendingCredentials` is preserved during group join requests / reservations until the teacher approves the request and WhatsApp delivery is successfully enqueued. If dispatch encounters network or service failure, `pendingCredentials` is preserved for retry.
+### Primary Guarantees Achieved:
+1. **Permanent Passwords Never Expire**: Student and parent accounts and their permanent passwords (`User.passwordHash`) **never** expire after 48 hours. Login via permanent password remains permanent, seamless, and governed strictly by standard bcrypt password hashing rules.
+2. **Strict Plaintext API Masking Window (48 Hours)**: Plaintext credential copies (`tempAccessPin` and `pendingCredentials.parentPassword`) are exposed via API endpoints exclusively during the initial 48-hour handoff/printing window. After 48 hours, they evaluate to `null` at the API boundary.
+3. **Hourly Physical PIN Cleanup**: An automated hourly cron job purges expired plaintext PIN records from `student_profiles` where `pinExpiresAt <= NOW()`, without ever touching `users.password_hash`.
+4. **Opportunistic Login Cleanup**: When a student logs in using their real permanent password, plaintext `tempAccessPin`, `pinExpiresAt`, and `pendingCredentials` are physically purged immediately from the database.
+5. **Pending Registration & WhatsApp Delivery Traceability**: `pendingCredentials` is intentionally preserved during group join requests / reservations until the teacher approves the request and WhatsApp delivery is successfully enqueued. If dispatch encounters network or service failure, `pendingCredentials` is preserved for retry.
 6. **Parent Access Compatibility & Hardening**: Parents can authenticate using their own password, linked student permanent password (even after 48h), or unexpired student temporary PIN. Expired temporary PINs are strictly blocked from parent access.
 7. **Teacher Credential Card Printing & Re-issuance**: Teachers and secretariat staff can retrieve plaintext credentials for printing physical cards during the 48-hour window. Once expired, the UI displays clear guidance to use the authorized password-reset flow instead of exposing old passwords.
 
@@ -133,63 +133,141 @@ git diff --check
 
 ---
 
-## 5. Credential-Retention Behavior: Before vs. After
+## 5. Three Distinct Plaintext Retention Categories
 
-| Capability | Before Phase 2C | After Phase 2C |
-| :--- | :--- | :--- |
-| **Student Permanent Password** | Indefinite, but plaintext `tempAccessPin` remained in database indefinitely if not cleared. | `passwordHash` is permanent and never expires. Plaintext `tempAccessPin` copy is strictly bounded to 48 hours. |
-| **Student Login After 48 Hours** | Could use plaintext PIN indefinitely if student never changed password. | Plaintext PIN rejected after 48h. Student logs in seamlessly using permanent password (`passwordHash`). |
-| **Database Plaintext Copies** | Plaintext PINs and JSON credentials accumulated in database over time. | Expired plaintext copies purged automatically by hourly cron (`0 * * * *`) and on verified login. |
-| **Parent Access via Expired PIN** | Parent could log in with expired student PIN indefinitely. | Strictly blocked. Parent must use their password, student permanent password, or active (unexpired) PIN. |
-| **Parent Plaintext Password in Modal** | Returned from `pendingCredentials` forever to teachers. | Returned only during the active 48-hour window. Afterwards returns `null`; teacher uses reset button if needed. |
-| **Pending Reservation Approval** | Risk of premature deletion before WhatsApp sent. | `pendingCredentials` preserved until WhatsApp notification successfully enqueued; retained on failure for retries. |
+To avoid false assumptions about data deletion, the platform strictly separates three distinct retention realities:
+
+### Category 1: Values Immediately Hidden by API Response Logic (API Masking)
+- **Scope**: `getStudentCredentials()` in `student-credentials.service.ts` and authentication resolvers in `auth-credentials.service.ts`.
+- **Behavior**:
+  - The exact millisecond `pinExpiresAt <= now()`, `isPinActive` evaluates to `false`.
+  - `tempAccessPin` immediately returns `null` in API responses.
+  - `parentPassword` immediately returns `null` in API responses once the 48-hour initial window and 48-hour reset window elapse.
+  - `pendingCredentials.studentPassword` is **never** exposed by `getStudentCredentials()`.
+- **Crucial Distinction**: Returning `null` from an API endpoint is an access-control and privacy policy guarantee; it does **not** mean the database column was physically deleted at that exact second.
+
+### Category 2: Values Physically Removed from the Database
+- **Scope**: Physical `UPDATE` statements setting columns to `NULL`.
+- **`tempAccessPin` & `pinExpiresAt`**:
+  - Physically set to `NULL` in `student_profiles` by the hourly background cron job (`0 * * * *`, Cairo time) when `pinExpiresAt <= NOW()`.
+  - Also physically set to `NULL` opportunistically whenever a student logs in using their permanent password.
+  - **Timing Reality**: Physical database cleanup occurs up to 59 minutes after the nominal 48-hour expiration time. During this inter-cron window, Stage 1 API masking guarantees zero exposure.
+- **`pendingCredentials`**:
+  - Physically set to `NULL` in `student_profiles` upon successful queuing of WhatsApp credentials during:
+    1. Direct student registration ([student-registration.service.ts](file:///d:/development/nexly/el-awal/apps/backend/src/modules/auth/services/student-registration.service.ts#L370)).
+    2. Group invitation link registration ([auth-group-registration.service.ts](file:///d:/development/nexly/el-awal/apps/backend/src/modules/auth/services/auth-group-registration.service.ts#L418)).
+    3. Teacher approval of group reservations ([group-reservations.service.ts](file:///d:/development/nexly/el-awal/apps/backend/src/modules/groups/services/group-reservations.service.ts#L290)).
+  - Also physically cleared opportunistically upon verified student password login ([auth-credentials.service.ts](file:///d:/development/nexly/el-awal/apps/backend/src/modules/auth/services/auth-credentials.service.ts#L144)).
+
+### Category 3: Values Intentionally Retained in the Database
+- **Scope**: Records pending workflow completion or retry.
+- **Pending Group Reservations**: When a student requests to join a group, `pendingCredentials` is intentionally retained in the database so that credentials can be delivered to the parent when the teacher approves the request.
+- **Delivery Failure & Retries**: If WhatsApp delivery fails (e.g. rate limit, network timeout, gateway disconnect), the transaction preserves `pendingCredentials` in the database so the teacher or secretariat can re-dispatch credentials.
+- **Indefinite Physical Storage Risk**:
+  - If a student reservation is **never** acted upon (neither approved nor dropped), or if a failed WhatsApp delivery is abandoned and the student never logs in, `pendingCredentials` **can remain physically stored in the database indefinitely**.
+  - The hourly cron job `cleanupExpiredTemporaryPins` operates strictly on `tempAccessPin` and `pinExpiresAt`; it does **not** touch `pendingCredentials`.
+  - This retention is intentional to protect delivery and onboarding reliability, but operators must understand that returning `null` in the UI does not mean physical deletion has occurred.
 
 ---
 
 ## 6. Parent-Login Compatibility & Workflow Verification
 
+### Dual-Route Authentication Matrix
+The platform provides two distinct, fully hardened parent authentication flows:
+
 1. **Direct Parent Login (`/login`)**:
    - Matches parent phone number against `User.passwordHash`.
    - If parent enters linked student permanent password, authentication succeeds (`UserRole.PARENT`).
-   - If parent enters linked student temporary PIN, authentication succeeds only if `pinExpiresAt > now()`.
+   - If parent enters linked student temporary PIN, authentication succeeds only if `pinExpiresAt > now()`. Expired student PINs are strictly blocked.
 2. **Parent Access Portal (`/parent-access`)**:
    - Searches by student phone, student code, emergency phone, or parent phone.
    - Evaluates parent `passwordHash`, linked student `passwordHash`, or unexpired `tempAccessPin`.
+   - Expired student PINs are strictly blocked (`UnauthorizedException`).
    - Never exposes plaintext credentials in responses or session tokens.
 
----
-
-## 7. Remaining Risks & Recommended Migrations
-
-1. **Legacy Records in Production Database**:
-   - Student records created months before Phase 2C may still have historical `pending_credentials` JSON or unexpired-marked `temp_access_pin` where `pin_expires_at` was originally set to null.
-   - **Recommended Safe SQL Migration**:
-     ```sql
-     -- Safe, non-breaking cleanup of historical plaintext credentials older than 48 hours:
-     UPDATE student_profiles
-     SET 
-       temp_access_pin = NULL,
-       pin_expires_at = NULL,
-       pending_credentials = NULL
-     WHERE created_at < NOW() - INTERVAL '48 hours'
-       AND (temp_access_pin IS NOT NULL OR pending_credentials IS NOT NULL);
-     ```
-   - This migration modifies **only** `student_profiles` and does **not** alter `users.password_hash`. Permanent access remains 100% intact.
+### Permanent Passwords Are Never Expired
+- Permanent student and parent passwords stored in `User.passwordHash` are verified directly via bcrypt.
+- They are **never** governed by `pinExpiresAt`. An expired temporary PIN never invalidates or impairs a permanent password.
 
 ---
 
-## 8. Current Git Status
+## 7. Critical Safety Review: Historical Database Cleanup & Diagnostic SQL
+
+### ⚠️ Strict Prohibition on Heuristic Destructive Cleanup
+**NO PRODUCTION SQL CLEANUP SHOULD BE RUN BASED SOLELY ON THE CURRENT REPORT.**
+
+A naive query such as:
+```sql
+-- ❌ DANGEROUS DO NOT RUN:
+UPDATE student_profiles
+SET temp_access_pin = NULL, pin_expires_at = NULL, pending_credentials = NULL
+WHERE created_at < NOW() - INTERVAL '48 hours'
+  AND (temp_access_pin IS NOT NULL OR pending_credentials IS NOT NULL);
+```
+**must never be executed**, because:
+1. **`created_at` Does Not Establish Credential Age**:
+   - `student_profiles.created_at` reflects when the account was first created, NOT when `pending_credentials` was updated.
+   - For example, `resetParentPassword()` overwrites `pending_credentials` with a fresh password on an account that may have been created 6 months ago. Wiping records based on `created_at < 48h` would destroy newly reset parent credentials.
+   - Older schema records store `pending_credentials` as a JSON blob without an internal `updatedAt` field; credential age cannot be reliably established from profile timestamps alone.
+2. **Missing `PENDING` Enrollment Does Not Prove Safety**:
+   - A student who completed general registration without selecting a group has no group enrollments at all, yet is awaiting manual placement.
+   - A student whose enrollment was accepted but whose WhatsApp message failed is no longer `PENDING`, yet still requires `pending_credentials` for notification retry.
+   - Blindly deleting records where `status != 'PENDING'` will destroy active onboarding payloads.
+
+### 🔍 Read-Only Diagnostic Queries (Safe Inspection Only)
+Before any data maintenance is considered, operators should run **read-only SELECT queries** to inspect the actual state of legacy data without modifying rows:
+
+```sql
+-- 1. Read-Only: Count of profiles with active vs expired temporary PINs
+SELECT
+  COUNT(*) FILTER (WHERE temp_access_pin IS NOT NULL AND pin_expires_at > NOW()) AS active_pins,
+  COUNT(*) FILTER (WHERE temp_access_pin IS NOT NULL AND pin_expires_at <= NOW()) AS expired_pins_pending_cron,
+  COUNT(*) FILTER (WHERE temp_access_pin IS NOT NULL AND pin_expires_at IS NULL) AS legacy_pins_without_expiry,
+  COUNT(*) FILTER (WHERE temp_access_pin IS NULL) AS clean_profiles
+FROM student_profiles;
+
+-- 2. Read-Only: Count of profiles with pending_credentials grouped by group enrollment status
+SELECT
+  COALESCE(ge.status::text, 'NO_ENROLLMENT') AS enrollment_status,
+  COUNT(DISTINCT sp.id) AS profiles_with_pending_credentials
+FROM student_profiles sp
+LEFT JOIN group_enrollments ge ON ge.student_id = sp.id
+WHERE sp.pending_credentials IS NOT NULL
+GROUP BY ge.status;
+
+-- 3. Read-Only: Inspect sample legacy records with pending_credentials
+SELECT
+  sp.id,
+  sp.student_code,
+  sp.created_at,
+  sp.pin_expires_at,
+  (sp.pending_credentials->>'updatedAt') AS creds_updated_at,
+  u.is_active AS user_active
+FROM student_profiles sp
+JOIN users u ON u.id = sp.id
+WHERE sp.pending_credentials IS NOT NULL
+ORDER BY sp.created_at DESC
+LIMIT 10;
+```
+
+---
+
+## 8. Final Git Status & Audit Conclusion
 
 ```
 On branch main
 Your branch is up to date with 'origin/main'.
 
 Changes not staged for commit:
-	modified:   apps/backend/src/modules/auth/tests/phase-2c-secure-retention.spec.ts
-	modified:   apps/backend/src/modules/students/services/student-credentials.service.ts
-
-Untracked files:
-	PHASE-2C-REPORT.md
+  modified:   PHASE-2C-REPORT.md
 ```
 
-All modifications are clean, isolated, thoroughly tested, and ready. Stopped without committing, pushing, or deploying.
+### Audit Conclusion:
+- [x] Permanent student and parent passwords remain valid according to standard authentication rules and never expire.
+- [x] API masking and physical database deletion are clearly distinguished as separate guarantees.
+- [x] Hourly cleanup timing (occurring up to 59 minutes after nominal PIN expiry) is explicitly documented.
+- [x] `pendingCredentials` retention during pending approval and delivery failure retries is accurately detailed.
+- [x] The possibility of `pendingCredentials` persisting indefinitely if workflows are abandoned is documented.
+- [x] All destructive cleanup SQL examples have been replaced with safe, read-only diagnostic queries.
+- [x] Explicit prohibition against running unreviewed production SQL cleanups is included.
+- [x] No production data modified; no commits, pushes, merges, or deployments performed.

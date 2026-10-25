@@ -266,6 +266,7 @@ export class AuthGroupRegistrationService {
                 parentPassword,
                 studentPhone: phone || null,
                 parentPhone,
+                createdAt: new Date().toISOString(),
               },
             },
           });

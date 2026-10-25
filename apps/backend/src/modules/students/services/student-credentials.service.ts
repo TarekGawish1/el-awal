@@ -410,9 +410,9 @@ export class StudentCredentialsService {
 
     const parentUser = studentProfile.parentLinks?.[0]?.parent?.user;
     const isPinActive =
-      !!studentProfile.tempAccessPin &&
-      (!studentProfile.pinExpiresAt ||
-        new Date(studentProfile.pinExpiresAt) > new Date());
+      Boolean(studentProfile.tempAccessPin) &&
+      Boolean(studentProfile.pinExpiresAt) &&
+      new Date(studentProfile.pinExpiresAt) > new Date();
 
     const pending =
       (studentProfile.pendingCredentials as Record<string, any>) || {};

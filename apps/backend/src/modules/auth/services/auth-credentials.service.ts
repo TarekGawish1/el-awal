@@ -85,9 +85,10 @@ export class AuthCredentialsService {
     // If password doesn't match own passwordHash:
     // A) Check student temporary access PIN if user is a student (enforce 48h expiration)
     if (!isPasswordValid && user.studentProfile?.tempAccessPin) {
-      const isPinExpired =
-        user.studentProfile.pinExpiresAt && new Date(user.studentProfile.pinExpiresAt) < new Date();
-      if (!isPinExpired && user.studentProfile.tempAccessPin === dto.password) {
+      const isPinValid =
+        Boolean(user.studentProfile.pinExpiresAt) &&
+        new Date(user.studentProfile.pinExpiresAt) > new Date();
+      if (isPinValid && user.studentProfile.tempAccessPin === dto.password) {
         isPasswordValid = true;
       }
     }
@@ -104,10 +105,11 @@ export class AuthCredentialsService {
             break;
           }
         }
-        const isPinExpired =
-          link.student?.pinExpiresAt && new Date(link.student.pinExpiresAt) < new Date();
+        const isPinValid =
+          Boolean(link.student?.pinExpiresAt) &&
+          new Date(link.student.pinExpiresAt) > new Date();
         if (
-          !isPinExpired &&
+          isPinValid &&
           link.student?.tempAccessPin &&
           link.student.tempAccessPin === dto.password
         ) {
@@ -130,18 +132,32 @@ export class AuthCredentialsService {
       (user.studentProfile.tempAccessPin || (user.studentProfile as any).pendingCredentials)
     ) {
       const usedTempPin = user.studentProfile.tempAccessPin === dto.password;
-      const isPinExpired = user.studentProfile.pinExpiresAt
-        ? new Date(user.studentProfile.pinExpiresAt) < new Date()
-        : false;
+      const isPinExpiredOrLegacy =
+        !user.studentProfile.pinExpiresAt ||
+        new Date(user.studentProfile.pinExpiresAt) <= new Date();
 
-      if (!usedTempPin || isPinExpired) {
+      if (!usedTempPin || isPinExpiredOrLegacy) {
+        const prevPending =
+          ((user.studentProfile as any)?.pendingCredentials as Record<string, any>) || {};
+        const isParentResetActive =
+          Boolean(prevPending.updatedAt) &&
+          new Date(prevPending.updatedAt).getTime() + 48 * 60 * 60 * 1000 > Date.now();
+
+        const remainingPending = isParentResetActive
+          ? {
+              parentPassword: prevPending.parentPassword,
+              parentPhone: prevPending.parentPhone,
+              updatedAt: prevPending.updatedAt,
+            }
+          : null;
+
         await this.prisma.studentProfile
           .update({
             where: { id: user.studentProfile.id },
             data: {
               tempAccessPin: null,
               pinExpiresAt: null,
-              pendingCredentials: null,
+              pendingCredentials: remainingPending,
             },
           })
           .catch((err) =>
@@ -276,10 +292,11 @@ export class AuthCredentialsService {
             break;
           }
         }
-        const isPinExpired =
-          link.student?.pinExpiresAt && new Date(link.student.pinExpiresAt) < new Date();
+        const isPinValid =
+          Boolean(link.student?.pinExpiresAt) &&
+          new Date(link.student.pinExpiresAt) > new Date();
         if (
-          !isPinExpired &&
+          isPinValid &&
           link.student?.tempAccessPin &&
           link.student.tempAccessPin === password
         ) {
