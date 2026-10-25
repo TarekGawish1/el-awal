@@ -14,6 +14,7 @@ import {
   Trash2,
   Play,
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/Skeleton';
 import {
   useWhatsAppStats,
   useWhatsAppQueue,
@@ -218,9 +219,16 @@ export function WhatsAppQueueManager() {
           )}
 
           {isFailedLoading ? (
-            <div className="py-20 text-center bg-white rounded-2xl border border-slate-100">
-              <Loader2 className="animate-spin text-blue-500 mx-auto mb-3" size={28} />
-              <p className="text-xs text-slate-500">جاري تحميل الرسائل الفاشلة...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-40 rounded" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </div>
+                  <Skeleton className="h-3 w-64 rounded" />
+                </div>
+              ))}
             </div>
           ) : !failedData?.data || failedData.data.length === 0 ? (
             <div className="py-20 text-center bg-white rounded-2xl border border-slate-100 space-y-2">
@@ -292,9 +300,16 @@ export function WhatsAppQueueManager() {
           </div>
 
           {isQueueLoading ? (
-            <div className="py-20 text-center bg-white rounded-2xl border border-slate-100">
-              <Loader2 className="animate-spin text-blue-500 mx-auto mb-3" size={28} />
-              <p className="text-xs text-slate-500">جاري تحميل طابور الرسائل...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-40 rounded" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </div>
+                  <Skeleton className="h-3 w-64 rounded" />
+                </div>
+              ))}
             </div>
           ) : !queueData?.data || queueData.data.length === 0 ? (
             <div className="py-20 text-center bg-white rounded-2xl border border-slate-100 space-y-2">

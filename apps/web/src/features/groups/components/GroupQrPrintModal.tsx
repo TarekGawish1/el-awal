@@ -5,6 +5,7 @@ import { X, Printer, Download, Loader2, AlertCircle, QrCode, FileText } from 'lu
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Portal } from '@/components/ui/Portal';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useGroupStudents } from '../hooks/useGroups';
 import { exportGroupQrCodesPdf, StudentQrData } from '../utils/qr-pdf-exporter';
 import { printQrSheetDirectly } from '../utils/qr-print-helpers';
@@ -166,9 +167,14 @@ export function GroupQrPrintModal({
         {/* Modal Body / Sheet Preview */}
         <div className="flex-1 overflow-y-auto pr-1 pl-1 print:overflow-visible">
           {isLoading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-              <p className="text-sm font-medium">جاري تجهيز كروت الـ QR للطلاب...</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="border border-slate-200 rounded-2xl p-4 bg-white flex flex-col items-center gap-3">
+                  <Skeleton className="w-28 h-28 rounded-xl" />
+                  <Skeleton className="h-4 w-24 rounded" />
+                  <Skeleton className="h-3 w-16 rounded" />
+                </div>
+              ))}
             </div>
           ) : isError ? (
             <div className="py-16 text-center text-slate-500 space-y-2">

@@ -169,8 +169,10 @@ export function LessonVideoSection({
                   allowFullScreen
                 />
               ) : (
-                <div className="text-center p-6 text-slate-400 space-y-2">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-400" />
+                <div className="text-center p-6 text-slate-400 space-y-2 animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-primary-400">
+                    <Video className="w-6 h-6" />
+                  </div>
                   <p className="text-xs">جاري تجهيز مشغل الفيديو السحابي...</p>
                 </div>
               )}

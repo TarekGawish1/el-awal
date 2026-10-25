@@ -5,6 +5,7 @@ import { X, Users, Search, Check, Filter } from 'lucide-react';
 import { useStudents } from '@/features/students/hooks/use-students';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useEnrollStudentsBatch } from '../hooks/useCourses';
+import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
 
 interface GroupStudentSelectModalProps {
@@ -163,8 +164,19 @@ export function GroupStudentSelectModal({
         {/* Students List */}
         <div className="p-4 overflow-y-auto space-y-2 flex-1 max-h-[350px] bg-white">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+            <div className="space-y-2 py-1">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="w-8 h-8 rounded-full" />
+                    <div className="space-y-1">
+                      <Skeleton className="h-4 w-32 rounded-md" />
+                      <Skeleton className="h-3 w-20 rounded-md" />
+                    </div>
+                  </div>
+                  <Skeleton className="w-5 h-5 rounded-md" />
+                </div>
+              ))}
             </div>
           ) : students.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-8">لا يوجد طلاب مطابقين لخيارات البحث</p>

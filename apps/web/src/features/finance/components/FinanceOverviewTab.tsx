@@ -21,6 +21,7 @@ import { OnlineCourseFinancialCard } from './OnlineCourseFinancialCard';
 import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
 import { matchesSearch } from '@/lib/utils/search';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { FinanceMetricCard, TERM_MONTHS, MONTH_NAMES } from './overview/FinanceMetricCard';
 import { FinanceOverviewFilterBar } from './overview/FinanceOverviewFilterBar';
 
@@ -178,10 +179,27 @@ export function FinanceOverviewTab({
 
       {/* Loading & Error States (Online Only) */}
       {isOnline && isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-slate-500 font-medium text-sm">
-            <RefreshCw className="h-5 w-5 animate-spin text-indigo-600" />
-            <span>جارٍ تحميل البيانات المالية والتحليلات...</span>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-28 rounded" />
+                  <Skeleton className="w-8 h-8 rounded-xl" />
+                </div>
+                <Skeleton className="h-7 w-24 rounded" />
+                <Skeleton className="h-3 w-36 rounded" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-4">
+                <Skeleton className="h-5 w-40 rounded" />
+                <Skeleton className="h-20 w-full rounded-xl" />
+                <Skeleton className="h-8 w-full rounded-xl" />
+              </div>
+            ))}
           </div>
         </div>
       )}

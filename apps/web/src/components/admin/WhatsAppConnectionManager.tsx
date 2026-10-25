@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Skeleton } from '@/components/ui/Skeleton';
 import {
   QrCode,
   RefreshCw,
@@ -235,11 +236,11 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
           </div>
         )}
 
-        {/* Connecting Spinner */}
+        {/* Connecting Skeleton */}
         {!isConnected && !statusData.qr && isConnecting && (
-          <div className="text-center py-8 space-y-3">
-            <div className="w-10 h-10 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs font-semibold text-slate-600">جاري الاتصال بخدمة واتساب وتوليد رمز الربط...</p>
+          <div className="text-center py-6 space-y-3">
+            <Skeleton className="w-56 h-56 rounded-2xl mx-auto" />
+            <Skeleton className="h-4 w-64 mx-auto rounded" />
           </div>
         )}
 

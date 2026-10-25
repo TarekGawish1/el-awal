@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { CreditCard, Phone, Eye, Check, X } from 'lucide-react';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface PendingEnrollmentsTableProps {
   isLoading: boolean;
@@ -24,8 +25,26 @@ export function PendingEnrollmentsTable({
 }: PendingEnrollmentsTableProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="divide-y divide-slate-100">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-10 h-10 rounded-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-32 rounded-md" />
+                  <Skeleton className="h-3 w-24 rounded-md" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-24 rounded-md hidden sm:block" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-20 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

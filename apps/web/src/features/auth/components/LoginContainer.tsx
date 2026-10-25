@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui';
+import { Card, CardContent, Skeleton } from '@/components/ui';
 import { LoginForm } from './LoginForm';
 import { useAuth } from '../hooks/useAuth';
 import { getRoleLandingRoute, sanitizeRedirectUrl, hasMultipleRoles } from '../utils/role-routing';
@@ -69,10 +69,15 @@ export function LoginContainer() {
 
         {/* If session is detected, show a smooth redirect transition instead of flashing the login card */}
         {isSessionDetected ? (
-          <div className="py-10 text-center space-y-3 animate-fade-in">
-            <div className="w-7 h-7 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-sm font-bold text-neutral-700">جاري الانتقال إلى لوحة التحكم...</p>
-          </div>
+          <Card className="shadow-sm border-neutral-200/90 bg-white rounded-2xl sm:rounded-3xl">
+            <CardContent className="p-5 sm:p-8 space-y-4">
+              <Skeleton className="h-6 w-36 rounded-md" />
+              <Skeleton className="h-4 w-52 rounded-md" />
+              <Skeleton className="h-11 w-full rounded-xl" />
+              <Skeleton className="h-11 w-full rounded-xl" />
+              <Skeleton className="h-11 w-full rounded-xl" />
+            </CardContent>
+          </Card>
         ) : (
           /* Login Form Card rendered for visitors */
           <Card className="shadow-sm border-neutral-200/90 bg-white rounded-2xl sm:rounded-3xl">

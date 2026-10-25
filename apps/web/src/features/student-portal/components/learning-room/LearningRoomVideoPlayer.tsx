@@ -72,8 +72,10 @@ export function LearningRoomVideoPlayer({
         onContextMenu={(e) => e.preventDefault()}
       >
         {isLessonLoading || isStreamAuthLoading ? (
-          <div className="flex flex-col items-center gap-3 text-white">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500" />
+          <div className="flex flex-col items-center gap-3 text-white animate-pulse">
+            <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center">
+              <Video className="w-8 h-8 text-primary-400" />
+            </div>
             <span className="text-xs font-mono text-slate-300">
               جاري فك التشفير وتجهيز البث الآمن...
             </span>

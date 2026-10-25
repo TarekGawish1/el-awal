@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Users, Trash2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { CourseEnrollmentStudent } from '../../types/courses.types';
 
 interface EnrolledStudentsTableProps {
@@ -17,8 +18,23 @@ export function EnrolledStudentsTable({
 }: EnrolledStudentsTableProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="divide-y divide-slate-100">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-10 h-10 rounded-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-32 rounded-md" />
+                  <Skeleton className="h-3 w-20 rounded-md" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-28 rounded-md hidden sm:block" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-8 w-8 rounded-lg" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

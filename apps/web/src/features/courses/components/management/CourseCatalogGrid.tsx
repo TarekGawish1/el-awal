@@ -3,6 +3,7 @@
 import React from "react";
 import { BookOpen } from "lucide-react";
 import { CourseDetail } from "../../types/courses.types";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { CourseCatalogCard } from "./CourseCatalogCard";
 
 export interface CourseCatalogGridProps {
@@ -20,8 +21,35 @@ export function CourseCatalogGrid({
 }: CourseCatalogGridProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[300px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div
+            key={i}
+            className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col"
+          >
+            <Skeleton className="aspect-video w-full rounded-none" />
+            <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-16 rounded-md" />
+                  <Skeleton className="h-4 w-24 rounded-md" />
+                </div>
+                <Skeleton className="h-5 w-4/5 rounded-md" />
+                <Skeleton className="h-4 w-full rounded-md" />
+              </div>
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <Skeleton className="h-4 w-16 rounded-md" />
+                <Skeleton className="h-4 w-16 rounded-md" />
+                <Skeleton className="h-4 w-16 rounded-md" />
+              </div>
+              <div className="pt-2 flex items-center gap-2">
+                <Skeleton className="h-9 flex-1 rounded-xl" />
+                <Skeleton className="h-9 w-9 rounded-xl" />
+                <Skeleton className="h-9 w-9 rounded-xl" />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

@@ -4,6 +4,7 @@ import React from 'react';
 import { MessageSquare } from 'lucide-react';
 import { LessonQuestion, LessonQuestionReply } from '@/features/courses/types/courses.types';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useLessonQAState } from '../hooks/useLessonQAState';
 import { AskQuestionCard } from './qa/AskQuestionCard';
 import { LessonQuestionItem } from './qa/LessonQuestionItem';
@@ -95,8 +96,19 @@ export function LessonQAPanel({
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-8 h-8 rounded-full" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-32 rounded" />
+                    <Skeleton className="h-3 w-20 rounded" />
+                  </div>
+                </div>
+                <Skeleton className="h-4 w-3/4 rounded" />
+              </div>
+            ))}
           </div>
         ) : questions.length === 0 ? (
           <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl text-slate-500 text-xs space-y-1 shadow-sm">

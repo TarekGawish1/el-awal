@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useStudentGroup, useStudentGroupSessions } from '@/features/student-portal/hooks/useStudentPortal';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 
@@ -75,7 +76,21 @@ export function StudentLatestHomework({ homework }: { homework?: any } = {}) {
   const isLoading = isProvided ? false : isSessionsLoading;
 
   if (isLoading) {
-    return <Card className="border-slate-100 shadow-sm"><CardContent className="flex items-center justify-center p-10"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600" /></CardContent></Card>;
+    return (
+      <Card className="border-slate-100 shadow-sm">
+        <CardHeader className="border-b border-slate-50 bg-slate-50/50 pb-4">
+          <Skeleton className="h-6 w-48 rounded" />
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <Skeleton className="h-5 w-3/4 rounded" />
+          <Skeleton className="h-4 w-1/2 rounded" />
+          <div className="flex gap-4 pt-2">
+            <Skeleton className="h-10 w-32 rounded-xl" />
+            <Skeleton className="h-10 w-28 rounded-xl" />
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (!latestHomeworkSession || !latestHomeworkSession.assessment) {

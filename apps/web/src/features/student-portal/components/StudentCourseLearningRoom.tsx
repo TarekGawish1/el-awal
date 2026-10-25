@@ -9,6 +9,7 @@ import { LessonResourcesTab } from './LessonResourcesTab';
 import { LessonQuizTab } from './LessonQuizTab';
 import { CourseSyllabusSidebar } from './CourseSyllabusSidebar';
 import { useLearningRoom } from '../hooks/useLearningRoom';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const CourseCertificateModal = dynamic(
   () => import('./CourseCertificateModal').then((mod) => mod.CourseCertificateModal),
@@ -52,8 +53,24 @@ export function StudentCourseLearningRoom({
 
   if (room.isCourseLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[500px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+          <Skeleton className="h-6 w-48 rounded" />
+          <Skeleton className="h-8 w-28 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton className="aspect-video w-full rounded-2xl" />
+            <Skeleton className="h-8 w-3/4 rounded" />
+            <Skeleton className="h-4 w-full rounded" />
+          </div>
+          <div className="space-y-3 bg-white border border-slate-200 rounded-2xl p-4 h-fit">
+            <Skeleton className="h-6 w-36 rounded mb-4" />
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

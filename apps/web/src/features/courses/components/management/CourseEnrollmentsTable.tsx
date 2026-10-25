@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { SelectedReceiptState } from "../../types/course-management.types";
 import { CoursePendingEnrollmentsTable } from "./CoursePendingEnrollmentsTable";
 import { CourseActiveEnrollmentsTable } from "./CourseActiveEnrollmentsTable";
@@ -44,9 +44,30 @@ export function CourseEnrollmentsTable({
 }: CourseEnrollmentsTableProps) {
   if (isLoading) {
     return (
-      <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-        <p className="text-sm font-medium">جاري تحميل طلبات الاشتراك والبيانات...</p>
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+          <Skeleton className="h-5 w-40 rounded-md" />
+          <Skeleton className="h-5 w-24 rounded-md" />
+        </div>
+        <div className="divide-y divide-slate-100">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-10 h-10 rounded-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-32 rounded-md" />
+                  <Skeleton className="h-3 w-24 rounded-md" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-28 rounded-md hidden sm:block" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-20 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

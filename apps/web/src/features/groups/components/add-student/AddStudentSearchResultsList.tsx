@@ -3,6 +3,7 @@
 import React from 'react';
 import { Loader2, Search, ArrowLeftRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Student } from '../../types/groups.types';
 
 export interface AddStudentSearchResultsListProps {
@@ -41,9 +42,19 @@ export function AddStudentSearchResultsList({
   return (
     <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50 min-h-[180px]">
       {isSearching ? (
-        <div className="p-8 flex flex-col items-center justify-center text-slate-500">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-          <p>جاري البحث...</p>
+        <div className="p-3 space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="p-3 bg-white rounded-xl border border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-8 h-8 rounded-full" />
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-32 rounded" />
+                  <Skeleton className="h-3 w-20 rounded" />
+                </div>
+              </div>
+              <Skeleton className="h-7 w-16 rounded-lg" />
+            </div>
+          ))}
         </div>
       ) : searchQuery.length > 0 && searchQuery.length < 2 ? (
         <div className="p-8 text-center text-slate-500">يرجى إدخال حرفين على الأقل للبحث</div>

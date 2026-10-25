@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { ShieldAlert, RefreshCw, Loader2, EyeOff } from 'lucide-react';
+import { ShieldAlert, RefreshCw, Loader2, EyeOff, Video } from 'lucide-react';
 
 export interface LessonStreamTicketResponse {
   embedUrl: string;
@@ -215,10 +215,12 @@ export function LessonVideoPlayer({
       {isLoading && (
         <div
           data-testid="player-loading-skeleton"
-          className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 text-white z-10 select-none"
+          className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 animate-pulse text-white z-10 select-none"
           draggable={false}
         >
-          <Loader2 className="w-10 h-10 text-primary-500 animate-spin" />
+          <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center">
+            <Video className="w-8 h-8 text-primary-400" />
+          </div>
           <span className="text-xs font-mono text-slate-300">
             جاري تأمين البث وتوليد التذكرة المشفرة...
           </span>

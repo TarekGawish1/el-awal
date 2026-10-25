@@ -13,6 +13,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Notification } from '@/hooks/useNotifications';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export interface NotificationFeedTabProps {
   searchQuery: string;
@@ -196,9 +197,19 @@ export function NotificationFeedTab({
       {/* List of notifications */}
       <div className="divide-y divide-slate-100">
         {isFeedLoading ? (
-          <div className="py-16 text-center">
-            <Loader2 className="animate-spin text-blue-500 mx-auto mb-2" size={24} />
-            <p className="text-xs text-slate-400">جاري تحميل سجل الإشعارات...</p>
+          <div className="divide-y divide-slate-100">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-48 rounded" />
+                    <Skeleton className="h-3 w-72 rounded max-w-full" />
+                  </div>
+                </div>
+                <Skeleton className="h-3 w-16 rounded shrink-0" />
+              </div>
+            ))}
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="py-16 text-center">

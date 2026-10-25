@@ -4,6 +4,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { CreatorBadge } from '@/components/ui/CreatorBadge';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { RotateCcw, Eye, ChevronLeft } from 'lucide-react';
 import { AcademicStatus, StudentListItem } from '../types/students.types';
 
@@ -47,14 +48,25 @@ export function StudentListTable({
           </thead>
           <tbody className="divide-y divide-slate-50">
             {isLoading ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-16 text-center text-slate-500">
-                  <div className="flex flex-col items-center justify-center space-y-3">
-                    <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="font-medium">جاري تحميل الطلاب...</p>
-                  </div>
-                </td>
-              </tr>
+              <>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <tr key={i} className="hover:bg-slate-50/50">
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-16 rounded" /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Skeleton className="w-8 h-8 rounded-full" />
+                        <Skeleton className="h-4 w-32 rounded" />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-24 rounded" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-24 rounded" /></td>
+                    <td className="px-4 py-3 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
+                    <td className="px-4 py-3 text-center"><Skeleton className="h-8 w-16 rounded-lg mx-auto" /></td>
+                  </tr>
+                ))}
+              </>
             ) : isError ? (
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
@@ -165,9 +177,25 @@ export function StudentListTable({
       {/* Mobile Cards View (Optimized for Phone Screens) */}
       <div className="block md:hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-slate-500">
-            <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="font-medium text-sm">جاري تحميل الطلاب...</p>
+          <div className="p-4 space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="w-10 h-10 rounded-full" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-4 w-32 rounded" />
+                      <Skeleton className="h-3 w-20 rounded" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+                <div className="flex justify-between pt-2 border-t border-slate-50">
+                  <Skeleton className="h-4 w-24 rounded" />
+                  <Skeleton className="h-4 w-20 rounded" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <div className="p-6 text-center text-red-500 bg-red-50/50 text-sm">

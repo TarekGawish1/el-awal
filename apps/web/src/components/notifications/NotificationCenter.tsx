@@ -21,6 +21,7 @@ import { useAuth } from '@/features/auth';
 import { NotificationDetailModal } from './NotificationDetailModal';
 import { NotificationItem } from './NotificationItem';
 import { PushToggle } from './PushToggle';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 function EmptyState() {
   return (
@@ -245,8 +246,16 @@ export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCou
               {/* Notification List */}
               <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 scrollbar-thin scrollbar-thumb-slate-200">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="text-blue-400 animate-spin" size={24} />
+                  <div className="space-y-2 py-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="p-3 rounded-xl border border-slate-100 flex items-center gap-3">
+                        <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                        <div className="space-y-1 flex-1">
+                          <Skeleton className="h-3.5 w-3/4 rounded" />
+                          <Skeleton className="h-3 w-1/2 rounded" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : notifications.length === 0 ? (
                   <EmptyState />

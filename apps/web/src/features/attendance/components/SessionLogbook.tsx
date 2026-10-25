@@ -9,6 +9,7 @@ import { syncEngine } from '@/lib/offline/sync-engine';
 import { useQueryClient } from '@tanstack/react-query';
 import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck, Search, ChevronDown, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const ATTENDANCE_OPTIONS = {
   PRESENT: { label: 'حاضر', bg: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: CheckCircle2 },
@@ -274,9 +275,37 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent mb-2"></div>
-        <span className="text-sm font-bold text-slate-500">جاري تحميل الدفتر...</span>
+      <div className="space-y-4 py-2">
+        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/70 border border-slate-200">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-10 h-10 rounded-xl" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-5 w-40 rounded" />
+              <Skeleton className="h-3 w-56 rounded" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-24 rounded-lg" />
+            <Skeleton className="h-8 w-24 rounded-lg" />
+          </div>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm divide-y divide-slate-100">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-8 h-8 rounded-full" />
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-32 rounded" />
+                  <Skeleton className="h-3 w-20 rounded" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-24 rounded-lg" />
+                <Skeleton className="h-8 w-24 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
