@@ -276,12 +276,10 @@ export class GroupReservationsService {
           referenceEntityId: student.id,
         });
 
-        if (whatsappPhone) {
-          await this.prisma.studentProfile.update({
-            where: { id: student.id },
-            data: { pendingCredentials: null },
-          });
-        }
+        await this.prisma.studentProfile.update({
+          where: { id: student.id },
+          data: { pendingCredentials: null },
+        });
 
         this.logger.log(
           `📩 Student approval notifications dispatched for ${studentName} (student push: ${studentUser?.id ? 'yes' : 'no'}, parent WhatsApp: ${parentPhone || 'none'})`,

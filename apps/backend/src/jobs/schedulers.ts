@@ -47,7 +47,7 @@ export class SchedulersService implements OnModuleInit {
     this.reminderJobs = reminderJobs ?? new ReminderJobsService(prisma, notifications, clusterService);
     this.teacherScheduleJob = teacherScheduleJob ?? new TeacherScheduleJobService(prisma, notifications, settingsService, whatsapp);
     this.autoAttendanceJob = autoAttendanceJob ?? new AutoAttendanceJobService(prisma);
-    this.cleanupJobs = cleanupJobs ?? new CleanupJobsService(storageCleanup);
+    this.cleanupJobs = cleanupJobs ?? new CleanupJobsService(storageCleanup, prisma);
   }
 
   onModuleInit() {
@@ -123,6 +123,15 @@ export class SchedulersService implements OnModuleInit {
       ),
     );
 
+    // 8. Hourly student temporary access PIN cleanup (every hour at minute 0 Africa/Cairo)
+    this.tasks.push(
+      cron.schedule(
+        '0 * * * *',
+        () => this.runExpiredTemporaryPinCleanup(),
+        { timezone: 'Africa/Cairo' },
+      ),
+    );
+
     this.logger.log(`✅ ${this.tasks.length} cron schedulers active`);
   }
 
@@ -154,5 +163,9 @@ export class SchedulersService implements OnModuleInit {
 
   async runAutoAttendancePresent(): Promise<void> {
     return this.autoAttendanceJob.runAutoAttendancePresent();
+  }
+
+  async runExpiredTemporaryPinCleanup(): Promise<{ purgedCount: number; durationMs: number }> {
+    return this.cleanupJobs.cleanupExpiredTemporaryPins();
   }
 }

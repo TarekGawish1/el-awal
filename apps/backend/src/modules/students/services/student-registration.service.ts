@@ -285,6 +285,14 @@ export class StudentRegistrationService {
           },
         });
 
+        // Safely clear pendingCredentials once notification is successfully enqueued
+        await this.prisma.studentProfile.update({
+          where: { id: result.id },
+          data: { pendingCredentials: null },
+        }).catch((err) => {
+          this.logger.warn(`Failed to clear pendingCredentials for student [${result.id}]: ${err.message}`);
+        });
+
         this.logger.log(
           `📱 Registration credentials WhatsApp dispatched to parent ${whatsappPhone} for student ${dto.fullName}`,
         );

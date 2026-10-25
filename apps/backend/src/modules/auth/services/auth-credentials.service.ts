@@ -124,12 +124,17 @@ export class AuthCredentialsService {
     }
 
     // Clear tempAccessPin and pendingCredentials upon verified login with real password
+    // or when the temporary access PIN retention window has expired
     if (
       user.studentProfile &&
       (user.studentProfile.tempAccessPin || (user.studentProfile as any).pendingCredentials)
     ) {
       const usedTempPin = user.studentProfile.tempAccessPin === dto.password;
-      if (!usedTempPin) {
+      const isPinExpired = user.studentProfile.pinExpiresAt
+        ? new Date(user.studentProfile.pinExpiresAt) < new Date()
+        : false;
+
+      if (!usedTempPin || isPinExpired) {
         await this.prisma.studentProfile
           .update({
             where: { id: user.studentProfile.id },
@@ -271,17 +276,12 @@ export class AuthCredentialsService {
             break;
           }
         }
+        const isPinExpired =
+          link.student?.pinExpiresAt && new Date(link.student.pinExpiresAt) < new Date();
         if (
+          !isPinExpired &&
           link.student?.tempAccessPin &&
           link.student.tempAccessPin === password
-        ) {
-          isPasswordValid = true;
-          break;
-        }
-        const pending = (link.student as any)?.pendingCredentials;
-        if (
-          pending &&
-          (pending.studentPassword === password || pending.parentPassword === password)
         ) {
           isPasswordValid = true;
           break;

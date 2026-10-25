@@ -362,7 +362,15 @@ export class AuthGroupRegistrationService {
           phone: parentPhone || phone,
         },
       });
-    } catch (waErr) {
+
+        // Safely clear pendingCredentials once registration notification is successfully enqueued
+        await this.prisma.studentProfile.update({
+          where: { id: studentUser.id },
+          data: { pendingCredentials: null },
+        }).catch((err) => {
+          this.logger.warn(`Failed to clear pendingCredentials for student [${studentUser.id}]: ${err.message}`);
+        });
+      } catch (waErr) {
       this.logger.warn(`Failed to dispatch registration WhatsApp message to parent: ${waErr}`);
     }
 

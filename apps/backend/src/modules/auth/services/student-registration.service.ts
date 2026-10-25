@@ -366,6 +366,14 @@ export class StudentRegistrationService {
           },
         });
 
+        // Safely clear pendingCredentials once direct acceptance notification is successfully enqueued
+        await this.prisma.studentProfile.update({
+          where: { id: studentUser.id },
+          data: { pendingCredentials: null },
+        }).catch((err) => {
+          this.logger.warn(`Failed to clear pendingCredentials for student [${studentUser.id}]: ${err.message}`);
+        });
+
         this.logger.log(
           `📥 Direct Group Acceptance WhatsApp queued for student ${fullName} → ${whatsappPhone}`,
         );

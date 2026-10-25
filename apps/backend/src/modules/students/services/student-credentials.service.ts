@@ -432,4 +432,22 @@ export class StudentCredentialsService {
       isPinActive,
     };
   }
+
+  /**
+   * Domain-level cleanup method for expired temporary student access PINs.
+   * Safe and idempotent: updates only student_profiles where pin_expires_at <= cutoff.
+   * Leaves users.password_hash completely intact.
+   */
+  async cleanupExpiredTemporaryPins(cutoffDate: Date = new Date()) {
+    return this.prisma.studentProfile.updateMany({
+      where: {
+        pinExpiresAt: { lte: cutoffDate },
+        tempAccessPin: { not: null },
+      },
+      data: {
+        tempAccessPin: null,
+        pinExpiresAt: null,
+      },
+    });
+  }
 }

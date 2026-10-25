@@ -1,5 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { StorageCleanupService } from '../integrations/storage/storage-cleanup.service';
+import { PrismaService } from '../core/database/prisma.service';
 
 @Injectable()
 export class CleanupJobsService {
@@ -7,6 +8,7 @@ export class CleanupJobsService {
 
   constructor(
     @Optional() private readonly storageCleanup?: StorageCleanupService,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
 
   /**
@@ -57,6 +59,52 @@ export class CleanupJobsService {
       );
     } catch (err: any) {
       this.logger.error(`❌ [StorageCleanup] Daily cleanup failed: ${err.message}`, err.stack);
+    }
+  }
+
+  /**
+   * Safe, idempotent cleanup for expired plaintext student temporary access PINs (tempAccessPin).
+   * Operates only on records where pinExpiresAt <= cutoffDate.
+   * Modifies ONLY student_profiles (never touches users.password_hash).
+   * Strictly observable: logs count and duration only, never logs PII or credentials.
+   */
+  async cleanupExpiredTemporaryPins(cutoffDate: Date = new Date()): Promise<{ purgedCount: number; durationMs: number }> {
+    if (!this.prisma) {
+      this.logger.warn('PrismaService is not available; skipping PIN cleanup.');
+      return { purgedCount: 0, durationMs: 0 };
+    }
+
+    const startTime = Date.now();
+    try {
+      const result = await this.prisma.studentProfile.updateMany({
+        where: {
+          pinExpiresAt: { lte: cutoffDate },
+          tempAccessPin: { not: null },
+        },
+        data: {
+          tempAccessPin: null,
+          pinExpiresAt: null,
+        },
+      });
+
+      const durationMs = Date.now() - startTime;
+      if (result.count > 0) {
+        this.logger.log(
+          `🔒 [PinCleanup] Purged ${result.count} expired student temporary access PIN(s) in ${durationMs}ms`,
+        );
+      } else {
+        this.logger.debug(
+          `🔒 [PinCleanup] No expired student temporary access PINs found to purge (${durationMs}ms)`,
+        );
+      }
+      return { purgedCount: result.count, durationMs };
+    } catch (err: any) {
+      const durationMs = Date.now() - startTime;
+      this.logger.error(
+        `❌ [PinCleanup] Failed to purge expired temporary access PINs (${durationMs}ms): ${err.message}`,
+        err.stack,
+      );
+      throw err;
     }
   }
 }
