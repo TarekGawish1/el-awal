@@ -20,9 +20,25 @@ describe('StudentJoining Modular Components', () => {
       expect(screen.getByText('المعلم أ. أحمد')).toBeInTheDocument();
     });
 
-    it('renders direct platform registration badge when createdByName is null', () => {
+    it('renders direct platform registration badge when createdByName is null and no group', () => {
       render(<StudentJoiningBadge createdByName={null} showDetails />);
       expect(screen.getByText('تسجيل مباشر عبر المنصة')).toBeInTheDocument();
+    });
+
+    it('renders group link badge when createdByName is null but groupEnrollments is provided', () => {
+      render(
+        <StudentJoiningBadge
+          createdByName={null}
+          groupEnrollments={[{ group: { name: 'مجموعة الأوائل' } }]}
+          showDetails
+        />
+      );
+      expect(screen.getByText('رابط (مجموعة الأوائل)')).toBeInTheDocument();
+    });
+
+    it('renders approved request badge when createdByName indicates approved request', () => {
+      render(<StudentJoiningBadge createdByName="طلب انضمام معتمد: مجموعة النخبة" showDetails />);
+      expect(screen.getByText('طلب معتمد (مجموعة النخبة)')).toBeInTheDocument();
     });
   });
 
@@ -138,6 +154,30 @@ describe('StudentJoining Modular Components', () => {
       expect(screen.getByText('سجل وتاريخ الانضمام إلى المنصة')).toBeInTheDocument();
       expect(screen.getByText(/انضمام عبر رابط المجموعة/)).toBeInTheDocument();
       expect(screen.getByText('مجموعة النخبة')).toBeInTheDocument();
+    });
+
+    it('renders approved join request section badge', () => {
+      render(
+        <StudentJoiningHistorySection
+          student={{
+            createdAt: '2026-10-25T10:30:00Z',
+            createdByName: 'طلب انضمام معتمد: مجموعة النخبة',
+          }}
+          enrollments={[
+            {
+              id: 'en-1',
+              status: 'ACTIVE',
+              enrolledAt: '2026-10-25T10:30:00Z',
+              group: {
+                name: 'مجموعة النخبة',
+              },
+            },
+          ]}
+        />
+      );
+
+      expect(screen.getByText('سجل وتاريخ الانضمام إلى المنصة')).toBeInTheDocument();
+      expect(screen.getByText(/طلب انضمام معتمد/)).toBeInTheDocument();
     });
   });
 });

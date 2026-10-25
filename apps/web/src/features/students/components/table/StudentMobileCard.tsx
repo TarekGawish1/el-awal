@@ -89,7 +89,10 @@ export function StudentMobileCard({
           <span className="text-slate-400">انضم:</span>
           <strong className="text-slate-700 font-semibold">{joinDateTime}</strong>
         </span>
-        <StudentJoiningBadge createdByName={student.createdByName} />
+        <StudentJoiningBadge
+          createdByName={student.createdByName}
+          groupEnrollments={student.groupEnrollments}
+        />
       </div>
     </div>
   );

@@ -140,6 +140,17 @@ export class GroupReservationsService {
         data: { status: GroupEnrollmentStatus.ACTIVE },
       });
 
+      if (tx.studentProfile?.update) {
+        await tx.studentProfile.update({
+          where: { id: enrollment.studentId },
+          data: {
+            createdByName: `طلب انضمام معتمد: ${enrollment.group.name}`,
+            updatedById: user.id,
+            updatedByName: user.fullName || (user.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم'),
+          },
+        });
+      }
+
       await tx.groupEnrollment.updateMany({
         where: {
           studentId: enrollment.studentId,

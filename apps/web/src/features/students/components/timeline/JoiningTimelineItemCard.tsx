@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Calendar, Clock, ChevronLeft, Eye, MessageCircle, Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
+import { Calendar, Clock, ChevronLeft, Eye, MessageCircle, Link as LinkIcon, UserCheck, Globe, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
@@ -35,7 +35,9 @@ export function JoiningTimelineItemCard({
       {/* Timeline Node Bullet */}
       <div
         className={`absolute -right-[9px] top-4 w-4 h-4 rounded-full border-2 border-white shadow-sm flex items-center justify-center ${
-          method.isGroupLink
+          method.type === 'APPROVED_REQUEST'
+            ? 'bg-indigo-600 ring-4 ring-indigo-100'
+            : method.isGroupLink
             ? 'bg-emerald-500 ring-4 ring-emerald-100'
             : method.type === 'DIRECT'
             ? 'bg-blue-600 ring-4 ring-blue-100'
@@ -53,7 +55,9 @@ export function JoiningTimelineItemCard({
           <div className="flex items-start sm:items-center gap-3">
             <div
               className={`w-11 h-11 rounded-2xl flex items-center justify-center font-extrabold text-base shrink-0 shadow-inner ${
-                method.isGroupLink
+                method.type === 'APPROVED_REQUEST'
+                  ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                  : method.isGroupLink
                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                   : method.type === 'DIRECT'
                   ? 'bg-blue-100 text-blue-800 border border-blue-200'
@@ -73,7 +77,12 @@ export function JoiningTimelineItemCard({
                   {student.studentCode}
                 </span>
 
-                {method.isGroupLink ? (
+                {method.type === 'APPROVED_REQUEST' ? (
+                  <Badge className="bg-indigo-50 text-indigo-800 border border-indigo-200/80 text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 shadow-2xs">
+                    <CheckCircle2 className="w-3 h-3 text-indigo-600" />
+                    <span>طلب انضمام معتمد</span>
+                  </Badge>
+                ) : method.isGroupLink ? (
                   <Badge className="bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 shadow-2xs">
                     <LinkIcon className="w-3 h-3 text-emerald-600" />
                     <span>انضمام عبر رابط المجموعة</span>

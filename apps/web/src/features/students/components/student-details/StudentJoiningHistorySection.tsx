@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Clock, Calendar, Users, Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
+import { Clock, Calendar, Users, Link as LinkIcon, UserCheck, Globe, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import {
   formatJoiningDateTime,
@@ -28,7 +28,10 @@ export function StudentJoiningHistorySection({
   student,
   enrollments,
 }: StudentJoiningHistorySectionProps) {
-  const method = resolveJoiningMethod(student);
+  const method = resolveJoiningMethod({
+    ...student,
+    enrollments,
+  });
   const relativeTime = getJoiningRelativeTime(student.createdAt);
   const formattedDateTime = formatJoiningDateTime(student.createdAt);
 
@@ -55,7 +58,12 @@ export function StudentJoiningHistorySection({
 
         <div className="space-y-1">
           <span className="text-[11px] text-slate-400 block font-medium">طريقة الانضمام ومصدر الحساب:</span>
-          {method.isGroupLink ? (
+          {method.type === 'APPROVED_REQUEST' ? (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold text-xs">
+              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span>طلب انضمام معتمد ({method.groupName || 'المجموعة'})</span>
+            </div>
+          ) : method.isGroupLink ? (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs">
               <LinkIcon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>انضمام عبر رابط المجموعة ({method.groupName || 'المجموعة'})</span>

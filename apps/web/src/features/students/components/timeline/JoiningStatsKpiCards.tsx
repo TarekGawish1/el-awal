@@ -6,6 +6,7 @@ import { Clock, Link as LinkIcon, Sparkles, UserCheck, Users } from 'lucide-reac
 export interface JoiningStats {
   total: number;
   groupLinkCount: number;
+  approvedRequestCount?: number;
   manualCount: number;
   latestDate: string | null;
 }

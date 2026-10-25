@@ -306,7 +306,16 @@ export class StudentProfileService {
       throw new NotFoundException(`Student [${studentId}] not found`);
     }
 
-    return student;
+    const effectiveCreatedByName =
+      student.createdByName ||
+      (student.groupEnrollments?.[0]?.group?.name
+        ? `رابط انضمام: ${student.groupEnrollments[0].group.name}`
+        : null);
+
+    return {
+      ...student,
+      createdByName: effectiveCreatedByName,
+    };
   }
 
   /**

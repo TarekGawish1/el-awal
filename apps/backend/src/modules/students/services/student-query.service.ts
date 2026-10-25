@@ -124,6 +124,15 @@ export class StudentQueryService {
       this.prisma.studentProfile.count({ where: baseWhere }),
     ]);
 
-    return CursorPaginationHelper.formatResponse(students, limit, totalCount);
+    const formattedStudents = students.map((st) => ({
+      ...st,
+      createdByName:
+        st.createdByName ||
+        (st.groupEnrollments?.[0]?.group?.name
+          ? `رابط انضمام: ${st.groupEnrollments[0].group.name}`
+          : null),
+    }));
+
+    return CursorPaginationHelper.formatResponse(formattedStudents, limit, totalCount);
   }
 }

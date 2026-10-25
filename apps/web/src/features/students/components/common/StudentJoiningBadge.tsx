@@ -1,21 +1,35 @@
 'use client';
 
 import React from 'react';
-import { Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
+import { Link as LinkIcon, UserCheck, Globe, CheckCircle2 } from 'lucide-react';
 import { resolveJoiningMethod } from '../../utils/studentJoiningHelpers';
 
 interface StudentJoiningBadgeProps {
   createdByName?: string | null;
+  groupEnrollments?: Array<{ group?: { name?: string } }>;
   className?: string;
   showDetails?: boolean;
 }
 
 export function StudentJoiningBadge({
   createdByName,
+  groupEnrollments,
   className = '',
   showDetails = false,
 }: StudentJoiningBadgeProps) {
-  const method = resolveJoiningMethod({ createdByName });
+  const method = resolveJoiningMethod({ createdByName, groupEnrollments });
+
+  if (method.type === 'APPROVED_REQUEST') {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-200/80 shadow-2xs w-fit ${className}`}
+        title={method.description}
+      >
+        <CheckCircle2 className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+        <span>{showDetails && method.groupName ? `طلب معتمد (${method.groupName})` : 'طلب انضمام معتمد'}</span>
+      </span>
+    );
+  }
 
   if (method.isGroupLink) {
     return (

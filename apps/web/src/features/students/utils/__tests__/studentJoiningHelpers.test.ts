@@ -73,7 +73,31 @@ describe('studentJoiningHelpers', () => {
       expect(result.label).toContain('أ. أحمد غريب');
     });
 
-    it('defaults to DIRECT platform registration when creator is missing', () => {
+    it('infers GROUP_LINK when createdByName is null but group enrollment is present', () => {
+      const result = resolveJoiningMethod({
+        createdByName: null,
+        groupEnrollments: [
+          { group: { name: 'مجموعة الثلاثاء و السبت' } },
+        ],
+      });
+      expect(result.type).toBe('GROUP_LINK');
+      expect(result.isGroupLink).toBe(true);
+      expect(result.groupName).toBe('مجموعة الثلاثاء و السبت');
+      expect(result.label).toBe('انضمام عبر رابط المجموعة');
+    });
+
+    it('identifies approved join requests from createdByName', () => {
+      const result = resolveJoiningMethod({
+        createdByName: 'طلب انضمام معتمد: مجموعة النخبة',
+      });
+      expect(result.type).toBe('APPROVED_REQUEST');
+      expect(result.label).toBe('طلب انضمام معتمد');
+      expect(result.shortLabel).toBe('طلب انضمام معتمد');
+      expect(result.groupName).toBe('مجموعة النخبة');
+      expect(result.isGroupLink).toBe(false);
+    });
+
+    it('defaults to DIRECT platform registration when creator and group enrollments are both missing', () => {
       const result = resolveJoiningMethod({});
       expect(result.type).toBe('DIRECT');
       expect(result.label).toBe('تسجيل مباشر عبر المنصة');

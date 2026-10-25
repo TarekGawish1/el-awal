@@ -8,9 +8,14 @@ import { StudentJoiningBadge } from '../common/StudentJoiningBadge';
 interface StudentJoiningCellProps {
   createdAt?: string | Date | null;
   createdByName?: string | null;
+  groupEnrollments?: Array<{ group?: { name?: string } }>;
 }
 
-export function StudentJoiningCell({ createdAt, createdByName }: StudentJoiningCellProps) {
+export function StudentJoiningCell({
+  createdAt,
+  createdByName,
+  groupEnrollments,
+}: StudentJoiningCellProps) {
   const joinDate = formatJoiningDate(createdAt);
   const joinTime = formatJoiningTime(createdAt);
 
@@ -23,7 +28,10 @@ export function StudentJoiningCell({ createdAt, createdByName }: StudentJoiningC
           <span className="text-[11px] text-slate-500 font-mono">({joinTime})</span>
         )}
       </div>
-      <StudentJoiningBadge createdByName={createdByName} />
+      <StudentJoiningBadge
+        createdByName={createdByName}
+        groupEnrollments={groupEnrollments}
+      />
     </div>
   );
 }

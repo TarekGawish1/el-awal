@@ -172,11 +172,15 @@ describe('GroupsService', () => {
       };
 
       mockPrismaService.groupEnrollment.findUnique.mockResolvedValue(enrollment);
+      const studentProfileUpdateMock = jest.fn().mockResolvedValue(undefined);
       mockPrismaService.$transaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) =>
         callback({
           groupEnrollment: {
             update: jest.fn().mockResolvedValue({ ...enrollment, status: GroupEnrollmentStatus.ACTIVE }),
             updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+          },
+          studentProfile: {
+            update: studentProfileUpdateMock,
           },
           studentPaymentRecord: {
             create: jest.fn().mockResolvedValue(undefined),
@@ -190,6 +194,15 @@ describe('GroupsService', () => {
         teacherProfileId: 'teacher-1',
         role: UserRole.TEACHER,
       } as any);
+
+      expect(studentProfileUpdateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: studentId },
+          data: expect.objectContaining({
+            createdByName: 'طلب انضمام معتمد: مجموعة الثانوية العامة',
+          }),
+        }),
+      );
 
       expect(mockNotificationsService.sendNotification).toHaveBeenCalledTimes(2);
       expect(mockNotificationsService.sendNotification).toHaveBeenNthCalledWith(

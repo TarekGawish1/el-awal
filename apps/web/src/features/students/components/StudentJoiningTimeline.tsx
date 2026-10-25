@@ -38,10 +38,13 @@ export function StudentJoiningTimeline({
   // Aggregate KPI stats
   const stats: JoiningStats = useMemo(() => {
     let groupLinkCount = 0;
+    let approvedRequestCount = 0;
     let manualCount = 0;
     sortedStudents.forEach((st) => {
       const method = resolveJoiningMethod(st);
-      if (method.isGroupLink) {
+      if (method.type === 'APPROVED_REQUEST') {
+        approvedRequestCount++;
+      } else if (method.isGroupLink) {
         groupLinkCount++;
       } else {
         manualCount++;
@@ -50,6 +53,7 @@ export function StudentJoiningTimeline({
     return {
       total: sortedStudents.length,
       groupLinkCount,
+      approvedRequestCount,
       manualCount,
       latestDate: sortedStudents[0]?.createdAt
         ? getJoiningRelativeTime(sortedStudents[0].createdAt)
@@ -64,7 +68,8 @@ export function StudentJoiningTimeline({
       const method = resolveJoiningMethod(st);
 
       if (methodFilter === 'GROUP_LINK' && !method.isGroupLink) return false;
-      if (methodFilter === 'MANUAL' && method.isGroupLink) return false;
+      if (methodFilter === 'APPROVED_REQUEST' && method.type !== 'APPROVED_REQUEST') return false;
+      if (methodFilter === 'MANUAL' && (method.isGroupLink || method.type === 'APPROVED_REQUEST')) return false;
 
       if (!q) return true;
       const name = st.user.fullName?.toLowerCase() || '';
@@ -121,6 +126,7 @@ export function StudentJoiningTimeline({
         onMethodFilterChange={setMethodFilter}
         totalCount={sortedStudents.length}
         groupLinkCount={stats.groupLinkCount}
+        approvedRequestCount={stats.approvedRequestCount}
         manualCount={stats.manualCount}
       />
 

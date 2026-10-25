@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Phone, Clock, Calendar, Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
+import { Phone, Clock, Calendar, Link as LinkIcon, UserCheck, Globe, CheckCircle2 } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 import {
   formatJoiningDate,
@@ -54,7 +54,12 @@ export function StudentRelationsCards({
             <div className="space-y-1">
               <dt className="text-sm font-medium text-slate-500">طريقة الانضمام للمنصة</dt>
               <dd className="pt-1">
-                {method.isGroupLink ? (
+                {method.type === 'APPROVED_REQUEST' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>طلب انضمام معتمد ({method.groupName || 'المجموعة'})</span>
+                  </span>
+                ) : method.isGroupLink ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
                     <LinkIcon className="w-3.5 h-3.5 text-emerald-600" />
                     <span>انضمام عبر رابط المجموعة ({method.groupName || 'المجموعة'})</span>

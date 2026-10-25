@@ -152,6 +152,7 @@ export function StudentListTable({
                     <StudentJoiningCell
                       createdAt={student.createdAt}
                       createdByName={(student as any).createdByName}
+                      groupEnrollments={student.groupEnrollments}
                     />
                   </td>
                   <td className="px-4 py-2.5">
