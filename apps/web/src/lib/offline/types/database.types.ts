@@ -54,6 +54,8 @@ export interface IOfflineDatabase {
   getAllOfflineCredentialsRecords(): Promise<OfflineCredentialsRecord[]>;
   wipeAllOfflineData(): Promise<void>;
   clearPeriodScopedData(): Promise<void>;
+  clearMemoryEntityCaches(): void;
+  isUserAuthorizedForOfflineData(): Promise<boolean>;
 
   // Students & QR
   bulkPutStudents(students: StudentEntity[]): Promise<void>;

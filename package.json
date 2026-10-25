@@ -24,7 +24,10 @@
     "prisma:migrate": "bun --filter @el-awal/backend prisma:migrate",
     "prisma:migrate:deploy": "bun --filter @el-awal/backend prisma:migrate:deploy",
     "prisma:db:push": "bun x prisma db push --schema apps/backend/prisma/schema.prisma --accept-data-loss",
-    "prisma:studio": "bun --filter @el-awal/backend prisma:studio"
+    "prisma:studio": "bun --filter @el-awal/backend prisma:studio",
+    "audit": "bun run audit:production && bun run audit:dev-exceptions",
+    "audit:production": "bun audit --production --audit-level=critical",
+    "audit:dev-exceptions": "bun audit --audit-level=critical --ignore=GHSA-5gmw-xhrv-c9v3 --ignore=GHSA-85c8-ppgw-ccpr --ignore=GHSA-5xrq-8626-4rwp"
   },
   "overrides": {
     "react": "19.3.0",

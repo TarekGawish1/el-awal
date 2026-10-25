@@ -137,6 +137,10 @@ export class SessionsSchedulesRepository {
 
 
   public async getSchedulesOffline(groupId?: string): Promise<ScheduleEntity[]> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return [];
+    }
+
     let list: ScheduleEntity[] = [];
     if (!this.isSupported()) {
       list = Array.from(this.memorySchedules.values());
@@ -171,6 +175,10 @@ export class SessionsSchedulesRepository {
         },
     dateStr?: string,
   ): Promise<SessionEntity[]> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return [];
+    }
+
     let groupId: string | undefined;
     let effectiveDateStr: string | undefined = dateStr;
     let academicYear: string | undefined;

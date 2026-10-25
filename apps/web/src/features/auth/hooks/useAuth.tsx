@@ -201,6 +201,7 @@ export function useAuth() {
     clearSession();
     queryClient.clear();
     await purgeServiceWorkerUserCache();
+    offlineDb.clearMemoryEntityCaches();
 
     if (typeof window !== 'undefined') {
       window.location.href = '/login';

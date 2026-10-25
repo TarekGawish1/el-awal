@@ -37,8 +37,21 @@ jobs:
 
       - name: Dependency Security Audit
         run: |
-          # SEC-16/SEC-21: Audit workspace dependencies for critical vulnerabilities
-          bun audit --audit-level=critical
+          set -e
+          echo "=== 1. Strict Blocking Production Dependency Audit (Zero Critical Allowed) ==="
+          bun audit --production --audit-level=critical
+
+          echo "=== 2. Full-Tree Tooling Audit with Explicit Documented Exceptions ==="
+          # SEC-16/SEC-21: Audit workspace dependencies under Vulnerability Policy (Phase 4A.1, review date: 2026-12-31)
+          # Explicit dev/test tooling exceptions (headless test runner, not exposed to runtime/production):
+          # - GHSA-5gmw-xhrv-c9v3: tinypool <=2.1.0 prototype pollution gadget in worker options (@el-awal/web > vitest > tinypool)
+          # - GHSA-85c8-ppgw-ccpr: tinypool <2.1.2 prototype pollution gadget to RCE in run() options (@el-awal/web > vitest > tinypool)
+          # - GHSA-5xrq-8626-4rwp: vitest <3.2.6 arbitrary file disclosure when UI server is listening (@el-awal/web > vitest; UI server not used)
+          # Any other or newly discovered critical advisory will fail this step immediately.
+          bun audit --audit-level=critical \
+            --ignore=GHSA-5gmw-xhrv-c9v3 \
+            --ignore=GHSA-85c8-ppgw-ccpr \
+            --ignore=GHSA-5xrq-8626-4rwp
 
   deploy:
     name: Deploy Backend Subtree to Heroku

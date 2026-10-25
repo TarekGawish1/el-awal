@@ -365,4 +365,19 @@ export class IndexedDbCore {
       console.warn('Failed to clear period-scoped IndexedDB stores:', e);
     }
   }
+
+  public clearMemoryEntityCaches(): void {
+    this.memoryStudents.clear();
+    this.memoryGroups.clear();
+    this.memorySessions.clear();
+    this.memorySchedules.clear();
+    this.memoryPayments.clear();
+    this.memoryAssessments.clear();
+    this.memoryCourses.clear();
+    this.memoryRosters.clear();
+    this.memoryDrafts.clear();
+    this.memoryReports.clear();
+    this.memoryBooklets.clear();
+    this.memoryHomeworkRecords.clear();
+  }
 }

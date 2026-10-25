@@ -49,6 +49,10 @@ export class PaymentsRepository {
     year?: number;
     month?: number;
   }): Promise<PaymentEntity[]> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return [];
+    }
+
     let list: PaymentEntity[] = [];
     if (!this.isSupported()) {
       list = Array.from(this.memoryPayments.values());

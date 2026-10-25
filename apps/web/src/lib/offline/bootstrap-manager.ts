@@ -128,7 +128,13 @@ class BootstrapManager {
 
     this.isBootstrappingState = true;
     this.lastError = null;
-    const isExplicitForceFull = Boolean(options?.forceFull);
+
+    const lastBootstrapUserId = await offlineDb.getMetadata<string>('lastBootstrapUserId');
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUserId = useAuthStore.getState().user?.id;
+    const isUserSwitch = Boolean(currentUserId && lastBootstrapUserId && currentUserId !== lastBootstrapUserId);
+    const isExplicitForceFull = Boolean(options?.forceFull) || isUserSwitch;
+
     this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...', {
       isDelta: !isExplicitForceFull,
       forceFull: isExplicitForceFull,
@@ -136,7 +142,7 @@ class BootstrapManager {
 
     try {
       const doBootstrap = async () => {
-        const lastSyncTime = options?.forceFull
+        const lastSyncTime = isExplicitForceFull
           ? null
           : await offlineDb.getMetadata<number>('lastBootstrapTimestamp');
 
@@ -326,9 +332,12 @@ class BootstrapManager {
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();
       const syncVersion = response.snapshotVersion || rootData.snapshotVersion || 'v1';
 
-      // Record sync timestamp and mark the local wall clock for the cooldown guard.
+      // Record sync timestamp and user ID, and mark the local wall clock for the cooldown guard.
       await offlineDb.setMetadata('lastBootstrapTimestamp', syncTimestamp);
       await offlineDb.setMetadata('syncVersion', syncVersion);
+      if (currentUserId) {
+        await offlineDb.setMetadata('lastBootstrapUserId', currentUserId);
+      }
       this.lastBootstrapAt = Date.now();
 
       const counts = {

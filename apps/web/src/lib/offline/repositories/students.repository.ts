@@ -140,6 +140,10 @@ export class StudentsRepository {
     academicYear?: string;
     academicTerm?: string;
   }): Promise<StudentEntity[]> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return [];
+    }
+
     let list: StudentEntity[] = [];
 
     if (!this.isSupported()) {
@@ -206,6 +210,10 @@ export class StudentsRepository {
   }
 
   public async getStudentByIdOffline(id: string | number): Promise<StudentEntity | null> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return null;
+    }
+
     const cleanId = String(id);
     if (!this.isSupported()) {
       const mem = this.memoryStudents.get(cleanId);

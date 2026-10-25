@@ -83,6 +83,20 @@ class OfflineDatabase implements IOfflineDatabase {
   public getAllOfflineCredentialsRecords() { return this.core.getAllOfflineCredentialsRecords(); }
   public wipeAllOfflineData() { return this.core.wipeAllOfflineData(); }
   public clearPeriodScopedData() { return this.core.clearPeriodScopedData(); }
+  public clearMemoryEntityCaches() { return this.core.clearMemoryEntityCaches(); }
+
+  public async isUserAuthorizedForOfflineData(): Promise<boolean> {
+    const lastBootstrapUserId = await this.getMetadata<string>('lastBootstrapUserId');
+    if (!lastBootstrapUserId) {
+      return true;
+    }
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (!currentUserId) {
+      return false;
+    }
+    return currentUserId === lastBootstrapUserId;
+  }
 
   // Store Proxies for Vitest / Direct Dexie-like API Mocking
   public homework_records = {

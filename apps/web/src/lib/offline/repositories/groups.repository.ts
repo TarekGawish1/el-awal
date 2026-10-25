@@ -140,6 +140,10 @@ export class GroupsRepository {
     gradeLevel?: string;
     status?: string;
   }): Promise<GroupEntity[]> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return [];
+    }
+
     const filter = typeof options === 'string' ? { academicYear: options } : options;
     let list: GroupEntity[] = [];
     if (!this.isSupported()) {
@@ -231,6 +235,10 @@ export class GroupsRepository {
    */
 
   public async getGroupByIdOffline(id: string | number): Promise<GroupEntity | null> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return null;
+    }
+
     const cleanId = String(id);
     if (!this.isSupported()) {
       const mem = this.memoryGroups.get(cleanId);

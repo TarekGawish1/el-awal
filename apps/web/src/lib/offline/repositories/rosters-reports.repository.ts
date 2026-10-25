@@ -33,6 +33,10 @@ export class RostersReportsRepository {
 
 
   public async getRoster(groupId: string): Promise<OfflineRosterRecord | null> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return null;
+    }
+
     const buildFromStudents = async () => {
       const group = await this.getGroupByIdOffline(groupId);
       if (!group) return null;
@@ -73,6 +77,10 @@ export class RostersReportsRepository {
 
 
   public async getAllCachedRosters(): Promise<OfflineRosterRecord[]> {
+    if (!(await this.db.isUserAuthorizedForOfflineData())) {
+      return [];
+    }
+
     // Note: this only returns explicitly cached rosters.
     // Dynamic rosters built on-the-fly via getRoster are not returned here,
     // which is fine since this is only used as a fallback lookup.
