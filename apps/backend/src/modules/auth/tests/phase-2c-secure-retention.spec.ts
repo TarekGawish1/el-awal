@@ -352,6 +352,7 @@ describe('Phase 2C: Secure Plaintext Credential Retention & Parent Auth Hardenin
       const res = await studentCredentialsService.getStudentCredentials('stu-profile-1', authorizedTeacher as any);
       expect(res.isPinActive).toBe(true);
       expect(res.tempAccessPin).toBe(validTempPin);
+      expect(res.parentPassword).toBe('ParentPermPass123!');
     });
 
     it('returns tempAccessPin: null and isPinActive: false when PIN is expired', async () => {
@@ -361,6 +362,7 @@ describe('Phase 2C: Secure Plaintext Credential Retention & Parent Auth Hardenin
       const res = await studentCredentialsService.getStudentCredentials('stu-profile-1', authorizedTeacher as any);
       expect(res.isPinActive).toBe(false);
       expect(res.tempAccessPin).toBeNull();
+      expect(res.parentPassword).toBeNull();
     });
 
     it('returns tempAccessPin: null and isPinActive: false after cleanup has cleared the DB', async () => {
@@ -370,6 +372,35 @@ describe('Phase 2C: Secure Plaintext Credential Retention & Parent Auth Hardenin
       const res = await studentCredentialsService.getStudentCredentials('stu-profile-1', authorizedTeacher as any);
       expect(res.isPinActive).toBe(false);
       expect(res.tempAccessPin).toBeNull();
+      expect(res.parentPassword).toBeNull();
+    });
+
+    it('returns parentPassword when recently reset even if student tempAccessPin is null', async () => {
+      studentDb.pinExpiresAt = null;
+      studentDb.tempAccessPin = null;
+      studentDb.pendingCredentials = {
+        parentPassword: 'FreshParentPass789!',
+        updatedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 minutes ago
+      };
+
+      const res = await studentCredentialsService.getStudentCredentials('stu-profile-1', authorizedTeacher as any);
+      expect(res.isPinActive).toBe(false);
+      expect(res.tempAccessPin).toBeNull();
+      expect(res.parentPassword).toBe('FreshParentPass789!');
+    });
+
+    it('returns parentPassword: null when parent reset has expired beyond 48 hours', async () => {
+      studentDb.pinExpiresAt = null;
+      studentDb.tempAccessPin = null;
+      studentDb.pendingCredentials = {
+        parentPassword: 'OldParentPass789!',
+        updatedAt: new Date(Date.now() - 50 * 60 * 60 * 1000).toISOString(), // 50 hours ago
+      };
+
+      const res = await studentCredentialsService.getStudentCredentials('stu-profile-1', authorizedTeacher as any);
+      expect(res.isPinActive).toBe(false);
+      expect(res.tempAccessPin).toBeNull();
+      expect(res.parentPassword).toBeNull();
     });
 
     it('blocks unauthorized teacher from retrieving credentials (SEC-02 isolation)', async () => {

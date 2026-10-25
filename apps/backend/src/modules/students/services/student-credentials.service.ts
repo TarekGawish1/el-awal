@@ -416,7 +416,14 @@ export class StudentCredentialsService {
 
     const pending =
       (studentProfile.pendingCredentials as Record<string, any>) || {};
-    const parentPassword = pending.parentPassword || null;
+    const isParentResetActive =
+      Boolean(pending.updatedAt) &&
+      new Date(pending.updatedAt).getTime() + 48 * 60 * 60 * 1000 > Date.now();
+    const isParentPasswordActive = isPinActive || isParentResetActive;
+    const parentPassword =
+      isParentPasswordActive && pending.parentPassword
+        ? pending.parentPassword
+        : null;
 
     return {
       studentId: studentProfile.id,
