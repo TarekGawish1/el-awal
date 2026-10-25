@@ -73,9 +73,10 @@ describe('studentJoiningHelpers', () => {
       expect(result.label).toContain('أ. أحمد غريب');
     });
 
-    it('defaults to SYSTEM when creator is missing', () => {
+    it('defaults to DIRECT platform registration when creator is missing', () => {
       const result = resolveJoiningMethod({});
-      expect(result.type).toBe('SYSTEM');
+      expect(result.type).toBe('DIRECT');
+      expect(result.label).toBe('تسجيل مباشر عبر المنصة');
       expect(result.isGroupLink).toBe(false);
     });
   });

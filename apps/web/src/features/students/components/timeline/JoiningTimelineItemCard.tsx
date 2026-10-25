@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Calendar, Clock, ChevronLeft, Eye, MessageCircle, Link as LinkIcon, UserCheck } from 'lucide-react';
+import { Calendar, Clock, ChevronLeft, Eye, MessageCircle, Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
@@ -37,6 +37,8 @@ export function JoiningTimelineItemCard({
         className={`absolute -right-[9px] top-4 w-4 h-4 rounded-full border-2 border-white shadow-sm flex items-center justify-center ${
           method.isGroupLink
             ? 'bg-emerald-500 ring-4 ring-emerald-100'
+            : method.type === 'DIRECT'
+            ? 'bg-blue-600 ring-4 ring-blue-100'
             : 'bg-primary-600 ring-4 ring-primary-100'
         }`}
       />
@@ -53,6 +55,8 @@ export function JoiningTimelineItemCard({
               className={`w-11 h-11 rounded-2xl flex items-center justify-center font-extrabold text-base shrink-0 shadow-inner ${
                 method.isGroupLink
                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  : method.type === 'DIRECT'
+                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
                   : 'bg-primary-100 text-primary-800 border border-primary-200'
               }`}
             >
@@ -73,6 +77,11 @@ export function JoiningTimelineItemCard({
                   <Badge className="bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 shadow-2xs">
                     <LinkIcon className="w-3 h-3 text-emerald-600" />
                     <span>انضمام عبر رابط المجموعة</span>
+                  </Badge>
+                ) : method.type === 'DIRECT' ? (
+                  <Badge className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-semibold py-0.5 px-2 flex items-center gap-1">
+                    <Globe className="w-3 h-3 text-blue-600" />
+                    <span>تسجيل مباشر عبر المنصة</span>
                   </Badge>
                 ) : (
                   <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold py-0.5 px-2 flex items-center gap-1">

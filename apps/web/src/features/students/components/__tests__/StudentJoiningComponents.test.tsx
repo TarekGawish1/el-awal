@@ -19,6 +19,11 @@ describe('StudentJoining Modular Components', () => {
       render(<StudentJoiningBadge createdByName="المعلم أ. أحمد" showDetails />);
       expect(screen.getByText('المعلم أ. أحمد')).toBeInTheDocument();
     });
+
+    it('renders direct platform registration badge when createdByName is null', () => {
+      render(<StudentJoiningBadge createdByName={null} showDetails />);
+      expect(screen.getByText('تسجيل مباشر عبر المنصة')).toBeInTheDocument();
+    });
   });
 
   describe('StudentJoiningCell', () => {

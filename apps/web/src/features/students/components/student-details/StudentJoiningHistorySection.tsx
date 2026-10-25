@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Clock, Calendar, Users, Link as LinkIcon, UserCheck } from 'lucide-react';
+import { Clock, Calendar, Users, Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import {
   formatJoiningDateTime,
@@ -59,6 +59,11 @@ export function StudentJoiningHistorySection({
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs">
               <LinkIcon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>انضمام عبر رابط المجموعة ({method.groupName || 'المجموعة'})</span>
+            </div>
+          ) : method.type === 'DIRECT' ? (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-bold text-xs">
+              <Globe className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>تسجيل مباشر عبر المنصة</span>
             </div>
           ) : (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-bold text-xs">

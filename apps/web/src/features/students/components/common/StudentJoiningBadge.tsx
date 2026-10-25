@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Link as LinkIcon, UserCheck } from 'lucide-react';
+import { Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
 import { resolveJoiningMethod } from '../../utils/studentJoiningHelpers';
 
 interface StudentJoiningBadgeProps {
@@ -25,6 +25,18 @@ export function StudentJoiningBadge({
       >
         <LinkIcon className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
         <span>{showDetails && method.groupName ? `رابط (${method.groupName})` : 'رابط المجموعة'}</span>
+      </span>
+    );
+  }
+
+  if (method.type === 'DIRECT') {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200/60 w-fit ${className}`}
+        title={method.description}
+      >
+        <Globe className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+        <span>{showDetails ? method.label : method.shortLabel}</span>
       </span>
     );
   }

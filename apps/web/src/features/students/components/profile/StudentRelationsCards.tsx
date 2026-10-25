@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Phone, Clock, Calendar, Link as LinkIcon, UserCheck } from 'lucide-react';
+import { Phone, Clock, Calendar, Link as LinkIcon, UserCheck, Globe } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 import {
   formatJoiningDate,
@@ -58,6 +58,11 @@ export function StudentRelationsCards({
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
                     <LinkIcon className="w-3.5 h-3.5 text-emerald-600" />
                     <span>انضمام عبر رابط المجموعة ({method.groupName || 'المجموعة'})</span>
+                  </span>
+                ) : method.type === 'DIRECT' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold">
+                    <Globe className="w-3.5 h-3.5 text-blue-600" />
+                    <span>تسجيل مباشر عبر المنصة</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold">

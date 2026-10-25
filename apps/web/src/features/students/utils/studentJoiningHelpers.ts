@@ -3,7 +3,7 @@
  */
 
 export interface JoiningMethodInfo {
-  type: 'GROUP_LINK' | 'MANUAL' | 'SYSTEM';
+  type: 'GROUP_LINK' | 'MANUAL' | 'DIRECT' | 'SYSTEM';
   label: string;
   shortLabel: string;
   description: string;
@@ -115,10 +115,10 @@ export function resolveJoiningMethod(student: {
   }
 
   return {
-    type: 'SYSTEM',
-    label: 'تسجيل نظامي',
-    shortLabel: 'مسجل',
-    description: 'تم تسجيل الحساب بالنظام',
+    type: 'DIRECT',
+    label: 'تسجيل مباشر عبر المنصة',
+    shortLabel: 'تسجيل مباشر',
+    description: 'تم إنشاء الحساب والتسجيل ذاتياً عبر المنصة',
     groupName: student.groupEnrollments?.[0]?.group?.name || null,
     authorName: null,
     isGroupLink: false,
