@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import {
   NotificationChannel,
@@ -12,6 +12,11 @@ import {
   formatToWhatsAppInternational,
   buildMessageBody,
 } from './whatsapp-formatter.util';
+import {
+  redactCredentialMessageBody,
+  isMessageBodyRedacted,
+  REDACTED_PASSWORD_PLACEHOLDER,
+} from './whatsapp-credential-redactor.util';
 
 @Injectable()
 export class WhatsAppQueueManagerService {
@@ -204,10 +209,28 @@ export class WhatsAppQueueManagerService {
   }
 
   async markDelivered(providerMessageId: string): Promise<void> {
-    await this.prisma.whatsAppMessageLog.updateMany({
+    const logs = await this.prisma.whatsAppMessageLog.findMany({
       where: { providerMessageId, status: WhatsAppStatus.SENT },
-      data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
     });
+
+    if (logs && logs.length > 0) {
+      for (const log of logs) {
+        const redactedBody = redactCredentialMessageBody(log.messageBody);
+        await this.prisma.whatsAppMessageLog.update({
+          where: { id: log.id },
+          data: {
+            status: WhatsAppStatus.DELIVERED,
+            deliveredAt: new Date(),
+            messageBody: redactedBody,
+          },
+        });
+      }
+    } else {
+      await this.prisma.whatsAppMessageLog.updateMany({
+        where: { providerMessageId, status: WhatsAppStatus.SENT },
+        data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
+      });
+    }
   }
 
   async getQueue(page = 1, limit = 20) {
@@ -311,6 +334,12 @@ export class WhatsAppQueueManagerService {
       throw new NotFoundException(`WhatsApp message log [${id}] not found`);
     }
 
+    if (isMessageBodyRedacted(record.messageBody)) {
+      throw new BadRequestException(
+        'لا يمكن إعادة إرسال هذه الرسالة لأن بيانات الاعتماد السرية قد تم مسحها بأمان بعد انتهاء فترة الاحتفاظ (7 أيام). يرجى إصدار كلمة مرور جديدة عبر بطاقة بيانات الطالب وإعادة إرسالها.',
+      );
+    }
+
     const updated = await this.prisma.whatsAppMessageLog.update({
       where: { id },
       data: {
@@ -327,7 +356,14 @@ export class WhatsAppQueueManagerService {
 
   async retryAllFailed(onTrigger?: () => void) {
     const result = await this.prisma.whatsAppMessageLog.updateMany({
-      where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
+      where: {
+        status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] },
+        NOT: {
+          messageBody: {
+            contains: REDACTED_PASSWORD_PLACEHOLDER,
+          },
+        },
+      },
       data: {
         status: WhatsAppStatus.QUEUED,
         retryCount: 0,

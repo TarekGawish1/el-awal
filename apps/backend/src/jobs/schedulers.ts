@@ -132,6 +132,15 @@ export class SchedulersService implements OnModuleInit {
       ),
     );
 
+    // 9. Hourly delivered credential & message log redaction (every hour at minute 5 Africa/Cairo)
+    this.tasks.push(
+      cron.schedule(
+        '5 * * * *',
+        () => this.runDeliveredCredentialRedaction(),
+        { timezone: 'Africa/Cairo' },
+      ),
+    );
+
     this.logger.log(`✅ ${this.tasks.length} cron schedulers active`);
   }
 
@@ -167,5 +176,13 @@ export class SchedulersService implements OnModuleInit {
 
   async runExpiredTemporaryPinCleanup(): Promise<{ purgedCount: number; durationMs: number }> {
     return this.cleanupJobs.cleanupExpiredTemporaryPins();
+  }
+
+  async runDeliveredCredentialRedaction(): Promise<{
+    redactedWhatsAppLogsCount: number;
+    redactedNotificationsCount: number;
+    durationMs: number;
+  }> {
+    return this.cleanupJobs.cleanupDeliveredCredentialMessages();
   }
 }

@@ -12,6 +12,7 @@ import { usePgAuthState } from './pg-auth';
 import * as QRCode from 'qrcode';
 import { WhatsAppBanService } from './whatsapp-ban.service';
 import { normalizePhoneToJid, randomBetween, sleep } from './whatsapp-sender.helper';
+import { redactCredentialMessageBody } from '../../modules/whatsapp/services/whatsapp-credential-redactor.util';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr' | 'banned';
 
@@ -395,13 +396,33 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
     if (messageIdsToUpdate.length > 0) {
       try {
-        await this.prisma.whatsAppMessageLog.updateMany({
+        const logs = await this.prisma.whatsAppMessageLog.findMany({
           where: {
             providerMessageId: { in: messageIdsToUpdate },
             status: WhatsAppStatus.SENT,
           },
-          data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
         });
+        if (logs && logs.length > 0) {
+          for (const log of logs) {
+            const redactedBody = redactCredentialMessageBody(log.messageBody);
+            await this.prisma.whatsAppMessageLog.update({
+              where: { id: log.id },
+              data: {
+                status: WhatsAppStatus.DELIVERED,
+                deliveredAt: new Date(),
+                messageBody: redactedBody,
+              },
+            });
+          }
+        } else {
+          await this.prisma.whatsAppMessageLog.updateMany({
+            where: {
+              providerMessageId: { in: messageIdsToUpdate },
+              status: WhatsAppStatus.SENT,
+            },
+            data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
+          });
+        }
       } catch (error) {
         this.logger.warn(`Failed to record WhatsApp delivery receipts batch`, error);
       }

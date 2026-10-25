@@ -78,10 +78,7 @@ export function formatStudentRegistrationMessage(data: StudentApprovalCredential
   const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
   const cleanParentPass = sanitizePassword(parentPassword);
   const cleanStudentPass = sanitizePassword(studentPassword);
-  const directPass = cleanParentPass || cleanStudentPass || '';
-  const parentDirectAccessUrl = directPass
-    ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`
-    : `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
+  const parentDirectAccessUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
 
   const studentCreds = `📌 *بيانات دخول الطالب:*
 - اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
@@ -90,8 +87,8 @@ export function formatStudentRegistrationMessage(data: StudentApprovalCredential
 
   const displayParentPass = cleanParentPass || cleanStudentPass || '';
   const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
-- يمكن لولي الأمر الدخول مباشرة وبضغطة واحدة دون الحاجة لكتابة أي بيانات عبر الرابط التالي:
-🔗 رابط دخول ولي الأمر المباشر:
+- يمكن لولي الأمر الدخول لمتابعة الحضور والدرجات عبر الرابط التالي:
+🔗 رابط دخول ولي الأمر:
 ${parentDirectAccessUrl}
 
 📌 *أو الدخول ببيانات الحساب عبر صفحة الدخول:*
@@ -167,10 +164,7 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
   const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
   const cleanParentPass = sanitizePassword(parentPassword);
   const cleanStudentPass = sanitizePassword(studentPassword);
-  const directPass = cleanParentPass || cleanStudentPass || '';
-  const parentDirectAccessUrl = directPass
-    ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`
-    : `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
+  const parentDirectAccessUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
 
   const studentCreds = `📌 *بيانات دخول الطالب:*
 - اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
@@ -179,8 +173,8 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
 
   const displayParentPass = cleanParentPass || cleanStudentPass || '';
   const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
-- يمكن لولي الأمر الدخول مباشرة وبضغطة واحدة دون الحاجة لكتابة أي بيانات عبر الرابط التالي:
-🔗 رابط دخول ولي الأمر المباشر:
+- يمكن لولي الأمر الدخول لمتابعة الحضور والدرجات عبر الرابط التالي:
+🔗 رابط دخول ولي الأمر:
 ${parentDirectAccessUrl}
 
 📌 *أو الدخول ببيانات الحساب عبر صفحة الدخول:*
