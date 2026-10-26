@@ -372,7 +372,7 @@ export class AuthGroupRegistrationService {
 
       const studentCode = studentUser.studentProfile?.studentCode || '';
       const parentPassText = generatedParentPassword || dto.password;
-      const directAccessLink = `https://al-awal.online/parent-access?phone=${encodeURIComponent(parentPhone)}`;
+      const directAccessLink = `https://al-awal.online/parent-access?phone=${encodeURIComponent(parentPhone)}&pass=${encodeURIComponent(parentPassText)}`;
 
       const message = `🌟 مرحباً بك أ/ ${parentName}!
 تم تسجيل انضمام ابنكم/ابنتكم (${fullName}) بنجاح إلى:
@@ -389,7 +389,7 @@ export class AuthGroupRegistrationService {
 👨‍👩‍👦 *بيانات حساب ولي الأمر (لمتابعة الحضور والدرجات والغياب):*
 ▫️ *رقم الدخول:* ${parentPhone}
 ▫️ *كلمة المرور:* ${parentPassText}
-🔗 *رابط بوابة ولي الأمر:* ${directAccessLink}
+🔗 *رابط بوابة ولي الأمر المباشر:* ${directAccessLink}
 ━━━━━━━━━━━━━━━━━━━
 نتمنى لابنكم عاماً دراسياً مليئاً بالتفوق والنجاح! 🎓`.trim();
 

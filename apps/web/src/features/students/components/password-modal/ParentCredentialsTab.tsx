@@ -95,7 +95,7 @@ export function ParentCredentialsTab({
     }
     const pass = lastParentResetResult?.newPassword || credentials?.parentPassword || '123456';
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://al-awal.online';
-    const directUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(phone)}`;
+    const directUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(phone)}&pass=${encodeURIComponent(pass)}`;
     const msg = `🔐 *إشعار بيانات دخول ولي الأمر - منصة الأوّل*
 
 أهلاً بحضرتك أ/ ${credentials?.parentName || 'ولي الأمر'}،
@@ -105,9 +105,9 @@ export function ParentCredentialsTab({
 📌 *بيانات الدخول:*
 ▫️ *رقم الدخول / الهاتف:* ${phone}
 ▫️ *كلمة مرور ولي الأمر:* ${pass}
-🔗 *رابط صفحة الدخول:* ${directUrl}
+🔗 *رابط الدخول المباشر:* ${directUrl}
 ━━━━━━━━━━━━━━━━━━━
-يمكنكم الضغط على الرابط أعلاه وإدخال رقم الهاتف وكلمة المرور لمتابعة الحضور والدرجات 🌟`;
+يمكنكم الضغط على الرابط أعلاه للدخول المباشر ومتابعة الحضور والدرجات دون الحاجة لكتابة البيانات 🌟`;
     window.open(`https://wa.me/${formatWhatsAppNumber(phone)}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 

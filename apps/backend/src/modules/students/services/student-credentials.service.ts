@@ -328,7 +328,7 @@ export class StudentCredentialsService {
       process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online';
     const directLoginUrl = `${platformUrl}/parent-access?phone=${encodeURIComponent(
       parentPhone || '',
-    )}`;
+    )}&pass=${encodeURIComponent(newPassword)}`;
 
     if (dto.sendWhatsApp !== false && parentPhone && parentUser) {
       try {

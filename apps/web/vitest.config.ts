@@ -21,7 +21,12 @@ export default defineConfig({
     // can't exhaust memory. We deliberately do NOT use singleFork: it collapses every
     // file into one process and breaks per-file isolation (leaked DOM/module state).
     pool: 'forks',
-    maxWorkers: 2,
+    poolOptions: {
+      forks: {
+        minForks: 1,
+        maxForks: 2,
+      },
+    },
   },
   resolve: {
     alias: {

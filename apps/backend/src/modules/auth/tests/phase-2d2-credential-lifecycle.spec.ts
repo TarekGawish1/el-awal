@@ -45,12 +45,12 @@ describe('Phase 2D.2: Secure Stored Credentials Without Breaking WhatsApp Delive
       expect(msg).toContain('01033334444');
       expect(msg).toContain('أحمد محمود');
 
-      // Crucial: URL query parameter MUST NOT contain pass=
-      expect(msg).not.toMatch(/[?&]pass=/);
+      // Parent direct access link MUST contain phone and pass for 1-click login
       expect(msg).toContain('/parent-access?phone=');
+      expect(msg).toContain('pass=ParentSecret456!');
     });
 
-    it('PRESERVES credentials in formatStudentRegistrationMessage without pass= in URL', () => {
+    it('PRESERVES credentials in formatStudentRegistrationMessage with direct access link', () => {
       const msg = formatStudentRegistrationMessage({
         studentName: 'سارة علي',
         studentPhoneOrCode: '01055556666',
@@ -63,12 +63,12 @@ describe('Phase 2D.2: Secure Stored Credentials Without Breaking WhatsApp Delive
 
       expect(msg).toContain('SaraPass789!');
       expect(msg).toContain('ParentPass999!');
-      expect(msg).not.toMatch(/[?&]pass=/);
       expect(msg).toContain('/parent-access?phone=');
+      expect(msg).toContain('pass=ParentPass999!');
     });
 
-    it('PRESERVES password in password-reset messages without pass= in directLoginUrl', () => {
-      const directLoginUrl = 'https://al-awal.online/parent-access?phone=01033334444';
+    it('PRESERVES password in password-reset messages with directLoginUrl', () => {
+      const directLoginUrl = 'https://al-awal.online/parent-access?phone=01033334444&pass=FreshParentPass2!';
       const studentMsg = formatResetStudentPasswordMessage({
         parentName: 'محمود',
         studentName: 'أحمد',
@@ -91,7 +91,6 @@ describe('Phase 2D.2: Secure Stored Credentials Without Breaking WhatsApp Delive
       });
       expect(parentMsg).toContain('FreshParentPass2!');
       expect(parentMsg).toContain(directLoginUrl);
-      expect(parentMsg).not.toMatch(/[?&]pass=/);
     });
 
     it('removePassFromUrl strips pass query param while preserving other params', () => {

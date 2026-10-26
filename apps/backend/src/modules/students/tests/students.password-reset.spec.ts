@@ -197,7 +197,7 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
       expect(result.newPassword).toBe('parentPass123');
       expect(result.parentPhone).toBe('01098765432');
       expect(result.directLoginUrl).toContain('01098765432');
-      expect(result.directLoginUrl).not.toContain('parentPass123');
+      expect(result.directLoginUrl).toContain('parentPass123');
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
       expect(mockNotificationsService.sendNotification).toHaveBeenCalled();
     });
