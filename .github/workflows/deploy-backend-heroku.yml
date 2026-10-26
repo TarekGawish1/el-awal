@@ -32,6 +32,19 @@ jobs:
       - name: Backend TypeScript Check
         run: cd apps/backend && bun x tsc --noEmit
 
+      - name: Generate Ephemeral Test JWT Secrets
+        run: |
+          node -e "
+            const crypto = require('node:crypto');
+            const fs = require('node:fs');
+            const access = crypto.randomBytes(48).toString('base64url');
+            let refresh = crypto.randomBytes(48).toString('base64url');
+            while (refresh === access) {
+              refresh = crypto.randomBytes(48).toString('base64url');
+            }
+            fs.appendFileSync(process.env.GITHUB_ENV, 'JWT_ACCESS_SECRET=' + access + '\nJWT_REFRESH_SECRET=' + refresh + '\n');
+          "
+
       - name: Backend Test Suite
         run: cd apps/backend && bun run test
 
