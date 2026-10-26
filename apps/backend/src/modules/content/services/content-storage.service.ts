@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { BunnyVideoService } from '../../../integrations/video/bunny-video.service';
 import { PresignedUploadDto } from '../dto/presigned-upload.dto';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class ContentStorageService {
@@ -16,10 +18,24 @@ export class ContentStorageService {
   /**
    * Generates a presigned Cloudflare R2 / S3 direct upload URL with secure isolated file keys.
    */
-  async generatePresignedUpload(dto: PresignedUploadDto) {
-    const folder = dto.folder || 'courses';
-    const sanitizedFileName = dto.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
+  async generatePresignedUpload(dto: PresignedUploadDto, user?: AuthenticatedUser) {
+    if (dto.fileSizeBytes && dto.fileSizeBytes > 104857600) {
+      throw new BadRequestException('حجم الملف يتجاوز الحد الأقصى المسموح به (100 ميجابايت).');
+    }
+
+    const cleanFolder = (dto.folder || 'courses').replace(/\.\./g, '').replace(/[^a-zA-Z0-9_-]/g, '') || 'courses';
+    const sanitizedFileName = (dto.fileName || 'file.bin').replace(/\.\./g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    let partition = `uploads/${cleanFolder}`;
+    if (user?.role === UserRole.STUDENT) {
+      const studentId = user.studentProfileId || user.id;
+      partition = `uploads/students/${studentId}/${cleanFolder}`;
+    } else if (user?.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      partition = `uploads/teachers/${teacherId}/${cleanFolder}`;
+    }
+
+    const fileKey = `${partition}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
 
     const rawContentType = dto.contentType || dto.fileType || 'application/octet-stream';
     if (rawContentType.startsWith('video/') || /\.(mp4|webm|mov|mkv|avi)$/i.test(dto.fileName)) {

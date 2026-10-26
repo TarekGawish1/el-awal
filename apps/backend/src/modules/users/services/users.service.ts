@@ -20,7 +20,21 @@ export class UsersService {
         createdAt: true,
         updatedAt: true,
         teacherProfile: true,
-        studentProfile: true,
+        studentProfile: {
+          select: {
+            id: true,
+            studentCode: true,
+            gradeLevel: true,
+            academicStage: true,
+            academicStatus: true,
+            attendanceMode: true,
+            dateOfBirth: true,
+            emergencyPhone: true,
+            qrCodeToken: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
         parentProfile: true,
         secretariatProfile: true,
         assistantToTeachers: {

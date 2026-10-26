@@ -2,24 +2,46 @@ import {
   Injectable,
   UnauthorizedException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokenService } from './auth-token.service';
+import { RedisCacheService } from '../../../core/cache/redis-cache.service';
+
+interface LockoutRecord {
+  count: number;
+  lockedUntil?: number;
+  lastAttemptAt: number;
+}
 
 @Injectable()
 export class AuthSessionService {
   private readonly logger = new Logger(AuthSessionService.name);
-  private readonly failedAttempts = new Map<string, { count: number; lockedUntil?: number; lastAttemptAt: number }>();
+  private readonly failedAttempts = new Map<string, LockoutRecord>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenService: AuthTokenService,
+    @Optional() private readonly redisCache?: RedisCacheService,
   ) {}
 
-  checkAccountLockout(identifier: string): void {
+  async checkAccountLockout(identifier: string): Promise<void> {
     const key = identifier.trim().toLowerCase();
-    const record = this.failedAttempts.get(key);
+    let record = this.failedAttempts.get(key);
+
+    if (!record && this.redisCache) {
+      try {
+        const redisRecord = await this.redisCache.get<LockoutRecord>(`lockout:${key}`);
+        if (redisRecord) {
+          record = redisRecord;
+          this.failedAttempts.set(key, record);
+        }
+      } catch (err: any) {
+        this.logger.warn(`Redis lockout lookup failed for [${key}]: ${err?.message}`);
+      }
+    }
+
     if (!record) return;
 
     const now = Date.now();
@@ -31,14 +53,30 @@ export class AuthSessionService {
         );
       } else {
         this.failedAttempts.delete(key);
+        if (this.redisCache) {
+          await this.redisCache.del(`lockout:${key}`).catch(() => {});
+        }
       }
     }
   }
 
-  recordFailedAttempt(identifier: string): never {
+  async recordFailedAttempt(identifier: string): Promise<never> {
     const key = identifier.trim().toLowerCase();
     const now = Date.now();
-    const record = this.failedAttempts.get(key) || { count: 0, lastAttemptAt: now };
+    let record = this.failedAttempts.get(key);
+
+    if (!record && this.redisCache) {
+      try {
+        const redisRecord = await this.redisCache.get<LockoutRecord>(`lockout:${key}`);
+        if (redisRecord) {
+          record = redisRecord;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Redis lockout lookup failed for [${key}]: ${err?.message}`);
+      }
+    }
+
+    record = record || { count: 0, lastAttemptAt: now };
 
     if (now - record.lastAttemptAt > 15 * 60 * 1000) {
       record.count = 0;
@@ -50,6 +88,9 @@ export class AuthSessionService {
     if (record.count >= 5) {
       record.lockedUntil = now + 5 * 60 * 1000;
       this.failedAttempts.set(key, record);
+      if (this.redisCache) {
+        await this.redisCache.set(`lockout:${key}`, record, 900).catch(() => {});
+      }
       this.logger.warn(`Account [${key}] locked for 5 minutes due to 5 consecutive failed login attempts.`);
       throw new UnauthorizedException(
         'تم قفل الحساب مؤقتاً لمدة 5 دقائق بسبب تكرار المحاولات الخاطئة (5 محاولات).',
@@ -57,15 +98,21 @@ export class AuthSessionService {
     }
 
     this.failedAttempts.set(key, record);
+    if (this.redisCache) {
+      await this.redisCache.set(`lockout:${key}`, record, 900).catch(() => {});
+    }
     const remainingAttempts = 5 - record.count;
     throw new UnauthorizedException(
       `بيانات الدخول غير صحيحة أو الحساب غير مفعل. (متبقي ${remainingAttempts} محاولات قبل القفل المؤقت)`,
     );
   }
 
-  clearFailedAttempts(identifier: string): void {
+  async clearFailedAttempts(identifier: string): Promise<void> {
     const key = identifier.trim().toLowerCase();
     this.failedAttempts.delete(key);
+    if (this.redisCache) {
+      await this.redisCache.del(`lockout:${key}`).catch(() => {});
+    }
 
     if (this.failedAttempts.size > 5000) {
       const now = Date.now();

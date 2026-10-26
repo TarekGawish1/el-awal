@@ -14,13 +14,14 @@ import { startClusterMaster } from './core/cluster/cluster-master';
 import { ClusterService } from './core/cluster/cluster.service';
 
 import { shouldRedirectToCanonicalPlatform } from './core/middleware/canonical-redirect.util';
+import { isOriginPermitted } from './core/security/cors.util';
 
 async function bootstrap() {
   const appLogger = new AppLogger();
   const logger = new Logger('Bootstrap');
 
   const fastifyAdapter = new FastifyAdapter({
-    trustProxy: true,
+    trustProxy: (_addr: string, hop: number) => hop <= 1, // Trust single reverse proxy hop (Heroku router) to prevent IP spoofing
   });
 
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -111,36 +112,7 @@ async function bootstrap() {
     .map((origin) => origin.trim().toLowerCase())
     .filter((origin) => origin && origin !== '*');
 
-  const isOriginPermitted = (origin: string): boolean => {
-    const normalized = origin.toLowerCase().trim();
-
-    // 1. Explicitly configured origins from CORS_ORIGINS
-    if (explicitAllowedOrigins.includes(normalized)) {
-      return true;
-    }
-
-    // 2. Production platform domain and subdomains (al-awal.online)
-    if (/^https:\/\/(.*\.)?al-awal\.online$/i.test(normalized)) {
-      return true;
-    }
-
-    // 3. Vercel deployment preview and production domains
-    if (/^https:\/\/(.*\.)?vercel\.app$/i.test(normalized)) {
-      return true;
-    }
-
-    // 4. Heroku deployment domain (for Swagger/OpenAPI interactive tests)
-    if (/^https:\/\/(.*\.)?herokuapp\.com$/i.test(normalized)) {
-      return true;
-    }
-
-    // 5. Localhost and 127.0.0.1 for development environments
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized)) {
-      return true;
-    }
-
-    return false;
-  };
+  const isDevelopment = configService.get<string>('NODE_ENV', 'development') !== 'production';
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -149,7 +121,7 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      if (isOriginPermitted(origin)) {
+      if (isOriginPermitted(origin, explicitAllowedOrigins, isDevelopment)) {
         return callback(null, true);
       }
 
@@ -212,6 +184,8 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
     logger.log(`📚 Swagger API Docs available on /api/docs`);
   }
+
+  app.enableShutdownHooks();
 
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');

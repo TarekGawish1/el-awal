@@ -37,7 +37,7 @@ export class AuthCredentialsService {
    */
   async login(dto: LoginDto): Promise<AuthTokensResponseDto> {
     const rawIdentifier = dto.identifier.trim();
-    this.sessionService.checkAccountLockout(rawIdentifier);
+    await this.sessionService.checkAccountLockout(rawIdentifier);
     const phoneVariants = getPhoneVariants(rawIdentifier);
 
     const user = await this.prisma.user.findFirst({
@@ -73,7 +73,7 @@ export class AuthCredentialsService {
 
     if (!user) {
       this.logger.warn(`Authentication failed: User [${dto.identifier}] not found or inactive`);
-      this.sessionService.recordFailedAttempt(rawIdentifier);
+      await this.sessionService.recordFailedAttempt(rawIdentifier);
     }
 
     if (!dto.password) {
@@ -122,7 +122,7 @@ export class AuthCredentialsService {
 
     if (!isPasswordValid) {
       this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
-      this.sessionService.recordFailedAttempt(rawIdentifier);
+      await this.sessionService.recordFailedAttempt(rawIdentifier);
     }
 
     // Clear tempAccessPin and pendingCredentials upon verified login with real password
@@ -166,7 +166,7 @@ export class AuthCredentialsService {
       }
     }
 
-    this.sessionService.clearFailedAttempts(rawIdentifier);
+    await this.sessionService.clearFailedAttempts(rawIdentifier);
     const overrideRole = authenticatedAsParentViaStudentPin ? UserRole.PARENT : undefined;
     return this.tokenService.issueTokens(user, overrideRole);
   }
@@ -177,7 +177,7 @@ export class AuthCredentialsService {
    */
   async parentAccess(dto: ParentAccessDto): Promise<AuthTokensResponseDto> {
     const rawIdentifier = (dto.studentPhone || '').trim();
-    this.sessionService.checkAccountLockout(rawIdentifier);
+    await this.sessionService.checkAccountLockout(rawIdentifier);
     const password = (dto.password || '').trim();
     const phoneVariants = getPhoneVariants(rawIdentifier);
 
@@ -264,7 +264,7 @@ export class AuthCredentialsService {
     const hasParentCapability = parentUser?.role === UserRole.PARENT || Boolean(parentUser?.parentProfile);
     if (!parentUser || !hasParentCapability || !parentUser.isActive || parentUser.deletedAt) {
       this.logger.warn(`Parent access failed for identifier [${dto.studentPhone}]`);
-      this.sessionService.recordFailedAttempt(rawIdentifier);
+      await this.sessionService.recordFailedAttempt(rawIdentifier);
     }
 
     // 3. Authenticate with password verification:
@@ -308,10 +308,10 @@ export class AuthCredentialsService {
 
     if (!isPasswordValid) {
       this.logger.warn(`Parent access failed: invalid password for identifier [${rawIdentifier}]`);
-      this.sessionService.recordFailedAttempt(rawIdentifier);
+      await this.sessionService.recordFailedAttempt(rawIdentifier);
     }
 
-    this.sessionService.clearFailedAttempts(rawIdentifier);
+    await this.sessionService.clearFailedAttempts(rawIdentifier);
     return this.tokenService.issueTokens(parentUser, UserRole.PARENT);
   }
 }

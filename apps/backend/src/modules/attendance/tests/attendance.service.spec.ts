@@ -23,7 +23,11 @@ describe('AttendanceService', () => {
     groupEnrollment: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       count: jest.fn(),
+    },
+    teacherAssistant: {
+      findFirst: jest.fn(),
     },
     attendanceRecord: {
       count: jest.fn(),
@@ -252,6 +256,43 @@ describe('AttendanceService', () => {
         { limit: 20 },
         undefined,
         studentUser,
+      );
+      expect(result).toBeDefined();
+    });
+
+    it('should throw ForbiddenException if teacher attempts to view history of student not enrolled in teacher groups', async () => {
+      const teacherUser: any = {
+        id: 'user-teacher-1',
+        teacherProfileId: 'teacher-profile-1',
+        role: UserRole.TEACHER,
+      };
+
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getStudentHistory('stu-profile-99', { limit: 20 }, undefined, teacherUser),
+      ).rejects.toThrow(/Teachers can only view attendance history for students actively enrolled/);
+    });
+
+    it('should allow teacher to view attendance history for an actively enrolled student', async () => {
+      const teacherUser: any = {
+        id: 'user-teacher-1',
+        teacherProfileId: 'teacher-profile-1',
+        role: UserRole.TEACHER,
+      };
+
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue({
+        id: 'enr-1',
+        studentId: 'stu-profile-1',
+        status: GroupEnrollmentStatus.ACTIVE,
+      });
+      mockRepository.getStudentAttendanceHistory.mockResolvedValue({ data: [], meta: {} });
+
+      const result = await service.getStudentHistory(
+        'stu-profile-1',
+        { limit: 20 },
+        undefined,
+        teacherUser,
       );
       expect(result).toBeDefined();
     });

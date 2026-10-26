@@ -122,6 +122,74 @@ describe('SubscriptionsService', () => {
       );
     });
 
+    it('should throw ForbiddenException if teacher records payment without groupId for student not in their groups', async () => {
+      const studentId = 'stu-not-enrolled';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        user: { fullName: 'طالب غير مسجل' },
+      });
+
+      mockPrismaService.groupEnrollment.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.recordStudentPayment(mockUser, {
+          studentId,
+          amountPaid: 300,
+        }),
+      ).rejects.toThrow(/لا يمكنك تسجيل اشتراك شهري لطالب غير مسجل في أي من مجموعاتك الدراسية/);
+    });
+
+    it('should auto-resolve groupId if teacher records payment without groupId for student in single active group', async () => {
+      const studentId = 'stu-single-group';
+      const groupId = 'auto-group-1';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        user: { fullName: 'طالب مجموعة واحدة' },
+      });
+
+      mockPrismaService.groupEnrollment.findMany.mockResolvedValue([
+        {
+          groupId,
+          studentId,
+          status: GroupEnrollmentStatus.ACTIVE,
+          group: { id: groupId, name: 'مجموعة النخبة', teacherId: mockUser.teacherProfileId, monthlyFee: 350 },
+        },
+      ]);
+
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue({
+        id: groupId,
+        name: 'مجموعة النخبة',
+        teacherId: mockUser.teacherProfileId,
+        monthlyFee: 350,
+      });
+
+      mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
+        groupId,
+        studentId,
+        status: GroupEnrollmentStatus.ACTIVE,
+        enrolledAt: new Date('2026-08-01'),
+      });
+
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue({
+        id: 'auto-pay-1',
+        studentId,
+        groupId,
+        amountPaid: 350,
+        amountExpected: 350,
+        paymentStatus: PaymentStatus.PAID,
+      });
+
+      const result = await service.recordStudentPayment(mockUser, {
+        studentId,
+        amountPaid: 350,
+      });
+
+      expect(result.id).toBe('auto-pay-1');
+    });
+
     it('should record booklet payment when paymentType is BOOKLET', async () => {
       const studentId = 'stu-1';
       const bookletId = 'booklet-1';

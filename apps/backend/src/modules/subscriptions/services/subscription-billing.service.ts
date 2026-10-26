@@ -82,6 +82,59 @@ export class SubscriptionBillingService {
     }
 
     // 2. Regular Monthly Tuition Payment Flow
+    if (!dto.groupId) {
+      if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT) {
+        let teacherId = user.teacherProfileId || user.id;
+        if (user.role === UserRole.SECRETARIAT && typeof this.prisma.teacherAssistant?.findFirst === 'function') {
+          const link = await this.prisma.teacherAssistant.findFirst({
+            where: { assistantId: user.id, status: 'ACTIVE' },
+            select: { teacherId: true },
+          });
+          if (link) {
+            teacherId = link.teacherId;
+          }
+        }
+
+        const teacherEnrollments = await this.prisma.groupEnrollment.findMany({
+          where: {
+            studentId: dto.studentId,
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: {
+              OR: [{ teacherId }, { teacher: { id: teacherId } }],
+            },
+          },
+          include: { group: true },
+        });
+
+        if (teacherEnrollments.length === 0) {
+          throw new ForbiddenException(
+            'لا يمكنك تسجيل اشتراك شهري لطالب غير مسجل في أي من مجموعاتك الدراسية',
+          );
+        } else if (teacherEnrollments.length === 1) {
+          dto.groupId = teacherEnrollments[0].groupId;
+        } else {
+          throw new BadRequestException(
+            'الطالب مسجل في أكثر من مجموعة لهذا المعلم. يرجى تحديد معرف المجموعة groupId',
+          );
+        }
+      } else {
+        const activeEnrollments = await this.prisma.groupEnrollment.findMany({
+          where: {
+            studentId: dto.studentId,
+            status: GroupEnrollmentStatus.ACTIVE,
+          },
+          include: { group: true },
+        });
+        if (activeEnrollments.length === 1) {
+          dto.groupId = activeEnrollments[0].groupId;
+        } else if (activeEnrollments.length > 1) {
+          throw new BadRequestException(
+            'يرجى تحديد معرف المجموعة الدراسية groupId',
+          );
+        }
+      }
+    }
+
     if (dto.groupId) {
       const group = await this.prisma.academicGroup.findUnique({
         where: { id: dto.groupId },

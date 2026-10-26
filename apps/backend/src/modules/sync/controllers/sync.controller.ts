@@ -14,6 +14,7 @@ import {
   AuthenticatedUser,
 } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Offline Sync Engine')
 @ApiBearerAuth()
@@ -51,6 +52,7 @@ export class SyncController {
 
   @Post('attendance')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({
     summary: 'Atomically reconcile batch offline attendance roll-call records with duplicate suppression',
@@ -65,6 +67,7 @@ export class SyncController {
 
   @Post('homework')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({
     summary: 'Atomically reconcile batch offline onsite homework delivery records and automatic attendance roll-call',
@@ -79,6 +82,7 @@ export class SyncController {
 
   @Post('payments')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({
     summary: 'Atomically reconcile batch offline student tuition fee payments with idempotency enforcement',
@@ -93,6 +97,7 @@ export class SyncController {
 
   @Post('progress')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Roles(UserRole.STUDENT)
   @ApiOperation({
     summary: 'Atomically flush offline progress outbox batch with monotonic reconciliation',
@@ -107,6 +112,7 @@ export class SyncController {
 
   @Post('assessments')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Roles(UserRole.STUDENT)
   @ApiOperation({
     summary: 'Atomically ingest offline student assessment and exam submissions',
@@ -121,6 +127,7 @@ export class SyncController {
 
   @Post('batch')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({
     summary: 'Unified multi-domain batch synchronization endpoint for offline outbox flush',

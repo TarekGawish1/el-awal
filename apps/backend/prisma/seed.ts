@@ -42,6 +42,15 @@ function getSpecificDayDate(targetDayOfWeek: number, weeksOffset: number = 0): D
 }
 
 async function main() {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.ALLOW_DANGEROUS_PRODUCTION_SEED !== 'true'
+  ) {
+    console.error('❌ [SECURITY BLOCKED] Database seeding and table truncation are strictly prohibited when NODE_ENV=production.');
+    console.error('   Aborting seed script immediately to preserve production data integrity.');
+    process.exit(1);
+  }
+
   console.log('🌱 Starting Clean, Deterministic Database Seeding for El-Awal Platform...');
 
   const rawPassword = process.env.SEED_DEMO_PASSWORD || 'Password123!';

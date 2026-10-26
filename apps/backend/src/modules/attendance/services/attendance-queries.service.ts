@@ -174,6 +174,51 @@ export class AttendanceQueriesService {
             'Guardians can only view linked children attendance history',
           );
         }
+      } else if (user.role === UserRole.TEACHER) {
+        const teacherId = user.teacherProfileId || user.id;
+        const enrolledInTeacherGroup = await this.prisma.groupEnrollment.findFirst({
+          where: {
+            studentId,
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: {
+              OR: [
+                { teacherId },
+                { teacher: { id: teacherId } },
+              ],
+            },
+          },
+        });
+        if (!enrolledInTeacherGroup) {
+          throw new ForbiddenException(
+            'Teachers can only view attendance history for students actively enrolled in their academic groups',
+          );
+        }
+      } else if (user.role === UserRole.SECRETARIAT) {
+        let teacherId = user.id;
+        const assistantLink = await this.prisma.teacherAssistant.findFirst({
+          where: { assistantId: user.id, status: 'ACTIVE' },
+          select: { teacherId: true },
+        });
+        if (assistantLink) {
+          teacherId = assistantLink.teacherId;
+        }
+        const enrolledInTeacherGroup = await this.prisma.groupEnrollment.findFirst({
+          where: {
+            studentId,
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: {
+              OR: [
+                { teacherId },
+                { teacher: { id: teacherId } },
+              ],
+            },
+          },
+        });
+        if (!enrolledInTeacherGroup) {
+          throw new ForbiddenException(
+            'Secretariat can only view attendance history for students enrolled in linked teacher academic groups',
+          );
+        }
       }
     }
 

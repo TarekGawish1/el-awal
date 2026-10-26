@@ -37,6 +37,7 @@ export class PresignedUploadDto {
   })
   @IsOptional()
   @IsString()
+  @IsIn(ALLOWED_MIME_TYPES, { message: 'نوع الملف غير مسموح به. يرجى اختيار ملف مدعوم.' })
   contentType?: string;
 
   @ApiPropertyOptional({
@@ -45,6 +46,7 @@ export class PresignedUploadDto {
   })
   @IsOptional()
   @IsString()
+  @IsIn(ALLOWED_MIME_TYPES, { message: 'نوع الملف غير مسموح به. يرجى اختيار ملف مدعوم.' })
   fileType?: string;
 
   @ApiPropertyOptional({

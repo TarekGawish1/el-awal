@@ -375,15 +375,74 @@ export class CourseProgressService {
       include: { module: true },
     });
 
+    if (validLessons.length === 0) {
+      return {
+        syncedCount: 0,
+        processedOperationIds: [],
+        courseId: '',
+        overallCourseCompletionPercentage: 0,
+      };
+    }
+
     const validLessonMap = new Map<string, string>();
     validLessons.forEach((l) => validLessonMap.set(l.id, l.module.courseId));
 
+    // SEC-10: Verify active course entitlement or preview status for student
+    const courseIds = [...new Set(validLessons.map((l) => l.module.courseId))];
+
+    const [activeAccesses, activeEnrollments] = await Promise.all([
+      typeof this.prisma.courseAccess?.findMany === 'function'
+        ? this.prisma.courseAccess.findMany({
+            where: {
+              studentId,
+              courseId: { in: courseIds },
+              accessStatus: CourseAccessStatus.ACTIVE,
+              OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+            },
+            select: { courseId: true },
+          })
+        : Promise.resolve([]),
+      typeof this.prisma.courseEnrollment?.findMany === 'function'
+        ? this.prisma.courseEnrollment.findMany({
+            where: {
+              studentId,
+              courseId: { in: courseIds },
+              status: CourseEnrollmentStatus.ACTIVE,
+            },
+            select: { courseId: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const authorizedCourseIds = new Set([
+      ...activeAccesses.map((a: any) => a.courseId),
+      ...activeEnrollments.map((e: any) => e.courseId),
+    ]);
+
+    const previewLessonIds = new Set(
+      validLessons.filter((l) => (l as any).isPreview).map((l) => l.id),
+    );
+
     const enrichedItems = items
       .filter((i) => validLessonMap.has(i.lessonId))
+      .filter(
+        (i) =>
+          authorizedCourseIds.has(validLessonMap.get(i.lessonId)!) ||
+          previewLessonIds.has(i.lessonId),
+      )
       .map((i) => ({
         ...i,
         courseId: validLessonMap.get(i.lessonId)!,
       }));
+
+    if (enrichedItems.length === 0) {
+      return {
+        syncedCount: 0,
+        processedOperationIds: [],
+        courseId: '',
+        overallCourseCompletionPercentage: 0,
+      };
+    }
 
     return this.progressRepository.syncBatch(studentId, enrichedItems);
   }

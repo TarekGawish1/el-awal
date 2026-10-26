@@ -25,7 +25,7 @@ export interface FastifyFileOptions {
   };
   fileFilter?: (
     req: any,
-    file: { originalname: string; mimetype: string; size: number },
+    file: { originalname: string; mimetype: string; size: number; buffer?: Buffer },
     callback: (error: Error | null, acceptFile: boolean) => void,
   ) => void;
 }
@@ -84,6 +84,7 @@ export function FastifyFileInterceptor(
                         originalname: part.filename,
                         mimetype: part.mimetype,
                         size: buffer.length,
+                        buffer,
                       },
                       (err, accept) => {
                         if (err) return reject(err);

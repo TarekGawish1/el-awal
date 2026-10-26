@@ -3,6 +3,7 @@ import { ContentService } from '../services/content.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { BunnyVideoService } from '../../../integrations/video/bunny-video.service';
+import { UserRole, ContentType } from '@prisma/client';
 
 describe('SEC-03: ContentService.verifyStudentFileOwnership', () => {
   let service: ContentService;
@@ -21,11 +22,24 @@ describe('SEC-03: ContentService.verifyStudentFileOwnership', () => {
     courseEnrollment: {
       findFirst: jest.fn(),
     },
+    teacherProfile: {
+      findUnique: jest.fn().mockResolvedValue({
+        activeAcademicYear: '2026-2027',
+        activeAcademicTerm: 'FIRST_TERM',
+      }),
+    },
   };
 
   const mockStorageService = {
     uploadBuffer: jest.fn(),
     deleteObject: jest.fn(),
+    generatePresignedUploadUrl: jest.fn().mockImplementation((fileKey, contentType) =>
+      Promise.resolve({
+        uploadUrl: 'https://r2.mock/upload',
+        fileKey,
+        publicUrl: `https://r2.mock/${fileKey}`,
+      }),
+    ),
   };
 
   const mockBunnyService = {
@@ -172,6 +186,57 @@ describe('SEC-03: ContentService.verifyStudentFileOwnership', () => {
     it('returns false for empty or undefined target', async () => {
       expect(await service.verifyStudentFileOwnership(studentAId, undefined, undefined)).toBe(false);
       expect(await service.verifyStudentFileOwnership(studentAId, '   ', '')).toBe(false);
+    });
+  });
+
+  describe('generatePresignedUpload & createContent Security (SEC-09)', () => {
+    it('isolates student presigned uploads under uploads/students/${studentId}/', async () => {
+      const studentUser: any = {
+        id: 'stu-user-1',
+        studentProfileId: 'student-prof-1',
+        role: UserRole.STUDENT,
+      };
+
+      const result = await service.generatePresignedUpload(
+        {
+          fileName: 'my-homework.pdf',
+          folder: 'homework-submissions',
+          contentType: 'application/pdf',
+        },
+        studentUser,
+      );
+
+      expect(result.fileKey).toContain('uploads/students/student-prof-1/homework-submissions/');
+    });
+
+    it('rejects presigned upload requests with file size exceeding 100MB', async () => {
+      await expect(
+        service.generatePresignedUpload({
+          fileName: 'oversized.pdf',
+          fileSizeBytes: 105 * 1024 * 1024,
+          contentType: 'application/pdf',
+        }),
+      ).rejects.toThrow(/حجم الملف يتجاوز الحد الأقصى/);
+    });
+
+    it('createContent rejects fileKey containing path traversal (..)', async () => {
+      await expect(
+        service.createContent('teacher-1', {
+          title: 'Traversal Attachment',
+          contentType: ContentType.FILE,
+          fileKey: '../../etc/passwd',
+        } as any),
+      ).rejects.toThrow(/معرف الملف غير صالح/);
+    });
+
+    it('createContent rejects fileKey pointing to private student uploads', async () => {
+      await expect(
+        service.createContent('teacher-1', {
+          title: 'Stolen Student Receipt',
+          contentType: ContentType.FILE,
+          fileKey: 'uploads/students/stu-victim/payment-receipts/receipt.png',
+        } as any),
+      ).rejects.toThrow(/غير مصرح بربط ملفات الطلاب الخاصة كأصول تعليمية عامة/);
     });
   });
 });

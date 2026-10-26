@@ -17,6 +17,7 @@ import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { UserRole, AttendanceStatus } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Attendance & Absence')
 @ApiBearerAuth()
@@ -26,6 +27,7 @@ export class AttendanceController {
 
   @Post('sessions/:sessionId/scan-qr')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Atomically record student attendance for a session via scanned QR code' })
   @ApiResponse({ status: 200, description: 'Attendance successfully recorded or confirmed duplicate' })

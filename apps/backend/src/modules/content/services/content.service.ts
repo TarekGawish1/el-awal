@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
   Optional,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { CreateContentDto } from '../dto/create-content.dto';
 import { UpdateContentDto } from '../dto/update-content.dto';
 import { ContentType } from '@prisma/client';
 import { ContentStorageService } from './content-storage.service';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
 @Injectable()
 export class ContentService {
@@ -33,8 +35,8 @@ export class ContentService {
   /**
    * Generates a presigned Cloudflare R2 / S3 direct upload URL with secure isolated file keys.
    */
-  async generatePresignedUpload(dto: PresignedUploadDto) {
-    return this.contentStorageService.generatePresignedUpload(dto);
+  async generatePresignedUpload(dto: PresignedUploadDto, user?: AuthenticatedUser) {
+    return this.contentStorageService.generatePresignedUpload(dto, user);
   }
 
   /**
@@ -186,6 +188,15 @@ export class ContentService {
       }
       if (lesson.module.course.teacherId !== teacherId) {
         throw new ForbiddenException('You do not own the course containing this lesson');
+      }
+    }
+
+    if (dto.fileKey) {
+      if (dto.fileKey.includes('..') || dto.fileKey.includes('\0')) {
+        throw new BadRequestException('معرف الملف غير صالح');
+      }
+      if (dto.fileKey.startsWith('uploads/students/')) {
+        throw new ForbiddenException('غير مصرح بربط ملفات الطلاب الخاصة كأصول تعليمية عامة');
       }
     }
 
@@ -436,6 +447,12 @@ export class ContentService {
       fileSize = uploaded.fileSize;
       mimeType = uploaded.mimeType;
     } else if (dto.fileKey && dto.fileUrl) {
+      if (dto.fileKey.includes('..') || dto.fileKey.includes('\0')) {
+        throw new BadRequestException('معرف الملف غير صالح');
+      }
+      if (dto.fileKey.startsWith('uploads/students/')) {
+        throw new ForbiddenException('غير مصرح بربط ملفات الطلاب الخاصة كأصول تعليمية عامة');
+      }
       fileKey = dto.fileKey;
       fileUrl = dto.fileUrl;
       if (dto.fileSize !== undefined) fileSize = BigInt(dto.fileSize);

@@ -36,6 +36,8 @@ const SECURE_TEST_OPTIONS: FastifyFileOptions = {
   },
 };
 
+import { SECURE_FILE_UPLOAD_OPTIONS } from '../../integrations/storage/upload-options';
+
 @Controller('test-upload')
 class TestUploadController {
   @Post('file')
@@ -55,6 +57,19 @@ class TestUploadController {
       fileSize: file.size,
       fileType: file.mimetype,
       contentString: file.buffer.toString('utf-8'),
+    };
+  }
+
+  @Post('secure-file')
+  @UseInterceptors(FastifyFileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
+  uploadSecureFile(@UploadedFile() file: UploadedFilePayload) {
+    if (!file) {
+      throw new BadRequestException('الملف مطلوب');
+    }
+    return {
+      fileName: file.originalname,
+      fileSize: file.size,
+      fileType: file.mimetype,
     };
   }
 
@@ -201,5 +216,47 @@ describe('FastifyFileInterceptor Integration Suite', () => {
     expect(body.title).toBe('شرح قاعدة كان وأخواتها');
     expect(body.videoName).toBe('grammar-lesson.mp4');
     expect(body.videoSize).toBe(Buffer.from('VIDEO_STREAM_DATA').length);
+  });
+
+  it('should reject file when MIME type is spoofed but binary magic bytes do not match', async () => {
+    const form = new FormData();
+    // Spoofed as image/png but content is an HTML script
+    form.append('file', Buffer.from('<script>alert("xss")</script>'), {
+      filename: 'fake-photo.png',
+      contentType: 'image/png',
+    });
+
+    const res = await adapter.getInstance().inject({
+      method: 'POST',
+      url: '/test-upload/secure-file',
+      headers: form.getHeaders(),
+      payload: form.getBuffer(),
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body);
+    expect(body.message).toContain('File signature mismatch');
+  });
+
+  it('should accept file when MIME type and binary magic bytes match', async () => {
+    const form = new FormData();
+    // Genuine PNG header: \x89PNG\r\n\x1a\n
+    const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
+    form.append('file', pngHeader, {
+      filename: 'valid-badge.png',
+      contentType: 'image/png',
+    });
+
+    const res = await adapter.getInstance().inject({
+      method: 'POST',
+      url: '/test-upload/secure-file',
+      headers: form.getHeaders(),
+      payload: form.getBuffer(),
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.fileName).toBe('valid-badge.png');
+    expect(body.fileType).toBe('image/png');
   });
 });

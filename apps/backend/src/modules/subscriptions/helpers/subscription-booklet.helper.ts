@@ -1,12 +1,13 @@
 import {
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
-import { PaymentStatus, PaymentType } from '@prisma/client';
+import { PaymentStatus, PaymentType, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { RedisCacheService } from '../../../core/cache/redis-cache.service';
 
@@ -40,6 +41,17 @@ export async function executeBookletPayment(
 
   if (!booklet) {
     throw new NotFoundException(`Booklet [${dto.bookletId}] not found`);
+  }
+
+  if (user.role === UserRole.TEACHER) {
+    const teacherId = user.teacherProfileId || user.id;
+    if (
+      (booklet as any).teacherProfileId &&
+      (booklet as any).teacherProfileId !== teacherId &&
+      (booklet as any).teacherProfileId !== user.id
+    ) {
+      throw new ForbiddenException('You do not own the booklet for this payment');
+    }
   }
 
   if (student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {

@@ -202,7 +202,7 @@ export class ContentController {
         'يمكن للطلاب رفع الملفات لواجباتهم واختباراتهم وإيصالات الدفع فقط',
       );
     }
-    return this.contentService.generatePresignedUpload(dto);
+    return this.contentService.generatePresignedUpload(dto, user);
   }
 
   @Post('presigned-video-upload')
