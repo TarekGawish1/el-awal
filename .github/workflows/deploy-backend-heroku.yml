@@ -32,7 +32,7 @@ jobs:
       - name: Backend TypeScript Check
         run: cd apps/backend && bun x tsc --noEmit
 
-      - name: Generate Ephemeral Test JWT Secrets
+      - name: Configure Ephemeral Test Environment & Secrets
         run: |
           node -e "
             const crypto = require('node:crypto');
@@ -42,11 +42,20 @@ jobs:
             while (refresh === access) {
               refresh = crypto.randomBytes(48).toString('base64url');
             }
-            fs.appendFileSync(process.env.GITHUB_ENV, 'JWT_ACCESS_SECRET=' + access + '\nJWT_REFRESH_SECRET=' + refresh + '\n');
+            const testEnv = [
+              'JWT_ACCESS_SECRET=' + access,
+              'JWT_REFRESH_SECRET=' + refresh,
+              'DATABASE_URL=postgresql://test:test@127.0.0.1:5432/el_awal_test?schema=public',
+              'NODE_ENV=test',
+            ].join('\n') + '\n';
+            fs.appendFileSync(process.env.GITHUB_ENV, testEnv);
           "
 
       - name: Backend Test Suite
         run: cd apps/backend && bun run test
+        env:
+          DATABASE_URL: postgresql://test:test@127.0.0.1:5432/el_awal_test?schema=public
+          NODE_ENV: test
 
       - name: Dependency Security Audit
         run: |
