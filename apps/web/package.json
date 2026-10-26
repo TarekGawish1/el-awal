@@ -52,7 +52,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "eslint-config-next": "^16.4.0",
     "jsdom": "^24.1.1",
-    "vitest": "^2.0.5"
+    "vitest": "^3.2.7"
   },
   "description": "`npm install @el-awal/web`",
   "main": "postcss.config.js",

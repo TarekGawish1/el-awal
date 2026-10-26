@@ -162,6 +162,76 @@ export class StartSessionDto {
   visitorId?: string;
 }
 
+export class AnalyticsOverviewQueryDto extends AnalyticsQueryDto {
+  @ApiPropertyOptional({
+    description: "Geographic ranking group by",
+    enum: ["country", "city"],
+    default: "city",
+  })
+  @IsOptional()
+  @IsIn(["country", "city"])
+  geoGroupBy?: "country" | "city" = "city";
+
+  @ApiPropertyOptional({
+    description: "Student engagement leaderboard sort by",
+    enum: ["duration", "visits"],
+    default: "duration",
+  })
+  @IsOptional()
+  @IsIn(["duration", "visits"])
+  leaderboardSortBy?: "duration" | "visits" = "duration";
+
+  @ApiPropertyOptional({
+    description: "Student engagement leaderboard limit",
+    default: 15,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  @Type(() => Number)
+  leaderboardLimit?: number = 15;
+
+  @ApiPropertyOptional({
+    description: "Leaderboard target role: STUDENT or PARENT",
+    enum: ["STUDENT", "PARENT", "ALL"],
+    default: "STUDENT",
+  })
+  @IsOptional()
+  @IsIn(["STUDENT", "PARENT", "ALL"])
+  leaderboardRole?: "STUDENT" | "PARENT" | "ALL" = "STUDENT";
+
+  @ApiPropertyOptional({
+    description: "Visitors list page (1-based)",
+    default: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Type(() => Number)
+  visitorPage?: number = 1;
+
+  @ApiPropertyOptional({
+    description: "Visitors list limit per page",
+    default: 10,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  @Type(() => Number)
+  visitorLimit?: number = 10;
+
+  @ApiPropertyOptional({
+    description: "Visitor role filter for overview visitors list",
+    enum: ["ALL", "STUDENT", "PARENT", "GUEST", "all", "students", "parents", "guests", "registered"],
+    default: "ALL",
+  })
+  @IsOptional()
+  @IsIn(["ALL", "STUDENT", "PARENT", "GUEST", "all", "students", "parents", "guests", "registered"])
+  visitorRole?: string = "ALL";
+}
+
 export class PingSessionDto {
   @ApiProperty({
     description: "Active session UUID",
