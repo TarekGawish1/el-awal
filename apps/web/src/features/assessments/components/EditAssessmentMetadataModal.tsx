@@ -27,7 +27,7 @@ const editMetadataSchema = z.object({
   timingType: z.enum(['FIXED_SESSION', 'FLEXIBLE_WINDOW']).optional(),
   startTime: z.string().optional().nullable(),
   endTime: z.string().optional().nullable(),
-  durationMinutes: z.coerce.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
+  durationMinutes: z.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
   dueDate: z.string().optional().nullable(),
   courseId: z.string().optional().nullable(),
   allowMultipleAttempts: z.boolean().optional(),

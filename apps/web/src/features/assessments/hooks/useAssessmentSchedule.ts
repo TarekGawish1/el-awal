@@ -85,7 +85,7 @@ export function getNextSessionDate(
 }
 
 export function useAssessmentSchedule(
-  methods: UseFormReturn<CreateAssessmentFormData>,
+  methods: UseFormReturn<CreateAssessmentFormData, any, any>,
   initialTimingType?: string
 ) {
   const [scheduleMode, setScheduleMode] = useState<

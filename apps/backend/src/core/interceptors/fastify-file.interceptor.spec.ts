@@ -113,7 +113,7 @@ describe('FastifyFileInterceptor Integration Suite', () => {
       { logger: false },
     );
 
-    await app.register(fastifyMultipart, {
+    await app.register(fastifyMultipart as any, {
       limits: {
         fileSize: 100 * 1024, // 100 KB global limit
       },

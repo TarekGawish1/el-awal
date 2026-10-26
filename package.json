@@ -26,8 +26,9 @@
     "prisma:db:push": "bun x prisma db push --schema apps/backend/prisma/schema.prisma --accept-data-loss",
     "prisma:studio": "bun --filter @el-awal/backend prisma:studio",
     "audit": "bun run audit:production && bun run audit:tooling",
-    "audit:production": "bun audit --production --audit-level=critical",
-    "audit:tooling": "bun audit --audit-level=critical"
+    "audit:production": "bun audit --production",
+    "audit:tooling": "bun audit",
+    "audit:gate": "bun audit --production --audit-level=critical && bun audit --audit-level=critical"
   },
   "overrides": {
     "react": "19.3.0",
@@ -35,7 +36,12 @@
     "multer": "2.5.0",
     "fastify": "5.12.6",
     "@grpc/grpc-js": "1.14.6",
-    "tinypool": "2.1.2"
+    "tinypool": "2.1.2",
+    "deepmerge-ts": "8.0.2",
+    "mysql2": "3.24.6",
+    "postcss-selector-parser": "7.1.7",
+    "zod": "4.6.7",
+    "tailwindcss": "3.4.17"
   },
   "dependencies": {
     "@types/react": "^19.3.0",

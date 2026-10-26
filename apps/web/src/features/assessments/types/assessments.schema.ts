@@ -4,12 +4,12 @@ import { QuestionType } from './assessments.types';
 export const questionSchema = z.object({
   questionText: z.string().min(2, 'نص السؤال مطلوب ويجب أن يكون حرفين على الأقل'),
   questionType: z.nativeEnum(QuestionType),
-  points: z.coerce.number().min(0.5, 'يجب أن تكون الدرجة 0.5 على الأقل'),
+  points: z.number().min(0.5, 'يجب أن تكون الدرجة 0.5 على الأقل'),
   explanation: z.string().optional(),
   displayOrder: z.number().int(),
   questionNumber: z.number().int(),
-  optionsData: z.array(z.string().min(1, 'الخيار لا يمكن أن يكون فارغاً')).optional(),
-  optionImages: z.array(z.string()).optional(),
+  optionsData: z.array(z.string().min(1, 'الخيار لا يمكن أن يكون فارغاً')).max(20, 'الخيارات لا يمكن أن تتجاوز 20 خياراً').optional(),
+  optionImages: z.array(z.string()).max(20).optional(),
   correctAnswer: z.string().optional(),
   imageUrl: z.string().optional(),
 }).superRefine((data, ctx) => {
@@ -49,25 +49,25 @@ export const questionSchema = z.object({
 
 export const createAssessmentSchema = z.object({
   groupId: z.string().optional().nullable(),
-  targetGroupIds: z.array(z.string()).optional(),
+  targetGroupIds: z.array(z.string()).max(100, 'الحد الأقصى للمجموعات المستهدفة هو 100').optional(),
   courseId: z.string().optional().nullable(),
   academicStage: z.string().optional().nullable(),
   gradeLevel: z.string().optional().nullable(),
   title: z.string().min(3, 'عنوان الاختبار مطلوب ويجب أن يكون 3 أحرف على الأقل'),
   description: z.string().optional(),
   timingType: z.enum(['FIXED_SESSION', 'FLEXIBLE_WINDOW']).optional(),
-  totalScore: z.coerce.number().min(1, 'الدرجة الكلية يجب أن تكون 1 على الأقل'),
-  passingScore: z.coerce.number().min(0, 'درجة النجاح يجب أن تكون 0 على الأقل'),
+  totalScore: z.number().min(1, 'الدرجة الكلية يجب أن تكون 1 على الأقل'),
+  passingScore: z.number().min(0, 'درجة النجاح يجب أن تكون 0 على الأقل'),
   startTime: z.string().optional().nullable(),
   endTime: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
-  durationMinutes: z.coerce.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
+  durationMinutes: z.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
   isAutoGraded: z.boolean(),
   allowMultipleAttempts: z.boolean().optional(),
   isOptional: z.boolean().optional(),
   requirePassingScore: z.boolean().optional(),
-  questions: z.array(questionSchema).min(1, 'يجب إضافة سؤال واحد على الأقل'),
+  questions: z.array(questionSchema).min(1, 'يجب إضافة سؤال واحد على الأقل').max(300, 'الحد الأقصى لعدد الأسئلة هو 300 سؤال'),
 }).superRefine((data, ctx) => {
   if (data.passingScore > data.totalScore) {
     ctx.addIssue({

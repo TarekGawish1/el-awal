@@ -17,7 +17,7 @@ const editBookletSchema = z.object({
   gradeLevel: z.string().min(1, 'يجب تحديد الصف الدراسي'),
   groupId: z.string().optional(),
   stockCount: z.number().optional().nullable(),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 });
 
 type EditBookletFormData = z.infer<typeof editBookletSchema>;

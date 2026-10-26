@@ -4,16 +4,15 @@ import * as tus from 'tus-js-client';
 
 vi.mock('tus-js-client', () => {
   return {
-    Upload: vi.fn().mockImplementation((file, options) => {
-      return {
-        options,
-        file,
-        start: vi.fn().mockImplementation(function (this: any) {
-          options.onProgress?.(50, 100);
-          options.onSuccess?.();
-        }),
-        abort: vi.fn(),
-      };
+    Upload: vi.fn().mockImplementation(function (this: any, file: any, options: any) {
+      this.options = options;
+      this.file = file;
+      this.start = vi.fn().mockImplementation(() => {
+        options.onProgress?.(50, 100);
+        options.onSuccess?.();
+      });
+      this.abort = vi.fn();
+      return this;
     }),
   };
 });

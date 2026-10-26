@@ -7,7 +7,7 @@ import { Group } from '../../groups/types/groups.types';
 import { getNextSessionDate } from './useAssessmentSchedule';
 
 export interface UseAssessmentPrefillProps {
-  methods: UseFormReturn<CreateAssessmentFormData>;
+  methods: UseFormReturn<CreateAssessmentFormData, any, any>;
   paramCourseId: string | null;
   courseLinkScope: string | null;
   paramLessonTitle: string | null;

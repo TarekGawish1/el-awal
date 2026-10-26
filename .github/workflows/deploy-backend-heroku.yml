@@ -38,10 +38,16 @@ jobs:
       - name: Dependency Security Audit
         run: |
           set -e
-          echo "=== 1. Strict Blocking Production Dependency Audit (Zero Critical Allowed) ==="
+          echo "=== 1. Full Production Dependency Audit (All Severities) ==="
+          bun audit --production
+
+          echo "=== 2. Blocking Production Dependency Audit Gate (Zero Critical Allowed) ==="
           bun audit --production --audit-level=critical
 
-          echo "=== 2. Full-Tree Tooling Audit (Zero Critical Allowed) ==="
+          echo "=== 3. Full-Tree Tooling Audit (All Severities) ==="
+          bun audit
+
+          echo "=== 4. Full-Tree Tooling Audit Gate (Zero Critical Allowed) ==="
           # SEC-16/SEC-21: Strict zero-critical dependency audit gate with zero exceptions.
           bun audit --audit-level=critical
 

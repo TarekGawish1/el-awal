@@ -10,6 +10,8 @@ import { StudentDetailsModal } from '@/features/students/components/StudentDetai
 import { GroupDetailsModal } from '@/features/groups/components/GroupDetailsModal';
 import * as useStudentsModule from '@/features/students/hooks/use-students';
 import * as useGroupsModule from '@/features/groups/hooks/useGroups';
+import * as useAttendanceModule from '@/features/attendance/hooks/use-attendance';
+import * as useFinanceModule from '@/features/finance/hooks/useFinance';
 import * as nextNavigation from 'next/navigation';
 
 vi.mock('next/navigation', () => ({
@@ -164,6 +166,18 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
     vi.spyOn(useGroupsModule, 'useDeleteGroup').mockReturnValue({
       mutateAsync: vi.fn(),
       isPending: false,
+    } as any);
+
+    vi.spyOn(useAttendanceModule, 'useStudentAttendanceHistory').mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    vi.spyOn(useFinanceModule, 'useStudentPaymentHistory').mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
     } as any);
   });
 

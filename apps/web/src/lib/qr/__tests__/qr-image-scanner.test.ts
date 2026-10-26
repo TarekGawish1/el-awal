@@ -12,9 +12,9 @@ describe('scanQrFromImageFile', () => {
 
   it('detects barcode when BarcodeDetector returns codes', async () => {
     const mockDetect = vi.fn().mockResolvedValue([{ rawValue: 'ELAWAL:STD:123:SEC:abc' }]);
-    (window as any).BarcodeDetector = vi.fn().mockImplementation(() => ({
-      detect: mockDetect,
-    }));
+    (window as any).BarcodeDetector = vi.fn().mockImplementation(function (this: any) {
+      this.detect = mockDetect;
+    });
 
     (window as any).createImageBitmap = vi.fn().mockResolvedValue({
       close: vi.fn(),
@@ -29,9 +29,9 @@ describe('scanQrFromImageFile', () => {
 
   it('throws helpful Arabic error when no barcode is detected', async () => {
     const mockDetect = vi.fn().mockResolvedValue([]);
-    (window as any).BarcodeDetector = vi.fn().mockImplementation(() => ({
-      detect: mockDetect,
-    }));
+    (window as any).BarcodeDetector = vi.fn().mockImplementation(function (this: any) {
+      this.detect = mockDetect;
+    });
 
     (window as any).createImageBitmap = vi.fn().mockResolvedValue({
       close: vi.fn(),
