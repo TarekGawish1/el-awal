@@ -57,7 +57,7 @@ jobs:
   deploy:
     name: Deploy Frontend Subtree to Heroku
     needs: [quality_gate]
-    if: success()
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
