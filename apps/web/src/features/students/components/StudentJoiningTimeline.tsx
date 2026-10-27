@@ -155,7 +155,7 @@ function StudentJoiningTimelinePresentation({
       />
 
       {/* Chronological Joining Timeline List */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-4 sm:p-6">
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-3 sm:p-6">
         {filteredTimeline.length === 0 ? (
           <div className="py-16 text-center text-slate-500 space-y-3">
             <Clock className="w-12 h-12 text-slate-300 mx-auto" />
@@ -176,7 +176,7 @@ function StudentJoiningTimelinePresentation({
             )}
           </div>
         ) : (
-          <div className="relative border-r-2 border-slate-100 mr-3 sm:mr-6 space-y-6">
+          <div className="relative border-r-2 border-slate-100 mr-2 sm:mr-6 space-y-4 sm:space-y-6">
             {filteredTimeline.map((student) => (
               <JoiningTimelineItemCard
                 key={student.id}

@@ -41,11 +41,11 @@ export function JoiningTimelineFilters({
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1.5 self-start sm:self-auto">
+      <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
         <button
           type="button"
           onClick={() => onMethodFilterChange('ALL')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             methodFilter === 'ALL'
               ? 'bg-primary-600 text-white shadow-xs'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -57,13 +57,13 @@ export function JoiningTimelineFilters({
         <button
           type="button"
           onClick={() => onMethodFilterChange('GROUP_LINK')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
             methodFilter === 'GROUP_LINK'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
           }`}
         >
-          <LinkIcon className="w-3.5 h-3.5" />
+          <LinkIcon className="w-3.5 h-3.5 shrink-0" />
           رابط المجموعة ({groupLinkCount})
         </button>
 
@@ -71,13 +71,13 @@ export function JoiningTimelineFilters({
           <button
             type="button"
             onClick={() => onMethodFilterChange('APPROVED_REQUEST')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
               methodFilter === 'APPROVED_REQUEST'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
             }`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
             طلب انضمام معتمد ({approvedRequestCount})
           </button>
         )}
@@ -85,13 +85,13 @@ export function JoiningTimelineFilters({
         <button
           type="button"
           onClick={() => onMethodFilterChange('MANUAL')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
             methodFilter === 'MANUAL'
               ? 'bg-slate-800 text-white shadow-xs'
               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
           }`}
         >
-          <UserCheck className="w-3.5 h-3.5" />
+          <UserCheck className="w-3.5 h-3.5 shrink-0" />
           تسجيل يدوي ({manualCount})
         </button>
       </div>

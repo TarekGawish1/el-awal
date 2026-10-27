@@ -17,18 +17,18 @@ export function StudentListViewSwitcher({
   totalStudents,
 }: StudentListViewSwitcherProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-2xs">
-      <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl">
+    <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-2xs">
+      <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-100/90 p-1 rounded-xl w-full sm:w-auto">
         <button
           type="button"
           onClick={() => onTabChange('LIST')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 sm:flex-initial justify-center flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'LIST'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <Users className="w-3.5 h-3.5 text-primary-600" />
+          <Users className="w-3.5 h-3.5 text-primary-600 shrink-0" />
           <span>جدول وسجل الطلاب</span>
           {totalStudents !== undefined && (
             <span className="text-[10px] bg-slate-100 text-slate-700 font-mono px-1.5 py-0.5 rounded">
@@ -40,13 +40,13 @@ export function StudentListViewSwitcher({
         <button
           type="button"
           onClick={() => onTabChange('HISTORY')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 sm:flex-initial justify-center flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'HISTORY'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <Clock className="w-3.5 h-3.5 text-emerald-600" />
+          <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
           <span>سجل وتاريخ الانضمام</span>
           <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.2 rounded border border-emerald-200/60 hidden sm:inline-flex items-center gap-0.5">
             <Sparkles className="w-2.5 h-2.5" />
