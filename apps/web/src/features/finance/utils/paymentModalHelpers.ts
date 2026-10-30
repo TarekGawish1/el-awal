@@ -83,9 +83,11 @@ export function buildAvailableStudentsList(params: {
     });
   });
 
-  groupEnrollments.forEach((e) => {
-    if (e.student?.id && !map.has(e.student.id)) {
-      const studentId = e.student.id;
+  groupEnrollments.forEach((e: any) => {
+    const studentId = e.student?.id || e.studentId || e.id;
+    if (studentId && !map.has(studentId)) {
+      const studentName = e.student?.user?.name || e.student?.user?.fullName || e.student?.fullName || e.fullName || e.name || 'طالب';
+      const studentCode = e.student?.code || e.student?.studentCode || e.studentCode || e.code;
       const enrollmentDate = e.enrolledAt ? new Date(e.enrolledAt) : null;
       let fee = groupFee;
       let calculationReason: string | undefined = undefined;
@@ -126,22 +128,64 @@ export function buildAvailableStudentsList(params: {
 
       map.set(studentId, {
         id: studentId,
-        name: e.student.user?.name || e.student.user?.fullName || 'طالب',
+        name: studentName,
         fee,
         amountPaid,
         remainingAmount,
         isPaid,
         isPartiallyPaid,
-        studentCode: e.student.code || e.student.studentCode,
+        studentCode: studentCode || undefined,
         calculationReason,
         rateMultiplier,
       });
     }
   });
 
-  if (!selectedGroupId && allStudents.length > 0) {
+  // Fallback 1: Populate from matrixLedgerData students if not already in map
+  if (Array.isArray(matrixLedgerData?.students)) {
+    matrixLedgerData.students.forEach((ms: any) => {
+      if (ms.id && !map.has(ms.id)) {
+        const tuitionPayment = ms.monthlyPayments?.[currentPeriodMonth];
+        let isPaid = false;
+        let isPartiallyPaid = false;
+        let amountPaid = 0;
+        let fee = Number(tuitionPayment?.amountExpected ?? groupFee);
+        let remainingAmount = fee;
+        let calculationReason: string | undefined = undefined;
+        let rateMultiplier = 1.0;
+
+        if (tuitionPayment) {
+          amountPaid = Number(tuitionPayment.amountPaid || 0);
+          isPaid = Boolean(tuitionPayment.isPaid);
+          isPartiallyPaid = Boolean(tuitionPayment.isPartiallyPaid);
+          remainingAmount = Number(tuitionPayment.remainingAmount ?? Math.max(0, fee - amountPaid));
+          calculationReason = tuitionPayment.calculationReason;
+          rateMultiplier = tuitionPayment.rateMultiplier ?? 1.0;
+        }
+
+        map.set(ms.id, {
+          id: ms.id,
+          name: ms.name || ms.fullName || 'طالب',
+          fee,
+          amountPaid,
+          remainingAmount,
+          isPaid,
+          isPartiallyPaid,
+          studentCode: ms.studentCode || undefined,
+          calculationReason,
+          rateMultiplier,
+        });
+      }
+    });
+  }
+
+  // Fallback 2: Populate from allStudents
+  if (allStudents && allStudents.length > 0) {
     allStudents.forEach((s) => {
-      if (!map.has(s.id)) {
+      if (s.id && !map.has(s.id)) {
+        const matchesGroup = !selectedGroupId || !s.groupId || s.groupId === selectedGroupId || s.initialGroupId === selectedGroupId || s.groupIds?.includes(selectedGroupId);
+        if (!matchesGroup) return;
+
         const matrixStudent = matrixLedgerData?.students?.find((item: any) => item.id === s.id);
         const tuitionPayment = matrixStudent?.monthlyPayments?.[currentPeriodMonth];
 
@@ -165,7 +209,8 @@ export function buildAvailableStudentsList(params: {
           remainingAmount,
           isPaid,
           isPartiallyPaid,
-          studentCode: s.studentCode,
+          studentCode: s.studentCode || undefined,
+          calculationReason: undefined,
           rateMultiplier: 1.0,
         });
       }

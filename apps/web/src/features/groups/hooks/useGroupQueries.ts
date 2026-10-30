@@ -118,24 +118,30 @@ export function useGroupStudents(id: string, options?: { enabled?: boolean }) {
 
       try {
         const students = await fetchGroupStudents(id);
-        // Cache to offline roster
+        // Cache to offline roster in background without blocking network response
         if (students && Array.isArray(students)) {
-          const group = await offlineDb.getGroupByIdOffline(id);
-          await offlineDb.cacheRoster({
-            groupId: id,
-            groupName: group?.name || 'المجموعة الدراسية',
-            gradeLevel: group?.gradeLevel,
-            monthlyFee: group?.monthlyFee,
-            students: students.map((enrollment: any) => ({
-              id: enrollment?.student?.id || enrollment?.id,
-              fullName: enrollment?.student?.user?.name || enrollment?.student?.fullName || enrollment?.student?.user?.fullName || 'طالب',
-              studentCode: enrollment?.student?.code || enrollment?.student?.studentCode || `STU-${(enrollment?.student?.id || enrollment?.id || '').slice(0, 6)}`,
-              qrCodeToken: enrollment?.student?.qrCodeToken || enrollment?.student?.id || enrollment?.id,
-              gradeLevel: enrollment?.student?.gradeLevel || group?.gradeLevel || '',
-              academicStatus: enrollment?.student?.academicStatus || 'ACTIVE',
-            })),
-            updatedAt: Date.now(),
-          });
+          (async () => {
+            try {
+              const group = await offlineDb.getGroupByIdOffline(id);
+              await offlineDb.cacheRoster({
+                groupId: id,
+                groupName: group?.name || 'المجموعة الدراسية',
+                gradeLevel: group?.gradeLevel,
+                monthlyFee: group?.monthlyFee,
+                students: students.map((enrollment: any) => ({
+                  id: enrollment?.student?.id || enrollment?.id,
+                  fullName: enrollment?.student?.user?.name || enrollment?.student?.fullName || enrollment?.student?.user?.fullName || 'طالب',
+                  studentCode: enrollment?.student?.code || enrollment?.student?.studentCode || `STU-${(enrollment?.student?.id || enrollment?.id || '').slice(0, 6)}`,
+                  qrCodeToken: enrollment?.student?.qrCodeToken || enrollment?.student?.id || enrollment?.id,
+                  gradeLevel: enrollment?.student?.gradeLevel || group?.gradeLevel || '',
+                  academicStatus: enrollment?.student?.academicStatus || 'ACTIVE',
+                })),
+                updatedAt: Date.now(),
+              });
+            } catch (cacheErr) {
+              console.warn('Failed to cache roster to offline db:', cacheErr);
+            }
+          })();
         }
         return students || [];
       } catch (err) {

@@ -88,32 +88,58 @@ export function useGroupDefaulters(groupId: string, year: number, month: number)
     queryFn: async (): Promise<DefaultersResponse> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
-        const group = await offlineDb.getGroupByIdOffline(groupId);
-        return {
-          groupId,
-          groupName: group?.name || 'المجموعة الدراسية',
-          periodYear: year,
-          periodMonth: month,
-          totalEnrolled: group?._count?.enrollments || 0,
-          totalDefaulters: 0,
-          defaulters: [],
-        };
+        try {
+          const group = await offlineDb.getGroupByIdOffline(groupId);
+          return {
+            groupId,
+            groupName: group?.name || 'المجموعة الدراسية',
+            periodYear: year,
+            periodMonth: month,
+            totalEnrolled: group?._count?.enrollments || 0,
+            totalDefaulters: 0,
+            defaulters: [],
+          };
+        } catch {
+          return {
+            groupId,
+            groupName: 'المجموعة الدراسية',
+            periodYear: year,
+            periodMonth: month,
+            totalEnrolled: 0,
+            totalDefaulters: 0,
+            defaulters: [],
+          };
+        }
       }
       try {
         return await fetchGroupDefaulters(groupId, year, month);
-      } catch {
-        const group = await offlineDb.getGroupByIdOffline(groupId);
-        return {
-          groupId,
-          groupName: group?.name || 'المجموعة الدراسية',
-          periodYear: year,
-          periodMonth: month,
-          totalEnrolled: group?._count?.enrollments || 0,
-          totalDefaulters: 0,
-          defaulters: [],
-        };
+      } catch (err) {
+        console.warn('fetchGroupDefaulters error, using fallback:', err);
+        try {
+          const group = await offlineDb.getGroupByIdOffline(groupId);
+          return {
+            groupId,
+            groupName: group?.name || 'المجموعة الدراسية',
+            periodYear: year,
+            periodMonth: month,
+            totalEnrolled: group?._count?.enrollments || 0,
+            totalDefaulters: 0,
+            defaulters: [],
+          };
+        } catch {
+          return {
+            groupId,
+            groupName: 'المجموعة الدراسية',
+            periodYear: year,
+            periodMonth: month,
+            totalEnrolled: 0,
+            totalDefaulters: 0,
+            defaulters: [],
+          };
+        }
       }
     },
     enabled: !!groupId && !!year && !!month,
+    staleTime: 30_000,
   });
 }

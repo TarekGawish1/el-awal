@@ -98,10 +98,10 @@ export function RecordPaymentStudentSection({
           className="w-full h-10 rounded-xl border border-slate-200 px-3 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
           value={selectedStudentId || ''}
           onChange={onStudentChange}
-          disabled={isPending || isDefaultersLoading || isEnrollmentsLoading}
+          disabled={isPending || isEnrollmentsLoading}
         >
           <option value="">
-            {isDefaultersLoading || isEnrollmentsLoading
+            {isEnrollmentsLoading
               ? 'جاري تحميل قائمة الطلاب...'
               : filteredStudents.length === 0
               ? '-- لا يوجد طلاب مطابقين للبحث --'

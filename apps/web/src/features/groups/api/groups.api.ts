@@ -46,19 +46,29 @@ export async function deleteGroup(id: string): Promise<void> {
 
 export async function fetchGroupStudents(id: string): Promise<GroupEnrollment[]> {
   const response = await apiClient<any>(API_ENDPOINTS.GROUPS.STUDENTS(id));
-  const roster = response?.roster || [];
+  const roster = Array.isArray(response)
+    ? response
+    : Array.isArray(response?.roster)
+    ? response.roster
+    : Array.isArray(response?.data?.roster)
+    ? response.data.roster
+    : Array.isArray(response?.students)
+    ? response.students
+    : [];
   return roster.map((r: any) => ({
-    id: r.enrollmentId,
-    enrolledAt: r.enrolledAt,
-    status: 'ACTIVE',
-    attendanceRate: r.attendanceRate,
+    id: r.enrollmentId || r.id,
+    enrolledAt: r.enrolledAt || new Date().toISOString(),
+    status: r.status || 'ACTIVE',
+    attendanceRate: r.attendanceRate ?? 100,
     student: {
-      id: r.studentId,
-      code: r.studentCode,
-      gradeLevel: r.gradeLevel,
+      id: r.studentId || r.student?.id || r.id,
+      code: r.studentCode || r.student?.studentCode || r.student?.code,
+      gradeLevel: r.gradeLevel || r.student?.gradeLevel || '',
+      academicStage: r.academicStage || r.student?.academicStage || '',
+      academicStatus: r.academicStatus || r.student?.academicStatus || 'ACTIVE',
       user: {
-        name: r.fullName,
-        phone: r.phone,
+        name: r.fullName || r.student?.user?.fullName || r.student?.user?.name || r.name || 'طالب',
+        phone: r.phone || r.student?.user?.phone || '',
       }
     }
   }));
