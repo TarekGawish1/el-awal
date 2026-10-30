@@ -93,6 +93,9 @@ export function useRecordPaymentModalState({
     groupId: selectedGroupId || undefined,
     stage: selectedStage || undefined,
     gradeLevel: selectedGradeLevel || undefined,
+    academicYear: '2026-2027',
+    academicTerm: selectedAcademicTerm,
+    limit: 500,
   });
 
   const form = useForm<PaymentFormData>({
@@ -120,8 +123,9 @@ export function useRecordPaymentModalState({
       groupFee,
       currentPeriodYear,
       currentPeriodMonth,
+      matrixLedgerData,
     });
-  }, [defaulters, groupEnrollments, selectedGroupId, allStudents, groupFee, currentPeriodYear, currentPeriodMonth]);
+  }, [defaulters, groupEnrollments, selectedGroupId, allStudents, groupFee, currentPeriodYear, currentPeriodMonth, matrixLedgerData]);
 
   const filteredStudents = useMemo(() => {
     return availableStudents.filter((s) => {

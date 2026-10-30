@@ -40,6 +40,7 @@ export function buildAvailableStudentsList(params: {
   groupFee: number;
   currentPeriodYear: number;
   currentPeriodMonth: number;
+  matrixLedgerData?: any;
 }): AvailableStudentItem[] {
   const {
     defaulters,
@@ -49,6 +50,7 @@ export function buildAvailableStudentsList(params: {
     groupFee,
     currentPeriodYear,
     currentPeriodMonth,
+    matrixLedgerData,
   } = params;
 
   const map = new Map<string, AvailableStudentItem>();
@@ -83,6 +85,7 @@ export function buildAvailableStudentsList(params: {
 
   groupEnrollments.forEach((e) => {
     if (e.student?.id && !map.has(e.student.id)) {
+      const studentId = e.student.id;
       const enrollmentDate = e.enrolledAt ? new Date(e.enrolledAt) : null;
       let fee = groupFee;
       let calculationReason: string | undefined = undefined;
@@ -95,15 +98,41 @@ export function buildAvailableStudentsList(params: {
         rateMultiplier = proration.rateMultiplier;
       }
 
-      map.set(e.student.id, {
-        id: e.student.id,
-        name: e.student.user?.name || 'طالب',
+      // Check if student has an actual payment record in matrixLedgerData for this month
+      const matrixStudent = matrixLedgerData?.students?.find((s: any) => s.id === studentId);
+      const tuitionPayment = matrixStudent?.monthlyPayments?.[currentPeriodMonth];
+
+      let isPaid = false;
+      let isPartiallyPaid = false;
+      let amountPaid = 0;
+      let remainingAmount = fee;
+
+      if (tuitionPayment) {
+        amountPaid = Number(tuitionPayment.amountPaid || 0);
+        isPaid = Boolean(tuitionPayment.isPaid);
+        isPartiallyPaid = Boolean(tuitionPayment.isPartiallyPaid);
+        remainingAmount = Number(tuitionPayment.remainingAmount ?? Math.max(0, fee - amountPaid));
+        if (tuitionPayment.calculationReason) {
+          calculationReason = tuitionPayment.calculationReason;
+        }
+        if (tuitionPayment.rateMultiplier !== undefined) {
+          rateMultiplier = tuitionPayment.rateMultiplier;
+        }
+      } else if (rateMultiplier === 0) {
+        isPaid = true;
+        amountPaid = 0;
+        remainingAmount = 0;
+      }
+
+      map.set(studentId, {
+        id: studentId,
+        name: e.student.user?.name || e.student.user?.fullName || 'طالب',
         fee,
-        amountPaid: fee,
-        remainingAmount: 0,
-        isPaid: true,
-        isPartiallyPaid: false,
-        studentCode: e.student.code,
+        amountPaid,
+        remainingAmount,
+        isPaid,
+        isPartiallyPaid,
+        studentCode: e.student.code || e.student.studentCode,
         calculationReason,
         rateMultiplier,
       });
@@ -113,14 +142,29 @@ export function buildAvailableStudentsList(params: {
   if (!selectedGroupId && allStudents.length > 0) {
     allStudents.forEach((s) => {
       if (!map.has(s.id)) {
+        const matrixStudent = matrixLedgerData?.students?.find((item: any) => item.id === s.id);
+        const tuitionPayment = matrixStudent?.monthlyPayments?.[currentPeriodMonth];
+
+        let isPaid = false;
+        let isPartiallyPaid = false;
+        let amountPaid = 0;
+        let remainingAmount = groupFee;
+
+        if (tuitionPayment) {
+          amountPaid = Number(tuitionPayment.amountPaid || 0);
+          isPaid = Boolean(tuitionPayment.isPaid);
+          isPartiallyPaid = Boolean(tuitionPayment.isPartiallyPaid);
+          remainingAmount = Number(tuitionPayment.remainingAmount ?? Math.max(0, groupFee - amountPaid));
+        }
+
         map.set(s.id, {
           id: s.id,
           name: s.fullName,
           fee: groupFee,
-          amountPaid: 0,
-          remainingAmount: groupFee,
-          isPaid: false,
-          isPartiallyPaid: false,
+          amountPaid,
+          remainingAmount,
+          isPaid,
+          isPartiallyPaid,
           studentCode: s.studentCode,
           rateMultiplier: 1.0,
         });

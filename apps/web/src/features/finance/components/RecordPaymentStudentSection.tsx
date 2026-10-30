@@ -119,12 +119,12 @@ export function RecordPaymentStudentSection({
                 {paymentType === 'TUITION' &&
                   (s.rateMultiplier === 0
                     ? ' — (معفى من اشتراك الشهر الحالي — انضمام بعد يوم 20)'
-                    : s.rateMultiplier === 0.5
-                    ? ` — (نصف شهر — المطلوب: ${s.fee} ج.م)`
                     : s.isPaid
                     ? ' — (مسدد بالفعل)'
                     : s.isPartiallyPaid
                     ? ` — (سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
+                    : s.rateMultiplier === 0.5
+                    ? ` — (نصف شهر — المطلوب: ${s.fee} ج.م)`
                     : ` — (غير مسدد — المطلوب: ${s.fee} ج.م)`)}
                 {paymentType === 'BOOKLET' &&
                   bookletStatus &&

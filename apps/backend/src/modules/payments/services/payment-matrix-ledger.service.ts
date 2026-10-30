@@ -46,15 +46,31 @@ export class PaymentMatrixLedgerService {
       groupEnrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, group: groupScope } },
     };
 
-    if (query.gradeLevel && query.gradeLevel !== 'ALL') studentWhere.gradeLevel = query.gradeLevel;
-    if (query.stage && query.stage !== 'ALL') {
-      const stageLabels: Record<string, string> = {
-        PRIMARY: 'المرحلة الابتدائية',
-        PREPARATORY: 'المرحلة الإعدادية',
-        SECONDARY: 'المرحلة الثانوية',
-      };
-      const stageValues = [query.stage, stageLabels[query.stage]].filter(Boolean);
-      studentWhere.academicStage = { in: stageValues };
+    if (!query.groupId) {
+      if (query.gradeLevel && query.gradeLevel !== 'ALL') {
+        studentWhere.gradeLevel = query.gradeLevel;
+      }
+      if (query.stage && query.stage !== 'ALL') {
+        const stage = query.stage;
+        if (stage === 'SECONDARY' || stage === 'المرحلة الثانوية' || stage.includes('ثانوي')) {
+          studentWhere.academicStage = { in: ['SECONDARY', 'المرحلة الثانوية', 'ثانوي'] };
+        } else if (
+          stage === 'MIDDLE' ||
+          stage === 'PREPARATORY' ||
+          stage === 'المرحلة الإعدادية' ||
+          stage.includes('إعدادي')
+        ) {
+          studentWhere.academicStage = { in: ['MIDDLE', 'PREPARATORY', 'المرحلة الإعدادية', 'إعدادي'] };
+        } else if (
+          stage === 'PRIMARY' ||
+          stage === 'المرحلة الابتدائية' ||
+          stage.includes('ابتدائي')
+        ) {
+          studentWhere.academicStage = { in: ['PRIMARY', 'المرحلة الابتدائية', 'ابتدائي'] };
+        } else {
+          studentWhere.academicStage = stage;
+        }
+      }
     }
     if (query.search?.trim()) {
       const search = query.search.trim();
