@@ -59,7 +59,7 @@ export function AssessmentListFiltersToolbar({
   const formatStageName = (stage: string) => {
     switch (stage) {
       case 'PRIMARY': return 'ابتدائي';
-      case 'MIDDLE': return 'إعدادي';
+      case 'PREPARATORY': case 'MIDDLE': return 'إعدادي';
       case 'SECONDARY': return 'ثانوي';
       default: return stage;
     }

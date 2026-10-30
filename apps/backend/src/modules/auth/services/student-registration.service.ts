@@ -9,6 +9,7 @@ import { normalizeEgyptianPhone, getPhoneVariants, arePhonesTooSimilar } from '.
 import { isSimilarStudentName } from '../../../common/utils/name.util';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { normalizeAcademicStage } from '../../../common/utils/stage.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { formatStudentApprovalMessage, formatStudentRegistrationMessage } from '../../../utils/spintax';
 
@@ -122,7 +123,7 @@ export class StudentRegistrationService {
                 studentCode,
                 qrCodeToken,
                 gradeLevel: dto.gradeLevel,
-                academicStage: dto.academicStage,
+                academicStage: normalizeAcademicStage(dto.academicStage, dto.gradeLevel),
                 attendanceMode: dto.attendanceMode as any,
                 emergencyPhone: parentPhone,
                 tempAccessPin: studentPassword,

@@ -23,12 +23,12 @@ interface StudentEditFormProps {
 
 const normalizeStage = (stage?: string, gradeLevel?: string): string => {
   if (stage === 'PRIMARY' || stage === 'المرحلة الابتدائية') return 'PRIMARY';
-  if (stage === 'MIDDLE' || stage === 'PREPARATORY' || stage === 'المرحلة الإعدادية') return 'MIDDLE';
+  if (stage === 'MIDDLE' || stage === 'PREPARATORY' || stage === 'المرحلة الإعدادية') return 'PREPARATORY';
   if (stage === 'SECONDARY' || stage === 'المرحلة الثانوية') return 'SECONDARY';
   
   if (gradeLevel) {
     if (gradeLevel.includes('الابتدائي')) return 'PRIMARY';
-    if (gradeLevel.includes('الإعدادي')) return 'MIDDLE';
+    if (gradeLevel.includes('الإعدادي')) return 'PREPARATORY';
     if (gradeLevel.includes('الثانوي')) return 'SECONDARY';
   }
   return '';
@@ -67,6 +67,11 @@ export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFor
       { label: 'الصف الرابع الابتدائي', value: 'الصف الرابع الابتدائي' },
       { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
       { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
+    ],
+    PREPARATORY: [
+      { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
+      { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
+      { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
     ],
     MIDDLE: [
       { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
@@ -238,7 +243,7 @@ export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFor
                 options={[
                   { label: '-- اختر المرحلة --', value: '' },
                   { label: 'المرحلة الابتدائية', value: 'PRIMARY' },
-                  { label: 'المرحلة الإعدادية', value: 'MIDDLE' },
+                  { label: 'المرحلة الإعدادية', value: 'PREPARATORY' },
                   { label: 'المرحلة الثانوية', value: 'SECONDARY' },
                 ]}
               />

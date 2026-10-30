@@ -10,7 +10,7 @@ export interface ParentAccessCredentials {
   password?: string;
 }
 
-export type AcademicStage = 'PRIMARY' | 'MIDDLE' | 'SECONDARY';
+export type AcademicStage = 'PRIMARY' | 'PREPARATORY' | 'SECONDARY';
 
 export interface StudentRegistrationPayload {
   fullName: string;

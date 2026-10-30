@@ -18,6 +18,7 @@ import {
   NotificationType,
 } from '@prisma/client';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { normalizeAcademicStage } from '../../../common/utils/stage.util';
 import { getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { formatStudentApprovalMessage } from '../../../utils/spintax';
 
@@ -118,7 +119,7 @@ export class StudentRegistrationService {
           studentCode,
           qrCodeToken,
           gradeLevel: dto.gradeLevel,
-          academicStage: dto.academicStage,
+          academicStage: normalizeAcademicStage(dto.academicStage, dto.gradeLevel),
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           emergencyPhone: dto.emergencyPhone,
           tempAccessPin: dto.password,

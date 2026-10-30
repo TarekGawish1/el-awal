@@ -91,7 +91,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
-                  { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
+                  { id: 'PREPARATORY', label: 'الإعدادية', icon: '🏫' },
                   { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
                 ].map((stage) => (
                   <button

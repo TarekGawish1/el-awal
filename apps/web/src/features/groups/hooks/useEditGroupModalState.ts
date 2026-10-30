@@ -16,6 +16,11 @@ export const GRADE_OPTIONS: Record<string, { label: string; value: string }[]> =
     { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
     { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
   ],
+  PREPARATORY: [
+    { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
+    { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
+    { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
+  ],
   MIDDLE: [
     { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
     { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
@@ -105,7 +110,7 @@ export function useEditGroupModalState({
       });
       // Try to determine stage from gradeLevel
       if (group.gradeLevel.includes('الابتدائي')) setEducationalStage('PRIMARY');
-      else if (group.gradeLevel.includes('الإعدادي')) setEducationalStage('MIDDLE');
+      else if (group.gradeLevel.includes('الإعدادي')) setEducationalStage('PREPARATORY');
       else if (group.gradeLevel.includes('الثانوي')) setEducationalStage('SECONDARY');
 
       // Initialize location if exists

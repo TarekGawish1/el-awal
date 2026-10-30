@@ -40,7 +40,7 @@ export function ChildAcademicHeader({
           <span className="text-xs font-semibold text-slate-500">المرحلة الدراسية</span>
           <p className="text-sm font-bold text-slate-900">
             {academicStage === 'PRIMARY' ? 'المرحلة الابتدائية' : 
-             academicStage === 'MIDDLE' ? 'المرحلة الإعدادية' : 
+             (academicStage === 'PREPARATORY' || academicStage === 'MIDDLE') ? 'المرحلة الإعدادية' : 
              academicStage === 'SECONDARY' ? 'المرحلة الثانوية' : 
              academicStage || 'غير محدد'}
           </p>

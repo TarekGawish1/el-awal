@@ -106,7 +106,7 @@ export function useAssessmentPrefill({
       if (g) {
         let stage = 'SECONDARY';
         if (g.gradeLevel?.includes('الابتدائي')) stage = 'PRIMARY';
-        else if (g.gradeLevel?.includes('الإعدادي')) stage = 'MIDDLE';
+        else if (g.gradeLevel?.includes('الإعدادي')) stage = 'PREPARATORY';
 
         methods.setValue('academicStage', stage, { shouldValidate: true });
         methods.setValue('gradeLevel', g.gradeLevel, { shouldValidate: true });

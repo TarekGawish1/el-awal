@@ -26,6 +26,11 @@ const gradeOptions: Record<string, { label: string; value: string }[]> = {
     { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
     { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
   ],
+  PREPARATORY: [
+    { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
+    { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
+    { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
+  ],
   MIDDLE: [
     { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
     { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
@@ -108,7 +113,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
-                    { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
+                    { id: 'PREPARATORY', label: 'الإعدادية', icon: '🏫' },
                     { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
                   ].map((stage) => (
                     <button

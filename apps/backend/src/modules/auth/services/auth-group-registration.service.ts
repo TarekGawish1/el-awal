@@ -38,7 +38,7 @@ export class AuthGroupRegistrationService {
 
   deriveStageCode(gradeLevel: string): string | null {
     if (gradeLevel.includes('الابتدائي')) return 'PRIMARY';
-    if (gradeLevel.includes('الإعدادي')) return 'MIDDLE';
+    if (gradeLevel.includes('الإعدادي')) return 'PREPARATORY';
     if (gradeLevel.includes('الثانوي')) return 'SECONDARY';
     return null;
   }

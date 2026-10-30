@@ -23,7 +23,7 @@ export const STAGE_GRADES_MAP: Record<string, string[]> = {
 
 export const getStageName = (gradeLevel?: string, academicStage?: string) => {
   if (academicStage === 'PRIMARY' || gradeLevel?.includes('الابتدائي')) return 'المرحلة الابتدائية';
-  if (academicStage === 'MIDDLE' || gradeLevel?.includes('الإعدادي')) return 'المرحلة الإعدادية';
+  if (academicStage === 'PREPARATORY' || academicStage === 'MIDDLE' || gradeLevel?.includes('الإعدادي')) return 'المرحلة الإعدادية';
   if (academicStage === 'SECONDARY' || gradeLevel?.includes('الثانوي')) return 'المرحلة الثانوية';
   return 'أخرى';
 };

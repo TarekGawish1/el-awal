@@ -34,7 +34,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
 
   const generatePassword = (phone: string, stage: string, grade: string) => {
     if (!stage && !grade && !phone) return '';
-    const stageCode = stage === 'PRIMARY' ? 'P' : stage === 'MIDDLE' ? 'M' : stage === 'SECONDARY' ? 'S' : '';
+    const stageCode = stage === 'PRIMARY' ? 'P' : (stage === 'PREPARATORY' || stage === 'MIDDLE') ? 'M' : stage === 'SECONDARY' ? 'S' : '';
     let gradeNum = '';
     if (grade) {
       if (grade.includes('الأول')) gradeNum = '1';
@@ -55,7 +55,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
   const stages = [
     { label: '-- اختر المرحلة الدراسية --', value: '' },
     { label: 'المرحلة الابتدائية', value: 'PRIMARY' },
-    { label: 'المرحلة الإعدادية', value: 'MIDDLE' },
+    { label: 'المرحلة الإعدادية', value: 'PREPARATORY' },
     { label: 'المرحلة الثانوية', value: 'SECONDARY' },
   ];
 
@@ -67,6 +67,11 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
       { label: 'الصف الرابع الابتدائي', value: 'الصف الرابع الابتدائي' },
       { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
       { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
+    ],
+    PREPARATORY: [
+      { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
+      { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
+      { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
     ],
     MIDDLE: [
       { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
@@ -231,7 +236,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
           <div className="grid grid-cols-3 gap-3 sm:gap-4">
             {[
               { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
-              { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
+              { id: 'PREPARATORY', label: 'الإعدادية', icon: '🏫' },
               { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
             ].map((stage) => (
               <button

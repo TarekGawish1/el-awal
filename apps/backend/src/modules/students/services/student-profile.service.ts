@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { normalizeAcademicStage } from '../../../common/utils/stage.util';
 import { generateSecurePassword } from '../../../common/utils/password.util';
 import { UpdateStudentDto } from '../dto/update-student.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
@@ -90,7 +91,7 @@ export class StudentProfileService {
           where: { id: student.id },
           data: {
             ...(dto.gradeLevel && { gradeLevel: dto.gradeLevel }),
-            ...(dto.academicStage && { academicStage: dto.academicStage }),
+            ...(dto.academicStage && { academicStage: normalizeAcademicStage(dto.academicStage, dto.gradeLevel) }),
             ...(dto.emergencyPhone && { emergencyPhone: dto.emergencyPhone }),
             ...(dto.dateOfBirth && { dateOfBirth: new Date(dto.dateOfBirth) }),
             updatedById: user.id,

@@ -72,7 +72,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
 
   const getStageLabel = (stage?: string) => {
     if (stage === 'PRIMARY') return 'المرحلة الابتدائية';
-    if (stage === 'MIDDLE') return 'المرحلة الإعدادية';
+    if (stage === 'PREPARATORY' || stage === 'MIDDLE') return 'المرحلة الإعدادية';
     if (stage === 'SECONDARY') return 'المرحلة الثانوية';
     return stage || 'غير محدد';
   };

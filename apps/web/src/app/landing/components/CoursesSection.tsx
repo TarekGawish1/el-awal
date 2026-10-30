@@ -45,7 +45,7 @@ const COURSES = [
 const STAGES = [
   { id: "ALL", label: "الكل" },
   { id: "SECONDARY", label: "ثانوي" },
-  { id: "MIDDLE", label: "إعدادي" },
+  { id: "PREPARATORY", label: "إعدادي" },
   { id: "PRIMARY", label: "ابتدائي" },
 ];
 
@@ -54,6 +54,11 @@ const GRADES: Record<string, string[]> = {
     "الصف الأول الثانوي",
     "الصف الثاني الثانوي",
     "الصف الثالث الثانوي",
+  ],
+  PREPARATORY: [
+    "الصف الأول الإعدادي",
+    "الصف الثاني الإعدادي",
+    "الصف الثالث الإعدادي",
   ],
   MIDDLE: [
     "الصف الأول الإعدادي",

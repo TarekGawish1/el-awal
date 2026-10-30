@@ -125,7 +125,7 @@ export function useStudentListState() {
     if (selectedStages.length !== 1) return undefined;
     const s = selectedStages[0];
     if (s === 'المرحلة الابتدائية' || s === 'PRIMARY') return 'PRIMARY';
-    if (s === 'المرحلة الإعدادية' || s === 'MIDDLE') return 'MIDDLE';
+    if (s === 'المرحلة الإعدادية' || s === 'PREPARATORY' || s === 'MIDDLE') return 'PREPARATORY';
     if (s === 'المرحلة الثانوية' || s === 'SECONDARY') return 'SECONDARY';
     return s;
   }, [selectedStages]);

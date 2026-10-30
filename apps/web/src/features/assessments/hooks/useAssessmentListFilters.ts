@@ -148,11 +148,11 @@ export function useAssessmentListFilters({
     });
   }, [assessments, searchQuery, filterType, filterStage, filterGrade, filterSource, filterCourseId, filterYear, filterTerm]);
 
-  const availableStages = ['PRIMARY', 'MIDDLE', 'SECONDARY'];
+  const availableStages = ['PRIMARY', 'PREPARATORY', 'SECONDARY'];
 
   const availableGrades = useMemo(() => {
     if (filterStage === 'PRIMARY') return ['الصف الأول الابتدائي', 'الصف الثاني الابتدائي', 'الصف الثالث الابتدائي', 'الصف الرابع الابتدائي', 'الصف الخامس الابتدائي', 'الصف السادس الابتدائي'];
-    if (filterStage === 'MIDDLE') return ['الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
+    if (filterStage === 'PREPARATORY' || filterStage === 'MIDDLE') return ['الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
     if (filterStage === 'SECONDARY') return ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'];
     
     const grades = new Set<string>();
