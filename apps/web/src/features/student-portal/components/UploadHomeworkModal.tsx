@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, FileText, Loader2, UploadCloud, X } from '
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { useSendHomeworkUpload, useSubmitHomework } from '@/features/student-portal/hooks/useStudentPortal';
+import { uploadRawFile } from '@/features/content/api/content.api';
 import toast from 'react-hot-toast';
 
 const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
@@ -81,18 +82,31 @@ export function UploadHomeworkModal({ assessmentId, sessionId, onClose }: Upload
     setProgress(0);
     setError('');
     try {
-      const presigned = await requestUpload({
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        fileSizeBytes: file.size,
-      });
-      await uploadToR2(presigned.uploadUrl, file);
+      let finalFileKey: string;
+      let finalFileUrl: string;
+
+      try {
+        const presigned = await requestUpload({
+          fileName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          fileSizeBytes: file.size,
+        });
+        await uploadToR2(presigned.uploadUrl, file);
+        finalFileKey = presigned.fileKey;
+        finalFileUrl = presigned.publicUrl || presigned.uploadUrl;
+      } catch (directErr) {
+        console.warn('[UploadHomeworkModal] Direct R2 upload failed, falling back to server raw upload:', directErr);
+        const fallbackRes = await uploadRawFile(file, 'homework-submissions', (pct) => setProgress(pct));
+        finalFileKey = fallbackRes.fileKey;
+        finalFileUrl = fallbackRes.fileUrl;
+      }
+
       await submitHomework({
         assessmentId,
         payload: {
           sessionId,
-          fileKey: presigned.fileKey,
-          fileUrl: presigned.publicUrl || presigned.uploadUrl,
+          fileKey: finalFileKey,
+          fileUrl: finalFileUrl,
           studentNotes: notes.trim() || undefined,
         },
       });

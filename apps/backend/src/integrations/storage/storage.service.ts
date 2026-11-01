@@ -119,7 +119,6 @@ export class StorageService {
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: cleanKey,
-        ContentType: contentType,
       });
 
       const uploadUrl = await getSignedUrl(this.s3Client!, command, {

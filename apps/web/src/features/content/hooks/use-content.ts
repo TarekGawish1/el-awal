@@ -6,6 +6,7 @@ import {
   generatePresignedVideoUpload,
   uploadVideoToBunny,
   uploadFileToR2,
+  uploadRawFile,
   createContent,
   uploadContentDirectly,
   updateContentDirectly,
@@ -112,23 +113,36 @@ export function useUploadContent() {
         return result;
       }
 
-      // 2. Direct Presigned Cloudflare R2 Upload (for images, documents, attachments)
+      // 2. Direct Presigned Cloudflare R2 Upload with Server Fallback
       const mimeType = file.type || 'application/octet-stream';
-      const presignedPayload: PresignedUploadPayload = {
-        fileName: metadata.originalFileName || file.name,
-        contentType: mimeType,
-        fileSizeBytes: file.size,
-        folder: 'courses',
-      };
-      const presigned = await generatePresignedUrl(presignedPayload);
-      await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
+      let uploadedFileKey: string;
+      let uploadedFileUrl: string;
+
+      try {
+        const presignedPayload: PresignedUploadPayload = {
+          fileName: metadata.originalFileName || file.name,
+          contentType: mimeType,
+          fileSizeBytes: file.size,
+          folder: 'courses',
+        };
+        const presigned = await generatePresignedUrl(presignedPayload);
+        await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
+        uploadedFileKey = presigned.fileKey;
+        uploadedFileUrl = presigned.publicUrl || presigned.uploadUrl;
+      } catch (directErr) {
+        console.warn('[useUploadContent] Direct R2 presigned upload failed; falling back to server raw upload:', directErr);
+        // Resilient fallback: Stream through backend API to bypass client-side CORS/ISP issues
+        const rawRes = await uploadRawFile(file, 'courses', handleProgress);
+        uploadedFileKey = rawRes.fileKey;
+        uploadedFileUrl = rawRes.fileUrl;
+      }
 
       setStage('processing');
       const createPayload: CreateContentPayload = {
         ...metadata,
         contentType: metadata.contentType,
-        fileKey: presigned.fileKey,
-        fileUrl: presigned.publicUrl || presigned.uploadUrl,
+        fileKey: uploadedFileKey,
+        fileUrl: uploadedFileUrl,
         fileSize: file.size,
         mimeType,
       };
@@ -228,23 +242,36 @@ export function useUpdateContent() {
           }
         }
 
-        // Direct Presigned Cloudflare R2 Upload (for files, images, attachments)
+        // Direct Presigned Cloudflare R2 Upload with Server Fallback
         const mimeType = file.type || 'application/octet-stream';
-        const presignedPayload: PresignedUploadPayload = {
-          fileName: metadata.originalFileName || file.name,
-          contentType: mimeType,
-          fileSizeBytes: file.size,
-          folder: 'courses',
-        };
-        const presigned = await generatePresignedUrl(presignedPayload);
-        await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
+        let uploadedFileKey: string;
+        let uploadedFileUrl: string;
+
+        try {
+          const presignedPayload: PresignedUploadPayload = {
+            fileName: metadata.originalFileName || file.name,
+            contentType: mimeType,
+            fileSizeBytes: file.size,
+            folder: 'courses',
+          };
+          const presigned = await generatePresignedUrl(presignedPayload);
+          await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
+          uploadedFileKey = presigned.fileKey;
+          uploadedFileUrl = presigned.publicUrl || presigned.uploadUrl;
+        } catch (directErr) {
+          console.warn('[useUpdateContent] Direct R2 presigned upload failed; falling back to server raw upload:', directErr);
+          // Resilient fallback: Stream through backend API
+          const rawRes = await uploadRawFile(file, 'courses', handleProgress);
+          uploadedFileKey = rawRes.fileKey;
+          uploadedFileUrl = rawRes.fileUrl;
+        }
 
         setStage('processing');
         const result = await updateContent(id, {
           ...metadata,
           contentType: metadata.contentType || ContentType.FILE,
-          fileKey: presigned.fileKey,
-          fileUrl: presigned.publicUrl || presigned.uploadUrl,
+          fileKey: uploadedFileKey,
+          fileUrl: uploadedFileUrl,
           fileSize: file.size,
           mimeType,
         });

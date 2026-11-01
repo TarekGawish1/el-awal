@@ -221,6 +221,11 @@ export function uploadFileToR2(
       }
     };
 
+    xhr.timeout = 180000; // 3 minutes timeout for mobile / slow networks
+    xhr.ontimeout = () => {
+      reject(new Error('انتهت مهلة الاتصال بخادم التخزين السحابي أثناء الرفع.'));
+    };
+
     xhr.onerror = () => {
       reject(new Error('تعذر الاتصال بخادم التخزين السحابي أثناء الرفع.'));
     };
@@ -280,9 +285,18 @@ export async function uploadFileResilient(
       fileUrl: presigned.publicUrl || presigned.uploadUrl,
       fileKey: presigned.fileKey,
     };
-  } catch (err) {
-    console.error('Direct presigned upload to Cloudflare R2 failed:', err);
-    throw new Error('فشل رفع الملف إلى التخزين السحابي. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.');
+  } catch (directErr) {
+    console.warn('[uploadFileResilient] Direct presigned R2 upload failed; falling back to server raw upload:', directErr);
+    try {
+      const fallbackRes = await uploadRawFile(file, folder, onProgress);
+      return {
+        fileUrl: fallbackRes.fileUrl,
+        fileKey: fallbackRes.fileKey,
+      };
+    } catch (fallbackErr: any) {
+      console.error('[uploadFileResilient] Fallback server upload also failed:', fallbackErr);
+      throw new Error(fallbackErr?.message || 'فشل رفع الملف إلى التخزين السحابي. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.');
+    }
   }
 }
 
