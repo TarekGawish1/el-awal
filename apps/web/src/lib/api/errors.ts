@@ -3,7 +3,12 @@ import { ProblemDetailsError } from '@/types/api/api.types';
 /**
  * Translates English / technical backend or network error messages into friendly Arabic text.
  */
-export function translateErrorMessage(message?: string): string {
+export function translateErrorMessage(message?: unknown): string {
+  if (Array.isArray(message)) {
+    const translated = message.map((m) => translateErrorMessage(m)).filter(Boolean);
+    return translated.length > 0 ? translated[0] : 'يرجى مراجعة البيانات المدخلة والمحاولة مجدداً';
+  }
+
   if (!message || typeof message !== 'string') {
     return 'حدث خطأ غير متوقع، يرجى المحاولة لاحقاً';
   }
@@ -60,7 +65,13 @@ export function translateErrorMessage(message?: string): string {
   }
 
   // Validation / Bad Request
-  if (lower.includes('bad request') || lower.includes('validation')) {
+  if (
+    lower.includes('bad request') ||
+    lower.includes('validation') ||
+    lower.includes('should not exist') ||
+    lower.includes('must be a uuid') ||
+    lower.includes('must be')
+  ) {
     return 'يرجى مراجعة البيانات المدخلة والمحاولة مجدداً';
   }
 
@@ -101,7 +112,7 @@ export function normalizeApiError(error: unknown): ApiError {
     const errObj = error as Record<string, unknown>;
     return new ApiError({
       statusCode: (errObj.statusCode as number) || 500,
-      message: translateErrorMessage(errObj.message as string),
+      message: translateErrorMessage(errObj.message),
       code: errObj.code as string | undefined,
       details: errObj.details as { field?: string; issue: string }[] | undefined,
       correlationId: errObj.correlationId as string | undefined,

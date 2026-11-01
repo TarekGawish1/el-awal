@@ -47,6 +47,19 @@ export function useGroupSessions(groupId?: string) {
 
 export type UploadStage = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
 
+function sanitizeUUID(val?: string | null): string | undefined {
+  if (!val || typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (!trimmed || trimmed === '__CUSTOM__' || trimmed === 'ALL') return undefined;
+  return trimmed;
+}
+
+function sanitizeString(val?: string | null): string | undefined {
+  if (!val || typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 export function useUploadContent() {
   const queryClient = useQueryClient();
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -100,12 +113,20 @@ export function useUploadContent() {
 
         setStage('processing');
         const createPayload: CreateContentPayload = {
-          ...metadata,
+          title: metadata.title.trim(),
+          description: sanitizeString(metadata.description),
           contentType: ContentType.LECTURE_RECORDING,
           fileKey: `bunny:${bunnyCreds.videoId}`,
           fileUrl: bunnyCreds.embedUrl,
-          fileSize: file.size,
+          fileSize: Math.round(Number(file.size)),
           mimeType: file.type || 'video/mp4',
+          gradeLevel: sanitizeString(metadata.gradeLevel),
+          academicYear: sanitizeString(metadata.academicYear),
+          academicTerm: sanitizeString(metadata.academicTerm),
+          sessionTopic: sanitizeString(metadata.sessionTopic),
+          groupId: sanitizeUUID(metadata.groupId),
+          sessionId: sanitizeUUID(metadata.sessionId),
+          lessonId: sanitizeUUID(metadata.lessonId),
         };
         const result = await createContent(createPayload);
         setUploadProgress(100);
@@ -139,12 +160,20 @@ export function useUploadContent() {
 
       setStage('processing');
       const createPayload: CreateContentPayload = {
-        ...metadata,
+        title: metadata.title.trim(),
+        description: sanitizeString(metadata.description),
         contentType: metadata.contentType,
         fileKey: uploadedFileKey,
         fileUrl: uploadedFileUrl,
-        fileSize: file.size,
+        fileSize: Math.round(Number(file.size)),
         mimeType,
+        gradeLevel: sanitizeString(metadata.gradeLevel),
+        academicYear: sanitizeString(metadata.academicYear),
+        academicTerm: sanitizeString(metadata.academicTerm),
+        sessionTopic: sanitizeString(metadata.sessionTopic),
+        groupId: sanitizeUUID(metadata.groupId),
+        sessionId: sanitizeUUID(metadata.sessionId),
+        lessonId: sanitizeUUID(metadata.lessonId),
       };
       const result = await createContent(createPayload);
       setUploadProgress(100);
@@ -226,12 +255,20 @@ export function useUpdateContent() {
 
             setStage('processing');
             const result = await updateContent(id, {
-              ...metadata,
+              title: metadata.title ? metadata.title.trim() : undefined,
+              description: sanitizeString(metadata.description),
               contentType: ContentType.LECTURE_RECORDING,
               fileKey: `bunny:${bunnyCreds.videoId}`,
               fileUrl: bunnyCreds.embedUrl,
-              fileSize: file.size,
+              fileSize: Math.round(Number(file.size)),
               mimeType: file.type || 'video/mp4',
+              gradeLevel: sanitizeString(metadata.gradeLevel),
+              academicYear: sanitizeString(metadata.academicYear),
+              academicTerm: sanitizeString(metadata.academicTerm),
+              sessionTopic: sanitizeString(metadata.sessionTopic),
+              groupId: sanitizeUUID(metadata.groupId),
+              sessionId: sanitizeUUID(metadata.sessionId),
+              lessonId: sanitizeUUID(metadata.lessonId),
             });
             setUploadProgress(100);
             setStage('success');
@@ -268,12 +305,20 @@ export function useUpdateContent() {
 
         setStage('processing');
         const result = await updateContent(id, {
-          ...metadata,
+          title: metadata.title ? metadata.title.trim() : undefined,
+          description: sanitizeString(metadata.description),
           contentType: metadata.contentType || ContentType.FILE,
           fileKey: uploadedFileKey,
           fileUrl: uploadedFileUrl,
-          fileSize: file.size,
+          fileSize: Math.round(Number(file.size)),
           mimeType,
+          gradeLevel: sanitizeString(metadata.gradeLevel),
+          academicYear: sanitizeString(metadata.academicYear),
+          academicTerm: sanitizeString(metadata.academicTerm),
+          sessionTopic: sanitizeString(metadata.sessionTopic),
+          groupId: sanitizeUUID(metadata.groupId),
+          sessionId: sanitizeUUID(metadata.sessionId),
+          lessonId: sanitizeUUID(metadata.lessonId),
         });
         setUploadProgress(100);
         setStage('success');
@@ -282,7 +327,22 @@ export function useUpdateContent() {
 
       setStage('processing');
       // 2. Metadata-only update
-      const result = await updateContent(id, metadata);
+      const result = await updateContent(id, {
+        title: metadata.title ? metadata.title.trim() : undefined,
+        description: sanitizeString(metadata.description),
+        contentType: metadata.contentType,
+        fileKey: metadata.fileKey,
+        fileUrl: metadata.fileUrl,
+        fileSize: metadata.fileSize ? Math.round(Number(metadata.fileSize)) : undefined,
+        mimeType: metadata.mimeType,
+        gradeLevel: sanitizeString(metadata.gradeLevel),
+        academicYear: sanitizeString(metadata.academicYear),
+        academicTerm: sanitizeString(metadata.academicTerm),
+        sessionTopic: sanitizeString(metadata.sessionTopic),
+        groupId: sanitizeUUID(metadata.groupId),
+        sessionId: sanitizeUUID(metadata.sessionId),
+        lessonId: sanitizeUUID(metadata.lessonId),
+      });
       setStage('success');
       return result;
     },

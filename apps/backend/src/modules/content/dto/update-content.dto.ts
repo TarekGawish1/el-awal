@@ -7,6 +7,7 @@ import {
   IsInt,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ContentType } from '@prisma/client';
 
@@ -48,37 +49,49 @@ export class UpdateContentDto {
   @IsString()
   mimeType?: string;
 
+  @ApiPropertyOptional({ description: 'Original file name uploaded by user' })
+  @IsOptional()
+  @IsString()
+  originalFileName?: string;
+
   @ApiPropertyOptional({ description: 'Academic physical group ID to attach asset to' })
+  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined))
   @IsOptional()
   @IsUUID()
   groupId?: string;
 
   @ApiPropertyOptional({ description: 'Grade level (e.g. الصف الثالث الإعدادي)' })
+  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined))
   @IsOptional()
   @IsString()
   gradeLevel?: string;
 
   @ApiPropertyOptional({ description: 'Academic year (e.g. 2026-2027)' })
+  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined))
   @IsOptional()
   @IsString()
   academicYear?: string;
 
   @ApiPropertyOptional({ description: 'Academic semester / term (FIRST_TERM / SECOND_TERM)' })
+  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined))
   @IsOptional()
   @IsString()
   academicTerm?: string;
 
   @ApiPropertyOptional({ description: 'Session topic or lesson title' })
+  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined))
   @IsOptional()
   @IsString()
   sessionTopic?: string;
 
   @ApiPropertyOptional({ description: 'Session ID' })
+  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() !== '' && value !== '__CUSTOM__' ? value.trim() : undefined))
   @IsOptional()
   @IsUUID()
   sessionId?: string;
 
   @ApiPropertyOptional({ description: 'Course lesson ID to attach asset to' })
+  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined))
   @IsOptional()
   @IsUUID()
   lessonId?: string;

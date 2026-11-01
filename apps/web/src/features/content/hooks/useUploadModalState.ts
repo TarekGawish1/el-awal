@@ -307,22 +307,32 @@ export function useUploadModalState({
       return;
     }
 
-    const payloadGroupId = data.targetScope === 'SPECIFIC_GROUP' ? data.groupId : undefined;
-    const payloadGradeLevel = data.targetScope !== 'GENERAL' ? data.gradeLevel : undefined;
+    const payloadGroupId =
+      data.targetScope === 'SPECIFIC_GROUP' && data.groupId && data.groupId.trim() !== ''
+        ? data.groupId.trim()
+        : undefined;
+    const payloadGradeLevel =
+      data.targetScope !== 'GENERAL' && data.gradeLevel && data.gradeLevel.trim() !== ''
+        ? data.gradeLevel.trim()
+        : undefined;
+    const payloadSessionId =
+      data.sessionId && data.sessionId !== '__CUSTOM__' && data.sessionId.trim() !== ''
+        ? data.sessionId.trim()
+        : undefined;
 
     uploadContent(
       {
         file,
         metadata: {
-          title: data.title,
-          description: data.description,
+          title: data.title.trim(),
+          description: data.description?.trim() || undefined,
           contentType: data.contentType,
           academicYear: activeYear || '2026-2027',
           academicTerm: activeTerm || 'FIRST_TERM',
-          gradeLevel: payloadGradeLevel || undefined,
-          groupId: payloadGroupId || undefined,
-          sessionTopic: data.sessionTopic || undefined,
-          sessionId: data.sessionId || undefined,
+          gradeLevel: payloadGradeLevel,
+          groupId: payloadGroupId,
+          sessionTopic: data.sessionTopic?.trim() || undefined,
+          sessionId: payloadSessionId,
           originalFileName: file.name,
         },
       },
