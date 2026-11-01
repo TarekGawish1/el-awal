@@ -9,9 +9,9 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v15';
-const RUNTIME_CACHE = 'el-awal-runtime-v15';
-const RSC_CACHE = 'el-awal-rsc-v15';
+const CACHE_NAME = 'el-awal-core-v14';
+const RUNTIME_CACHE = 'el-awal-runtime-v14';
+const RSC_CACHE = 'el-awal-rsc-v14';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
 const MAX_RUNTIME_ITEMS = 300;
