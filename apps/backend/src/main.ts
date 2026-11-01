@@ -39,6 +39,7 @@ async function bootstrap() {
   await app.register(fastifyCompress as any);
   await app.register(fastifyHelmet as any, {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false,
   });
   await app.register(fastifyMultipart as any, {
     limits: {
