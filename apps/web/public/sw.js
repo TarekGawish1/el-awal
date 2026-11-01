@@ -9,9 +9,9 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v14';
-const RUNTIME_CACHE = 'el-awal-runtime-v14';
-const RSC_CACHE = 'el-awal-rsc-v14';
+const CACHE_NAME = 'el-awal-core-v15';
+const RUNTIME_CACHE = 'el-awal-runtime-v15';
+const RSC_CACHE = 'el-awal-rsc-v15';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
 const MAX_RUNTIME_ITEMS = 300;
@@ -520,7 +520,10 @@ self.addEventListener('fetch', (event) => {
           if (navigator.onLine && !isHeroAnimationFrame) {
             fetch(request)
               .then(async (networkResponse) => {
-                if (isCachableResponse(networkResponse)) {
+                if (networkResponse && networkResponse.status === 404) {
+                  const runtimeCache = await caches.open(RUNTIME_CACHE);
+                  await runtimeCache.delete(request);
+                } else if (isCachableResponse(networkResponse)) {
                   const runtimeCache = await caches.open(RUNTIME_CACHE);
                   await runtimeCache.put(request, networkResponse);
                   trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
