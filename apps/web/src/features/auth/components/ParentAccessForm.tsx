@@ -20,7 +20,16 @@ import { ParentOtpLoginForm } from './parent-access/ParentOtpLoginForm';
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
 
 function normalizePhone(value: string): string {
-  return value.replace(/[\s-]/g, '').trim();
+  if (!value) return '';
+  const cleaned = value.replace(/[\s-]/g, '').trim();
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.startsWith('20') && digits.length === 12) {
+    return '0' + digits.slice(2);
+  }
+  if (digits.startsWith('0') && digits.length === 11) {
+    return digits;
+  }
+  return cleaned;
 }
 
 export function ParentAccessForm() {

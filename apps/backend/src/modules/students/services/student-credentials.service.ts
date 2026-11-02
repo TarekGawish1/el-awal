@@ -10,6 +10,7 @@ import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
 import { ResetParentPasswordDto } from '../dto/reset-parent-password.dto';
 import { UserRole } from '@prisma/client';
 import { generateSecurePassword } from '../../../common/utils/password.util';
+import { formatLocalEgyptianPhone } from '../../../common/utils/phone.util';
 import {
   formatResetStudentPasswordMessage,
   formatResetParentPasswordMessage,
@@ -326,8 +327,10 @@ export class StudentCredentialsService {
     const parentName = parentUser?.fullName || 'ولي الأمر';
     const platformUrl =
       process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online';
-    const directLoginUrl = `${platformUrl}/parent-access?phone=${encodeURIComponent(
-      parentPhone || '',
+    const cleanBaseUrl = platformUrl.replace(/\/+$/, '');
+    const cleanParentPhone = formatLocalEgyptianPhone(parentPhone || '');
+    const directLoginUrl = `${cleanBaseUrl}/parent-access?phone=${encodeURIComponent(
+      cleanParentPhone,
     )}&pass=${encodeURIComponent(newPassword)}`;
 
     if (dto.sendWhatsApp !== false && parentPhone && parentUser) {

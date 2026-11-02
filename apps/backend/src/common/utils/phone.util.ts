@@ -124,3 +124,19 @@ export function arePhonesTooSimilar(phoneA?: string | null, phoneB?: string | nu
   if (digitsA.length < 8 || digitsB.length < 8) return false;
   return digitsA.slice(-8) === digitsB.slice(-8);
 }
+
+/**
+ * Formats an Egyptian phone number to local national standard (01XXXXXXXXX).
+ * Example: +201012345678 -> 01012345678.
+ */
+export function formatLocalEgyptianPhone(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('20') && digits.length === 12) {
+    return '0' + digits.slice(2);
+  }
+  if (digits.startsWith('0') && digits.length === 11) {
+    return digits;
+  }
+  return phone;
+}

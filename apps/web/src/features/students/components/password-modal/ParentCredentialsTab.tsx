@@ -95,7 +95,10 @@ export function ParentCredentialsTab({
     }
     const pass = lastParentResetResult?.newPassword || credentials?.parentPassword || '123456';
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://al-awal.online';
-    const directUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(phone)}&pass=${encodeURIComponent(pass)}`;
+    const cleanPhone = phone.replace(/\D/g, '').startsWith('20') && phone.replace(/\D/g, '').length === 12
+      ? '0' + phone.replace(/\D/g, '').slice(2)
+      : phone;
+    const directUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(cleanPhone)}&pass=${encodeURIComponent(pass)}`;
     const msg = `🔐 *إشعار بيانات دخول ولي الأمر - منصة الأوّل*
 
 أهلاً بحضرتك أ/ ${credentials?.parentName || 'ولي الأمر'}،

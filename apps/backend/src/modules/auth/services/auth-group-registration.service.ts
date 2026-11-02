@@ -10,7 +10,7 @@ import { Prisma, GroupEnrollmentStatus, UserRole, NotificationChannel, Notificat
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
-import { normalizeEgyptianPhone, arePhonesTooSimilar } from '../../../common/utils/phone.util';
+import { normalizeEgyptianPhone, arePhonesTooSimilar, formatLocalEgyptianPhone } from '../../../common/utils/phone.util';
 import { isSimilarStudentName } from '../../../common/utils/name.util';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
@@ -372,7 +372,10 @@ export class AuthGroupRegistrationService {
 
       const studentCode = studentUser.studentProfile?.studentCode || '';
       const parentPassText = generatedParentPassword || dto.password;
-      const directAccessLink = `https://al-awal.online/parent-access?phone=${encodeURIComponent(parentPhone)}&pass=${encodeURIComponent(parentPassText)}`;
+      const displayParentPhone = formatLocalEgyptianPhone(parentPhone);
+      const displayStudentPhone = formatLocalEgyptianPhone(phone);
+      const platformBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online').replace(/\/+$/, '');
+      const directAccessLink = `${platformBaseUrl}/parent-access?phone=${encodeURIComponent(displayParentPhone)}&pass=${encodeURIComponent(parentPassText)}`;
 
       const message = `🌟 مرحباً بك أ/ ${parentName}!
 تم تسجيل انضمام ابنكم/ابنتكم (${fullName}) بنجاح إلى:
@@ -381,13 +384,13 @@ export class AuthGroupRegistrationService {
 ━━━━━━━━━━━━━━━━━━━
 👤 *بيانات حساب الطالب:*
 ▫️ *كود الطالب:* ${studentCode}
-▫️ *رقم الدخول:* ${phone}
+▫️ *رقم الدخول:* ${displayStudentPhone}
 ▫️ *كلمة المرور:* ${dto.password}
-🔗 *رابط منصة الطالب:* https://al-awal.online/login
+🔗 *رابط منصة الطالب:* ${platformBaseUrl}/login
 
 ━━━━━━━━━━━━━━━━━━━
 👨‍👩‍👦 *بيانات حساب ولي الأمر (لمتابعة الحضور والدرجات والغياب):*
-▫️ *رقم الدخول:* ${parentPhone}
+▫️ *رقم الدخول:* ${displayParentPhone}
 ▫️ *كلمة المرور:* ${parentPassText}
 🔗 *رابط بوابة ولي الأمر المباشر:* ${directAccessLink}
 ━━━━━━━━━━━━━━━━━━━
