@@ -20,6 +20,8 @@ import toast from 'react-hot-toast';
 export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
   const isOnline = useOnlineStatus();
   const { data: assessment, isLoading, isError, error } = useAssessment(assessmentId);
+  const { mutate: updateAssessment, isPending: isUpdating } = useUpdateAssessment();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   if (!isOnline) {
     return (
@@ -30,8 +32,6 @@ export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
       />
     );
   }
-  const { mutate: updateAssessment, isPending: isUpdating } = useUpdateAssessment();
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   if (isLoading) {
     return (

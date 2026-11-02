@@ -33,6 +33,26 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
 
   const studentName = student?.fullName || 'الطالب';
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.location.hash) return;
+    const hash = window.location.hash.replace('#', '');
+    const targetId =
+      hash === 'finance'
+        ? 'child-finance'
+        : hash === 'attendance'
+        ? 'child-attendance'
+        : hash === 'assignments'
+        ? 'child-assignments'
+        : hash;
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) {
+      const timer = setTimeout(() => {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [studentId, overview]);
+
   if (isLoading) {
     return (
       <div className="space-y-4 py-4">
@@ -77,26 +97,6 @@ export function ChildDetailsView({ studentId, initialData }: ChildDetailsViewPro
   });
   const pendingAssignmentsCount = pendingAssignments.length;
   const currentHomework = pendingAssignments[0] || assignments[0];
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || !window.location.hash) return;
-    const hash = window.location.hash.replace('#', '');
-    const targetId =
-      hash === 'finance'
-        ? 'child-finance'
-        : hash === 'attendance'
-        ? 'child-attendance'
-        : hash === 'assignments'
-        ? 'child-assignments'
-        : hash;
-    const targetEl = document.getElementById(targetId);
-    if (targetEl) {
-      const timer = setTimeout(() => {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [studentId, overview]);
 
   return (
     <div className="space-y-6">

@@ -25,16 +25,6 @@ export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  if (!isOnline) {
-    return (
-      <FeatureRequiresOnlineCard
-        featureName="تسليمات الطلاب"
-        description="عرض وتصحيح تسليمات الطلاب يتطلب اتصالاً نشطاً بالخادم."
-        backHref="/teacher/dashboard"
-      />
-    );
-  }
-
   const filteredSubmissions = useMemo(() => {
     if (!submissions) return [];
     if (!searchQuery.trim()) return submissions;
@@ -51,6 +41,16 @@ export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredSubmissions.slice(start, start + PAGE_SIZE);
   }, [filteredSubmissions, currentPage]);
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="تسليمات الطلاب"
+        description="عرض وتصحيح تسليمات الطلاب يتطلب اتصالاً نشطاً بالخادم."
+        backHref="/teacher/dashboard"
+      />
+    );
+  }
 
   if (isLoading || isAssessmentLoading) {
     return (
